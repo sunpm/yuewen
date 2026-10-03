@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#F5EFE3" />
+    <meta
+      name="description"
+      content="阅纹，看见你的阅读轨迹。把微信读书的时间、书架与划线，整理成属于你的阅读档案。"
+    />
+    <link rel="icon" type="image/svg+xml" href="/brand/logo-mark-light.svg" />
+    <title>阅纹 · 随身阅读档案</title>
+    <script>
+      try {
+        if (localStorage.getItem('yuewen-theme') === 'dark')
+          document.documentElement.classList.add('dark')
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

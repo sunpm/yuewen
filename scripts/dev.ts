@@ -1,0 +1,13 @@
+import { spawn } from 'node:child_process'
+const children = ['dev:api', 'dev:web', 'dev:mobile'].map((script) =>
+  spawn('pnpm', [script], { stdio: 'inherit' }),
+)
+const stop = () => children.forEach((child) => child.kill('SIGTERM'))
+process.on('SIGINT', stop)
+process.on('SIGTERM', stop)
+children.forEach((child) =>
+  child.on('exit', (code) => {
+    stop()
+    process.exitCode = code ?? 0
+  }),
+)

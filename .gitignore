@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+/PLAN.md
+node_modules/
+dist/
+.netlify/
+test-results/
+playwright-report/
+web/src/auto-imports.d.ts
+web/src/components.d.ts
+web/src/route-map.d.ts
+*.tsbuildinfo
+web-mobile/src/auto-imports.d.ts
+web-mobile/src/components.d.ts

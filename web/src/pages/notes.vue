@@ -1,0 +1,1 @@
+<template><ReportView /></template>
