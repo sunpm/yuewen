@@ -24,10 +24,10 @@ export function useConnection() {
         personal.selectConnection(value)
         return
       }
-      const path = route.fullPath
+      const path = route.path
       try {
         const available = await api<Connections>('/connections')
-        if (route.fullPath !== path) return
+        if (route.path !== path || connection.value) return
         await router.replace({
           query: {
             ...route.query,
@@ -35,7 +35,7 @@ export function useConnection() {
           },
         })
       } catch {
-        if (route.fullPath === path)
+        if (route.path === path && !connection.value)
           await router.replace({ query: { ...route.query, connection: 'guest' } })
       }
     },

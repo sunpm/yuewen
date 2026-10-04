@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { getDb } from '../../server/db'
-export default async () => {
+export default async (_request: Request, context?: { deploy: { context: string } }) => {
+  if (context?.deploy.context !== 'production') return new Response(null, { status: 204 })
   if (!process.env.DATABASE_URL) return new Response(null, { status: 204 })
   const db = getDb()
   await db.execute(

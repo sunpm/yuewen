@@ -103,7 +103,7 @@
 
 相同账号和 `requestId` 的重试优先读取 `connection_save`，不再要求已撤销的游客 Cookie；仍核验原 `reportId`、当前登录会话、报告期限及 Key 版本。原结果已变化返回 `SAVE_RESULT_EXPIRED`，不恢复已删除内容。首次提交时报告变化返回 `SAVE_TARGET_CHANGED`。前端在保存确认期间暂停采集与自动过期跳转，成功后使用回执确认的范围恢复账号报告。
 
-创建游客连接、报告及详情使用数据库共享限流；来源桶仅信任 Netlify 边缘注入的客户端 IP，其他宿主使用公共桶，不信任任意 `X-Forwarded-For`。限流日期参数显式编码为 PostgreSQL 时间戳。
+创建游客连接、报告及详情使用数据库共享限流；来源桶仅信任 Netlify Functions `context.ip`，不读取客户端 IP 请求头，其他宿主使用公共桶，不信任任意 `X-Forwarded-For`。限流日期参数显式编码为 PostgreSQL 时间戳。
 
 ## 扩展指标
 

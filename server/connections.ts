@@ -19,7 +19,10 @@ import { decryptKey, encryptKey, keyring } from './crypto'
 import { AppError, weread } from './weread'
 
 export type Access = { kind: 'guest' | 'account'; ownerId: string; sessionId: string }
-export type AppEnv = { Variables: { access: Access; requestId: string } }
+export type AppEnv = {
+  Bindings: { clientIp?: string }
+  Variables: { access: Access; requestId: string }
+}
 export type Transaction = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0]
 const cookie = 'yuewen-guest'
 const hash = (value: string) => createHash('sha256').update(value).digest('hex')
@@ -94,12 +97,9 @@ export async function limit(key: string, maximum: number, windowSeconds: number)
     .returning()
   if (row.count > maximum) throw new AppError('RATE_LIMIT', '操作过于频繁，请稍后重试。', 429, true)
 }
-export async function limitSource(c: Context, action: string, maximum: number) {
-  // Netlify supplies this header at its trusted edge. Other hosts share one bucket.
-  const source =
-    process.env.NETLIFY === 'true'
-      ? (c.req.header('x-nf-client-connection-ip') ?? 'unknown')
-      : 'local'
+export async function limitSource(c: Context<AppEnv>, action: string, maximum: number) {
+  // Only the platform Context supplies IP metadata; client headers are not trusted.
+  const source = c.env?.clientIp ?? 'local'
   await limit(`source:${action}:${hash(source)}`, maximum, 60)
 }
 export async function accountSession(c: Context) {
