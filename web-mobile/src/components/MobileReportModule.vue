@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { ReportModule } from '@shared/report'
 import { periodCells } from '@shared/report'
+import AuthorRanking from '@client/components/AuthorRanking.vue'
 defineProps<{ module: ReportModule; generatedAt?: string }>()
 defineEmits<{ select: [label: string] }>()
 const open = ref(false)
 const trigger = ref<HTMLButtonElement>()
 const Chart = defineAsyncComponent(() => import('@client/components/ReportChart.vue'))
+const Words = defineAsyncComponent(() => import('@client/components/WordCloud.vue'))
 const labels = ['阅读时长', '阅读天数', '读过', '读完', '笔记']
 </script>
 <template>
@@ -41,17 +43,8 @@ const labels = ['阅读时长', '阅读天数', '读过', '读完', '笔记']
         </dl>
       </section>
     </div>
-    <div v-else-if="module.kind === 'words'" class="mobile-words">
-      <small>单位：{{ module.unit }}</small>
-      <span
-        v-for="word in module.data"
-        :key="word.label"
-        :title="`${word.value} ${module.unit}`"
-        :style="{ fontSize: `${Math.min(28, 13 + word.value)}px` }"
-      >
-        {{ word.label }}
-      </span>
-    </div>
+    <AuthorRanking v-else-if="module.kind === 'authors'" :data="module.data" />
+    <Words v-else-if="module.kind === 'words'" :module="module" />
     <div v-else-if="module.kind === 'table'" class="module-key-values">
       <div v-for="row in module.data.slice(0, 8)" :key="row.label">
         <span>{{ row.label }}</span>
@@ -76,7 +69,7 @@ const labels = ['阅读时长', '阅读天数', '读过', '读完', '笔记']
         <van-icon name="cross" />
       </button>
       <h2>{{ module.title }}</h2>
-      <p>{{ module.description }}</p>
+      <p v-if="module.description">{{ module.description }}</p>
       <dl class="module-metadata">
         <div>
           <dt>实际范围</dt>
@@ -96,7 +89,7 @@ const labels = ['阅读时长', '阅读天数', '读过', '读完', '笔记']
             {{ new Date(generatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) }}
           </dd>
         </div>
-        <div>
+        <div v-if="module.coverage.reason || module.description">
           <dt>来源说明</dt>
           <dd>{{ module.coverage.reason || module.description }}</dd>
         </div>
@@ -119,8 +112,9 @@ const labels = ['阅读时长', '阅读天数', '读过', '读完', '笔记']
       <table v-else-if="module.data.length">
         <thead>
           <tr>
-            <th>项目</th>
-            <th>数值与单位</th>
+            <th>{{ module.kind === 'authors' ? '作者' : '项目' }}</th>
+            <th>{{ module.kind === 'authors' ? '阅读本数' : '数值与单位' }}</th>
+            <th v-if="module.kind === 'authors'">阅读时长</th>
             <th v-if="module.kind === 'scatter'">进度 %</th>
           </tr>
         </thead>
@@ -135,6 +129,7 @@ const labels = ['阅读时长', '阅读天数', '读过', '读完', '笔记']
               }}
             </td>
             <td v-if="module.kind === 'scatter'">{{ row.secondary ?? '—' }}</td>
+            <td v-if="module.kind === 'authors'">{{ row.readTime || '—' }}</td>
           </tr>
         </tbody>
       </table>

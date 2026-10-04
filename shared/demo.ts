@@ -8,6 +8,7 @@ import {
   shanghaiDate,
   wordFrequency,
   bookCategory,
+  duration,
 } from './report'
 import type { Book, Datum, Note, RangeKey, ReadingReport } from './report'
 
@@ -254,12 +255,21 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
     '相对最高分类的权重，不是百分比。',
     prefScope,
   )
-  set(11, categoryHours, '分类阅读时长。', prefScope)
+  set(11, categoryHours, '', prefScope)
   set(12, categoryHours, '面积表示分类时长。', prefScope)
   set(
     13,
-    group(preferenceBooks.filter((b) => b.seconds).map((b) => ({ label: b.author, value: 1 }))),
-    '作者对应的阅读本数；不解析格式化时长。',
+    group(preferenceBooks.filter((b) => b.seconds).map((b) => ({ label: b.author, value: 1 })))
+      .map((author) => ({
+        ...author,
+        readTime: duration(
+          preferenceBooks
+            .filter((b) => b.author === author.label)
+            .reduce((sum, b) => sum + b.seconds, 0),
+        ),
+      }))
+      .sort((a, b) => b.value - a.value),
+    '本数与时长来自模拟阅读记录。',
     prefScope,
   )
   set(14, [], '公开书目未核验出版社，不生成虚构出版社偏好。', prefScope)
@@ -270,14 +280,14 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
       { label: '文字阅读', value: (seconds - listen) / 3600 },
       { label: '听书', value: listen / 3600 },
     ],
-    '阅读和收听的时长占比。',
+    '',
   )
   set(
     16,
     group(books.map((b) => ({ label: b.kind === 'audio' ? '有声书' : '电子书', value: 1 }))),
     '文章收藏仅按一个入口计算。',
   )
-  set(17, group(books.map((b) => ({ label: b.category, value: 1 }))), '当前书架的分类快照。')
+  set(17, group(books.map((b) => ({ label: b.category, value: 1 }))), '')
   set(
     18,
     group(
@@ -288,11 +298,7 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
     ),
     '有声内容完结状态不等于用户读完。',
   )
-  set(
-    19,
-    group(books.map((b) => ({ label: b.secret ? '私密阅读' : '公开阅读', value: 1 }))),
-    '按当前书架逐项统计。',
-  )
+  set(19, group(books.map((b) => ({ label: b.secret ? '私密阅读' : '公开阅读', value: 1 }))), '')
   set(
     20,
     group(books.map((b) => ({ label: b.archive!, value: 1 }))),

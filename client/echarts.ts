@@ -10,7 +10,6 @@ import {
 } from 'echarts/charts'
 import {
   GridComponent,
-  GraphicComponent,
   TooltipComponent,
   LegendComponent,
   RadarComponent,
@@ -29,7 +28,6 @@ use([
   HeatmapChart,
   ScatterChart,
   GridComponent,
-  GraphicComponent,
   TooltipComponent,
   LegendComponent,
   RadarComponent,

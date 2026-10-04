@@ -507,9 +507,14 @@ export function buildReport(state: CollectorState): ReadingReport {
     Array.isArray(pref?.preferAuthor)
       ? arr(pref.preferAuthor)
           .filter((a) => num(a.count) != null)
-          .map((a) => ({ label: `${str(a.name)} · ${str(a.readTime)}`, value: Number(a.count) }))
+          .map((a) => ({
+            label: str(a.name),
+            value: Number(a.count),
+            readTime: str(a.readTime).trim() || undefined,
+          }))
+          .sort((a, b) => b.value - a.value)
       : null,
-    '作者时长是格式化文字，图中使用阅读本数。未达展示阈值时不返回。',
+    '仅含上游返回的作者，榜单可能截断；未达展示阈值不代表零。',
     prefScope,
   )
   set(

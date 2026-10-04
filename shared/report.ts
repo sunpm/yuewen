@@ -45,6 +45,7 @@ export interface Note {
 export interface Datum {
   label: string
   value: number
+  readTime?: string
   secondary?: number
   group?: string
   unit?: string
@@ -69,7 +70,17 @@ export interface ReportModule {
   title: string
   section: '时间' | '偏好' | '书架' | '笔记'
   unit: string
-  kind: 'line' | 'bar' | 'donut' | 'radar' | 'treemap' | 'heatmap' | 'scatter' | 'words' | 'table'
+  kind:
+    | 'line'
+    | 'bar'
+    | 'donut'
+    | 'radar'
+    | 'treemap'
+    | 'heatmap'
+    | 'scatter'
+    | 'words'
+    | 'table'
+    | 'authors'
   scope: string
   status: 'ready' | 'empty' | 'unavailable' | 'partial'
   description: string
@@ -199,7 +210,7 @@ export const catalog = [
   ['分类偏好雷达', '偏好', '相对权重', 'radar'],
   ['分类时长排行', '偏好', '小时', 'bar'],
   ['分类阅读树图', '偏好', '小时', 'treemap'],
-  ['作者偏好', '偏好', '本', 'bar'],
+  ['作者偏好', '偏好', '本', 'authors'],
   ['出版社偏好', '偏好', '本', 'bar'],
   ['阅读与听书', '时间', '小时', 'donut'],
   ['书架内容类型', '书架', '项', 'donut'],

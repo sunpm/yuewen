@@ -499,14 +499,6 @@ h2 {
 .mobile-data th:first-child {
   width: 64%;
 }
-.mobile-words {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 30px 0;
-}
 .mobile-quote {
   padding: 28px 26px;
   border-block: 1px solid var(--line);
@@ -870,10 +862,6 @@ h2 {
 .mobile-brand span {
   line-height: 1;
   transform: translateY(-1px);
-}
-.mobile-words > small {
-  width: 100%;
-  font-size: 12px;
 }
 
 .dark .mobile-sheet,

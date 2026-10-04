@@ -47,6 +47,17 @@ onMounted(async () => {
   chart.on('click', (p) => {
     if (p.name) emit('select', p.name)
   })
+  // Small radar values make the filled area too narrow to hit reliably on touch screens.
+  const showRadar = (event: { offsetX: number; offsetY: number }) => {
+    if (props.module.kind === 'radar')
+      chart?.dispatchAction({
+        type: 'showTip',
+        seriesIndex: 0,
+        dataIndex: 0,
+        position: [event.offsetX, event.offsetY],
+      })
+  }
+  chart.getZr().on('mousemove', showRadar).on('click', showRadar)
   observer = new ResizeObserver(() => {
     width.value = viewport.value?.clientWidth ?? 0
   })
