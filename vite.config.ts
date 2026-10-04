@@ -11,7 +11,9 @@ export default defineConfig({
   root: 'web',
   cacheDir: fileURLToPath(new URL('./node_modules/.vite-web', import.meta.url)),
   optimizeDeps: {
+    exclude: ['@napi-rs/canvas'],
     include: [
+      'd3-cloud',
       'echarts/core',
       'echarts/charts',
       'echarts/components',

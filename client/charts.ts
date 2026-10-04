@@ -28,27 +28,20 @@ export function chartOption(
     ? ['#B8C58A', '#C4AA73', '#879B7D', '#B7B09B']
     : ['#4F5B2A', '#B8892D', '#8c976a', '#D8C9A8']
   const tooltip = {
+    confine: true,
+    triggerOn: 'mousemove|click|mousewheel' as const,
     renderMode: 'richText' as const,
     backgroundColor: dark ? '#272a2d' : '#FAF6ED',
     borderColor: line,
     textStyle: { color: dark ? '#E4E7DA' : ink, fontFamily: readingFont },
-    valueFormatter: (value: unknown) => `${value} ${module.unit}`,
+    valueFormatter: (value: unknown) =>
+      `${typeof value === 'number' ? value.toLocaleString('zh-CN', { maximumFractionDigits: 1 }) : value} ${module.unit}`,
   }
   const data =
     module.kind === 'bar' && module.data.length > 12 && !/^\d{4}/.test(module.data[0]?.label ?? '')
       ? [...module.data].sort((a, b) => b.value - a.value).slice(0, 12)
       : module.data
   const base: EChartsOption = {
-    graphic: ['donut', 'radar', 'treemap'].includes(module.kind)
-      ? [
-          {
-            type: 'text',
-            left: 8,
-            top: 8,
-            style: { text: `单位：${module.unit}`, fill: ink, font: `12px ${readingFont}` },
-          },
-        ]
-      : [],
     animationDuration: 250,
     textStyle: { color: ink, fontFamily: readingFont },
     color: palette,
@@ -81,6 +74,16 @@ export function chartOption(
   if (module.kind === 'radar')
     return {
       ...base,
+      tooltip: {
+        ...tooltip,
+        formatter: () =>
+          data
+            .map(
+              (d) =>
+                `${d.label}：${d.value.toLocaleString('zh-CN', { maximumFractionDigits: 1 })} ${module.unit}`,
+            )
+            .join('\n'),
+      },
       radar: {
         indicator: data.map((d) => ({
           name: d.label,
@@ -93,7 +96,12 @@ export function chartOption(
         radius: '60%',
       },
       series: [
-        { type: 'radar', data: [{ value: data.map((d) => d.value) }], areaStyle: { opacity: 0.2 } },
+        {
+          type: 'radar',
+          name: module.title,
+          data: [{ name: module.title, value: values.map((d) => d.value) }],
+          areaStyle: { opacity: 0.2 },
+        },
       ],
     }
   if (module.kind === 'treemap')
@@ -259,7 +267,8 @@ export function chartOption(
   return {
     ...base,
     tooltip: { ...tooltip, trigger: 'axis', confine: true },
-    xAxis: horizontal ? numeric : category,
+    grid: { ...base.grid, bottom: horizontal ? 52 : 24 },
+    xAxis: horizontal ? { ...numeric, nameLocation: 'middle', nameGap: 28 } : category,
     yAxis: horizontal ? { ...category, inverse: true } : numeric,
     series: [
       {

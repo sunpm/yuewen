@@ -15,7 +15,9 @@ export default defineConfig({
   cacheDir: fileURLToPath(new URL('./node_modules/.vite-mobile', import.meta.url)),
   base: '/m/',
   optimizeDeps: {
+    exclude: ['@napi-rs/canvas'],
     include: [
+      'd3-cloud',
       'echarts/core',
       'echarts/charts',
       'echarts/components',

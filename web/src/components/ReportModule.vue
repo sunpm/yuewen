@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ReportModule } from '@shared/report'
 import { periodCells } from '@shared/report'
+import AuthorRanking from '@client/components/AuthorRanking.vue'
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ import {
 defineProps<{ module: ReportModule; generatedAt?: string }>()
 defineEmits<{ select: [label: string] }>()
 const Chart = defineAsyncComponent(() => import('@client/components/ReportChart.vue'))
+const Words = defineAsyncComponent(() => import('@client/components/WordCloud.vue'))
 </script>
 <template>
   <article
@@ -32,7 +34,7 @@ const Chart = defineAsyncComponent(() => import('@client/components/ReportChart.
         <DialogTrigger class="text-link module-more">查看更多</DialogTrigger>
         <DialogContent class="module-dialog">
           <DialogTitle>{{ module.title }}</DialogTitle>
-          <DialogDescription>{{ module.description }}</DialogDescription>
+          <DialogDescription>{{ module.description || module.scope }}</DialogDescription>
           <dl class="module-metadata">
             <div>
               <dt>实际范围</dt>
@@ -52,7 +54,7 @@ const Chart = defineAsyncComponent(() => import('@client/components/ReportChart.
                 {{ new Date(generatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) }}
               </dd>
             </div>
-            <div>
+            <div v-if="module.coverage.reason || module.description">
               <dt>来源说明</dt>
               <dd>{{ module.coverage.reason || module.description }}</dd>
             </div>
@@ -91,8 +93,9 @@ const Chart = defineAsyncComponent(() => import('@client/components/ReportChart.
           <Table v-else-if="module.data.length">
             <TableHeader>
               <TableRow>
-                <TableHead>项目</TableHead>
-                <TableHead>数值与单位</TableHead>
+                <TableHead>{{ module.kind === 'authors' ? '作者' : '项目' }}</TableHead>
+                <TableHead>{{ module.kind === 'authors' ? '阅读本数' : '数值与单位' }}</TableHead>
+                <TableHead v-if="module.kind === 'authors'">阅读时长</TableHead>
                 <TableHead v-if="module.kind === 'scatter'">进度 %</TableHead>
               </TableRow>
             </TableHeader>
@@ -107,6 +110,7 @@ const Chart = defineAsyncComponent(() => import('@client/components/ReportChart.
                   }}
                 </TableCell>
                 <TableCell v-if="module.kind === 'scatter'">{{ row.secondary ?? '—' }}</TableCell>
+                <TableCell v-if="module.kind === 'authors'">{{ row.readTime || '—' }}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -142,17 +146,8 @@ const Chart = defineAsyncComponent(() => import('@client/components/ReportChart.
         </TableRow>
       </TableBody>
     </Table>
-    <div v-else-if="module.kind === 'words'" class="word-cloud">
-      <small>单位：{{ module.unit }}</small>
-      <span
-        v-for="(word, i) in module.data"
-        :key="word.label"
-        :title="`${word.value} ${module.unit}`"
-        :style="{ fontSize: `${Math.min(30, 13 + word.value)}px`, opacity: 1 - (i % 3) * 0.12 }"
-      >
-        {{ word.label }}
-      </span>
-    </div>
+    <AuthorRanking v-else-if="module.kind === 'authors'" :data="module.data" />
+    <Words v-else-if="module.kind === 'words'" :module="module" />
     <div v-else-if="module.kind === 'table'" class="module-rows">
       <div v-for="row in module.data.slice(0, 8)" :key="row.label">
         <span>{{ row.label }}</span>
