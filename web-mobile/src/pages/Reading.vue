@@ -2,6 +2,7 @@
 import { duration, mergeBookDetail } from '@shared/report'
 import type { Book, RangeKey } from '@shared/report'
 import { useReadingReport } from '@client/useReadingReport'
+import { useReportViewState } from '@client/useReportViewState'
 import { showToast } from 'vant'
 import 'vant/es/toast/style'
 const route = useRoute(),
@@ -132,7 +133,14 @@ const noteTypes = [
   { text: '想法', value: 'thought' },
 ]
 watch(
-  () => [route.path, route.query.view, route.query.book, route.query.month],
+  () => [
+    route.path,
+    route.query.view,
+    route.query.book,
+    route.query.month,
+    source.value,
+    range.value,
+  ],
   () => {
     search.value = ''
     category.value = '全部'
@@ -144,9 +152,17 @@ watch(
   },
   { immediate: true },
 )
-watch([search, noteBook, noteType, month], () => {
-  noteLimit.value = 24
-})
+watch(
+  [search, noteBook, noteType, month],
+  () => {
+    noteLimit.value = 24
+  },
+  { flush: 'sync' },
+)
+useReportViewState(
+  { search, category, kind, sort, noteBook, noteType, month, section, noteLimit },
+  busy,
+)
 watch(errorCode, (code) => {
   if (code === 'AUTH_REQUIRED')
     void router.replace({ path: '/login', query: { next: route.fullPath } })

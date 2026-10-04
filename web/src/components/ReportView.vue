@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useReadingReport } from '@client/useReadingReport'
+import { useReportViewState } from '@client/useReportViewState'
 const route = useRoute(),
   router = useRouter()
 const isDemo = computed(() => route.path === '/demo')
@@ -133,7 +134,7 @@ const rangeChanged = () => {
   month.value = ''
 }
 watch(
-  () => [route.path, view.value, route.query.book, route.query.month],
+  () => [route.path, view.value, route.query.book, route.query.month, source.value, range.value],
   () => {
     search.value = ''
     category.value = typeof route.query.book === 'string' ? route.query.book : '全部'
@@ -147,9 +148,17 @@ watch(errorCode, (code) => {
   if (code === 'AUTH_REQUIRED')
     void router.replace({ path: '/login', query: { next: route.fullPath } })
 })
-watch([search, category, noteType, month], () => {
-  noteLimit.value = 24
-})
+watch(
+  [search, category, noteType, month],
+  () => {
+    noteLimit.value = 24
+  },
+  { flush: 'sync' },
+)
+useReportViewState(
+  { search, category, noteType, month, sort, list, reportSection, noteLimit },
+  busy,
+)
 async function openBook(book: Book) {
   selected.value = book
   detailsOpen.value = true
