@@ -11,11 +11,10 @@ const labels = ['阅读时长', '阅读天数', '读过', '读完', '笔记']
 <template>
   <article class="mobile-module" :data-module="module.id">
     <header class="module-top">
-      <p class="eyebrow">{{ String(module.id).padStart(2, '0') }} / {{ module.section }}</p>
+      <h3>{{ module.title }}</h3>
       <button ref="trigger" class="text-button" @click="open = true">查看更多</button>
     </header>
-    <h2>{{ module.title }}</h2>
-    <p class="module-description">{{ module.description }}</p>
+    <p v-if="module.description" class="module-description">{{ module.description }}</p>
     <p v-if="module.section !== '时间'" class="module-scope">
       {{
         module.section === '书架'

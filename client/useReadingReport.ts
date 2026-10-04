@@ -2,7 +2,7 @@ import { computed, ref, shallowRef, watch, onMounted, onBeforeUnmount } from 'vu
 import type { Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { Book, RangeKey } from '@shared/report'
-import { isRangeKey, shanghaiDate } from '@shared/report'
+import { getRange, isRangeKey, shanghaiDate } from '@shared/report'
 import { createDemo } from '@shared/demo'
 import { useReport } from './useReport'
 import type { ReportTask } from './useReport'
@@ -62,6 +62,23 @@ export function useReadingReport(demo: Ref<boolean>) {
     source.value === 'account' ? personal.errorCode.value : localCode.value,
   )
   const isSample = computed(() => source.value === 'sample')
+  const displayRange = computed(() => report.value?.range ?? getRange(range.value))
+  const collectionStatus = computed(() => {
+    if (busy.value)
+      return task.value &&
+        !['queued', 'running'].includes(task.value.status) &&
+        !task.value.notesComplete
+        ? '正在补齐笔记'
+        : '正在读取'
+    if (source.value === 'account' && personal.conflict.value) return '等待替换确认'
+    if (error.value) return '读取未完成'
+    if (isSample.value) return '已完成'
+    if (!task.value) return '尚未读取'
+    if (task.value.status === 'failed') return '读取失败'
+    if (['cancelled', 'running', 'queued'].includes(task.value.status)) return '已停止'
+    if (!task.value.notesComplete) return '笔记待补齐'
+    return report.value?.coverage.complete ? '已完成' : '部分数据'
+  })
   const sourceLabel = computed(
     () =>
       ({ account: '我的阅读档案', development: '本地开发数据', sample: '模拟示例' })[source.value],
@@ -167,6 +184,8 @@ export function useReadingReport(demo: Ref<boolean>) {
   })
   return {
     range,
+    displayRange,
+    collectionStatus,
     years,
     conflict: computed(() => (source.value === 'account' ? personal.conflict.value : null)),
     confirmReplacement: personal.confirmReplacement,

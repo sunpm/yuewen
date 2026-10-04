@@ -5,6 +5,7 @@ import { app, parseRange } from './app'
 import { advanceCollector, buildReport, newCollector, num, obj, str } from './collector'
 import type { CollectorState } from './collector'
 import { AppError, weread } from './weread'
+import { bookCategory } from '../shared/report'
 
 // This router is never imported by the production Functions entry.
 const local = new Hono()
@@ -116,7 +117,7 @@ local.get('/api/dev/books/:id', async (c) => {
     cover: str(info.cover) || undefined,
     publisher: str(info.publisher),
     description: str(info.intro),
-    category: str(info.category) || undefined,
+    ...(str(info.category).trim() ? bookCategory(str(info.category)) : {}),
     progress: num(obj(progress.book).progress),
   })
 })

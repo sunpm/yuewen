@@ -15,6 +15,8 @@ export interface Book {
   title: string
   author: string
   category: string
+  rawCategory?: string
+  imported?: boolean
   publisher?: string
   cover?: string
   kind: 'book' | 'audio' | 'article'
@@ -38,8 +40,6 @@ export interface Note {
   type: 'highlight' | 'thought'
   abstract?: string
   chapterUid?: number
-  range?: string
-  page?: number
   demoText?: boolean
 }
 export interface Datum {
@@ -271,13 +271,41 @@ export function wordFrequency(notes: Note[]): Datum[] {
     .slice(0, 40)
 }
 
-export function noteLocation(note: Note): string {
-  return [note.chapter, note.page != null ? `第 ${note.page} 页` : positionLabel(note.range)]
-    .filter(Boolean)
-    .join(' · ')
+export function bookCategory(value?: string): Pick<Book, 'category' | 'rawCategory' | 'imported'> {
+  const rawCategory = value?.trim() || undefined
+  const imported = !rawCategory || ['未分类', '导入书籍'].includes(rawCategory)
+  return {
+    category: imported ? '导入书籍' : rawCategory.split('-')[0].trim(),
+    rawCategory,
+    imported,
+  }
 }
-function positionLabel(range?: string): string {
-  return range ? `位置 ${range.replace(/^(\d+)-(\d+)$/, '$1–$2')}` : ''
+export function mergeBookDetail(book: Book, detail: Partial<Book>): Book {
+  return {
+    ...book,
+    ...Object.fromEntries(
+      Object.entries(detail).filter(([, v]) => v != null && (typeof v !== 'string' || v.trim())),
+    ),
+    category: book.category,
+    rawCategory: book.rawCategory,
+    imported: book.imported,
+  }
+}
+export function normalizeNote(note: Note): Note {
+  // Explicit fields also strip obsolete position fields from saved collector states and exports.
+  return {
+    id: note.id,
+    bookId: note.bookId,
+    title: note.title,
+    author: note.author,
+    chapter: note.chapter?.trim() || undefined,
+    date: note.date,
+    text: note.text,
+    type: note.type,
+    abstract: note.abstract,
+    chapterUid: note.chapterUid,
+    demoText: note.demoText,
+  }
 }
 export function periodCells(period: PeriodStatistics) {
   return [
