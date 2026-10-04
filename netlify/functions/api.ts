@@ -4,4 +4,3 @@ export default (request: Request) => {
   url.pathname = url.pathname.replace(/^\/\.netlify\/functions\/api/, '')
   return app.fetch(new Request(url, request))
 }
-export const config = { path: '/api/*' }
