@@ -128,8 +128,12 @@ const Words = defineAsyncComponent(() => import('@client/components/WordCloud.vu
             : module.scope.replace(/\d{4}-\d{2}-\d{2}/g, '').trim()
       }}
     </p>
+    <p v-if="module.status === 'partial'" class="module-coverage">
+      部分覆盖 · {{ module.coverage.reason || '当前仅展示已采集数据，完整范围见明细。' }}
+    </p>
     <div v-if="['unavailable', 'empty'].includes(module.status)" class="chart-empty">
-      {{ module.status === 'empty' ? '这个范围内还没有记录' : '当前数据暂不可用' }}
+      <p>{{ module.status === 'empty' ? '这个范围内还没有记录' : '当前数据暂不可用' }}</p>
+      <p v-if="module.coverage.reason">{{ module.coverage.reason }}</p>
     </div>
     <Table v-else-if="module.periods?.length" class="period-table">
       <TableHeader>
