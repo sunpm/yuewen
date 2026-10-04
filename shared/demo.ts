@@ -301,7 +301,7 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
   set(19, group(books.map((b) => ({ label: b.secret ? '私密阅读' : '公开阅读', value: 1 }))), '')
   set(
     20,
-    group(books.map((b) => ({ label: b.archive!, value: 1 }))),
+    group(books.flatMap((b) => (b.archive ? [{ label: b.archive, value: 1 }] : []))),
     '书单可重叠；这里是示例书单。',
   )
   set(
