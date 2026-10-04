@@ -15,6 +15,13 @@
       "when": 1791100633501,
       "tag": "0001_slim_ultimatum",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791108335342,
+      "tag": "0002_nasty_black_knight",
+      "breakpoints": true
     }
   ]
 }

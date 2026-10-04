@@ -23,8 +23,8 @@ const demo = createDemo()
       </p>
       <div class="hero-actions">
         <Button as-child>
-          <RouterLink to="/login">
-            开启我的阅读档案
+          <RouterLink to="/settings">
+            查看我的阅读
             <span aria-hidden="true">↗</span>
           </RouterLink>
         </Button>
@@ -101,12 +101,12 @@ const demo = createDemo()
     <p class="eyebrow">从一次连接开始</p>
     <h2>读过的路，值得回望。</h2>
     <p>
-      登录后连接你自己的微信读书 API Key。
+      无需登录，连接自己的微信读书 API Key 即可查看与下载。
       <br />
       Key 加密保存，临时报告可随时清除，也可以下载留存。
     </p>
     <Button as-child>
-      <RouterLink to="/login">
+      <RouterLink to="/settings">
         开始记录
         <span aria-hidden="true">↗</span>
       </RouterLink>

@@ -7,9 +7,11 @@ import { createDemo } from '@shared/demo'
 import { useReport } from './useReport'
 import type { ReportTask } from './useReport'
 import { api, ApiError } from './api'
+import { useConnection } from './useConnection'
 
 export function useReadingReport(demo: Ref<boolean>) {
   const personal = useReport()
+  const { connection } = useConnection()
   const route = useRoute(),
     router = useRouter()
   const range = computed<RangeKey>({
@@ -39,7 +41,7 @@ export function useReadingReport(demo: Ref<boolean>) {
   )
   const source = computed(() =>
     !demo.value
-      ? 'account'
+      ? (connection.value ?? 'pending')
       : import.meta.env.DEV && route.query.source !== 'mock'
         ? 'development'
         : 'sample',
@@ -50,16 +52,20 @@ export function useReadingReport(demo: Ref<boolean>) {
     localCode = ref('')
   const simulated = computed(() => createDemo(range.value))
   const task = computed(() => {
-    const current = source.value === 'account' ? personal.task.value : localTask.value
+    const current = ['account', 'guest'].includes(source.value)
+      ? personal.task.value
+      : localTask.value
     return current?.report.range.key === range.value ? current : null
   })
   const report = computed(() => (source.value === 'sample' ? simulated.value : task.value?.report))
-  const busy = computed(() => (source.value === 'account' ? personal.busy.value : localBusy.value))
+  const busy = computed(() =>
+    ['account', 'guest'].includes(source.value) ? personal.busy.value : localBusy.value,
+  )
   const error = computed(() =>
-    source.value === 'account' ? personal.error.value : localError.value,
+    ['account', 'guest'].includes(source.value) ? personal.error.value : localError.value,
   )
   const errorCode = computed(() =>
-    source.value === 'account' ? personal.errorCode.value : localCode.value,
+    ['account', 'guest'].includes(source.value) ? personal.errorCode.value : localCode.value,
   )
   const isSample = computed(() => source.value === 'sample')
   const displayRange = computed(() => report.value?.range ?? getRange(range.value))
@@ -70,7 +76,8 @@ export function useReadingReport(demo: Ref<boolean>) {
         !task.value.notesComplete
         ? '正在补齐笔记'
         : '正在读取'
-    if (source.value === 'account' && personal.conflict.value) return '等待替换确认'
+    if (['account', 'guest'].includes(source.value) && personal.conflict.value)
+      return '等待替换确认'
     if (error.value) return '读取未完成'
     if (isSample.value) return '已完成'
     if (!task.value) return '尚未读取'
@@ -81,7 +88,13 @@ export function useReadingReport(demo: Ref<boolean>) {
   })
   const sourceLabel = computed(
     () =>
-      ({ account: '我的阅读档案', development: '本地开发数据', sample: '模拟示例' })[source.value],
+      ({
+        account: '账号连接',
+        guest: '临时连接',
+        pending: '正在恢复连接',
+        development: '本地开发数据',
+        sample: '模拟示例',
+      })[source.value],
   )
   const canUseDevelopment = import.meta.env.DEV
   let generation = 0
@@ -92,8 +105,10 @@ export function useReadingReport(demo: Ref<boolean>) {
     personal.suspend()
   }
   async function collect(key: RangeKey, fresh = false, action?: string, automatic = false) {
-    if (source.value === 'account') return personal.collect(key, fresh, false, automatic)
-    if (source.value === 'sample') return
+    if (route.query.save) return
+    if (['account', 'guest'].includes(source.value))
+      return personal.collect(key, fresh, false, automatic)
+    if (['sample', 'pending'].includes(source.value)) return
     const run = ++generation
     localBusy.value = true
     localError.value = ''
@@ -124,6 +139,10 @@ export function useReadingReport(demo: Ref<boolean>) {
         }
         if (run !== generation) return
         localTask.value = next
+        if (next.issueCode) {
+          localCode.value = next.issueCode
+          localError.value = next.report.issues[0] ?? '采集已停止，已有结果可下载。'
+        }
         fresh = false
         action = undefined
       } while (run === generation && (!localTask.value || localTask.value.status === 'running'))
@@ -140,20 +159,25 @@ export function useReadingReport(demo: Ref<boolean>) {
     }
   }
   async function cancel() {
-    if (source.value === 'account') return personal.cancel()
+    if (['account', 'guest'].includes(source.value)) return personal.cancel()
     suspend()
   }
   async function retry() {
-    if (source.value === 'account') return personal.retry()
+    if (['account', 'guest'].includes(source.value)) return personal.retry()
     return collect(range.value, false, 'retry')
   }
   function touch() {
-    if (source.value === 'account') void personal.touch()
+    if (!route.query.save && ['account', 'guest'].includes(source.value)) void personal.touch()
   }
   const bookDetail = (id: string) =>
     api<Partial<Book>>(
       `${source.value === 'development' ? '/dev' : ''}/books/${encodeURIComponent(id)}`,
-      { headers: source.value === 'development' ? headers : {} },
+      {
+        headers:
+          source.value === 'development'
+            ? headers
+            : { 'X-Yuewen-Connection': connection.value ?? 'guest' },
+      },
     )
   function switchSample() {
     return router.replace({
@@ -161,7 +185,7 @@ export function useReadingReport(demo: Ref<boolean>) {
     })
   }
   watch(
-    [source, range],
+    [source, range, () => route.query.save],
     () => {
       suspend()
       localTask.value = null
@@ -169,12 +193,16 @@ export function useReadingReport(demo: Ref<boolean>) {
       localCode.value = ''
       if (personal.conflict.value)
         personal.conflict.value = { ...personal.conflict.value, key: range.value }
-      void collect(range.value, false, undefined, true)
+      if (!route.query.save) void collect(range.value, false, undefined, true)
     },
     { immediate: true },
   )
   function checkVisibleReport() {
-    if (document.visibilityState === 'visible' && source.value === 'account')
+    if (
+      !route.query.save &&
+      document.visibilityState === 'visible' &&
+      ['account', 'guest'].includes(source.value)
+    )
       void personal.touch(true)
   }
   onMounted(() => document.addEventListener('visibilitychange', checkVisibleReport))
@@ -187,7 +215,9 @@ export function useReadingReport(demo: Ref<boolean>) {
     displayRange,
     collectionStatus,
     years,
-    conflict: computed(() => (source.value === 'account' ? personal.conflict.value : null)),
+    conflict: computed(() =>
+      ['account', 'guest'].includes(source.value) ? personal.conflict.value : null,
+    ),
     confirmReplacement: personal.confirmReplacement,
     dismissConflict: personal.dismissConflict,
     task,

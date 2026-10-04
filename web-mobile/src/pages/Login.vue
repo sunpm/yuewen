@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import FeedbackLink from '@client/components/FeedbackLink.vue'
 import { useLogin } from '@client/useLogin'
 const {
+  returnTo,
   email,
   otp,
   password,
@@ -17,6 +19,7 @@ const {
 </script>
 <template>
   <div class="mobile-page login-page">
+    <RouterLink :to="returnTo" class="text-link">返回继续查看，不保存连接</RouterLink>
     <h1>{{ mode === 'reset' ? '重新设置密码' : '让阅读，有处安放。' }}</h1>
     <p class="page-description">
       {{
@@ -27,7 +30,7 @@ const {
       v-if="!configured"
       wrapable
       :scrollable="false"
-      text="邮箱登录服务尚未配置。你可以先浏览完整示例。"
+      text="邮箱登录暂不可用，临时连接和报告下载仍可使用。"
     />
     <van-tabs v-if="mode !== 'reset'" :active="mode" @change="changeMode">
       <van-tab title="邮箱验证码" name="otp" />
@@ -116,5 +119,6 @@ const {
       {{ mode === 'reset' ? '返回验证码登录' : '设置或忘记密码？' }}
     </button>
     <RouterLink to="/demo" class="text-button">先查看完整示例 →</RouterLink>
+    <FeedbackLink />
   </div>
 </template>

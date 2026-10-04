@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import Input from '@/components/ui/input/Input.vue'
 import { useLogin } from '@client/useLogin'
 const {
+  returnTo,
   email,
   otp,
   password,
@@ -26,7 +27,7 @@ const {
         都有新的
         <span class="title-underline">回声。</span>
       </h1>
-      <p>用一个邮箱，收好你的阅读轨迹。</p>
+      <p>用一个邮箱，保存你的阅读连接。</p>
       <div class="auth-lines" aria-hidden="true">
         <i></i>
         <i></i>
@@ -41,6 +42,7 @@ const {
       </blockquote>
     </div>
     <div class="auth-form-card">
+      <RouterLink :to="returnTo" class="text-link">返回继续查看，不保存连接</RouterLink>
       <p class="eyebrow">欢迎来到阅纹</p>
       <h2>{{ mode === 'reset' ? '重新设置密码' : '打开你的阅读档案' }}</h2>
       <p>
@@ -51,7 +53,7 @@ const {
         }}
       </p>
       <div v-if="!configured" class="notice" role="status">
-        邮箱登录服务尚未配置。你可以先浏览完整示例。
+        邮箱登录暂不可用，临时连接和报告下载仍可使用。
       </div>
       <div v-if="mode !== 'reset'" class="login-tabs">
         <button :class="{ active: mode === 'otp' }" @click="changeMode('otp')">邮箱验证码</button>

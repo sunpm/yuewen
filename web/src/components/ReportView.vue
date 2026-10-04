@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import MonthDetail from '@client/components/MonthDetail.vue'
+import ReportInsights from '@client/components/ReportInsights.vue'
+import ConnectionNotice from '@client/components/ConnectionNotice.vue'
 import { duration, mergeBookDetail } from '@shared/report'
 import type { Book } from '@shared/report'
 import { Button } from '@/components/ui/button'
@@ -145,8 +148,16 @@ watch(
   { immediate: true },
 )
 watch(errorCode, (code) => {
-  if (code === 'AUTH_REQUIRED')
-    void router.replace({ path: '/login', query: { next: route.fullPath } })
+  if (['AUTH_REQUIRED', 'GUEST_EXPIRED', 'WEREAD_KEY_REQUIRED'].includes(code))
+    void router.replace({
+      path: '/settings',
+      query: {
+        connection: route.query.connection,
+        range: route.query.range,
+        next: route.fullPath,
+        expired: code,
+      },
+    })
 })
 watch(
   [search, category, noteType, month],
@@ -239,7 +250,7 @@ watch([source, range], () => {
       <RouterLink
         v-if="isDemo"
         :to="{
-          path: '/login',
+          path: '/settings',
           query: {
             next: router.resolve({
               path: `/${view}`,
@@ -251,8 +262,9 @@ watch([source, range], () => {
       >
         连接我的微信读书 ↗
       </RouterLink>
-      <RouterLink v-else :to="routeFor('settings')" class="text-link">账号设置 ↗</RouterLink>
+      <RouterLink v-else :to="routeFor('settings')" class="text-link">连接设置 ↗</RouterLink>
     </div>
+    <ConnectionNotice v-if="!isDemo" />
     <div class="report-heading">
       <div>
         <h1>
@@ -335,8 +347,11 @@ watch([source, range], () => {
     <div v-else-if="error" class="notice" role="alert">
       {{ error }}
       <RouterLink
-        v-if="source === 'account' && errorCode.startsWith('WEREAD_KEY')"
-        to="/settings"
+        v-if="['account', 'guest'].includes(source) && errorCode.startsWith('WEREAD_KEY')"
+        :to="{
+          path: '/settings',
+          query: { connection: route.query.connection, range: route.query.range },
+        }"
         class="text-link"
       >
         配置微信读书 →
@@ -348,6 +363,10 @@ watch([source, range], () => {
       </Button>
     </div>
     <template v-if="report">
+      <ReportInsights
+        v-if="report.insights && ['overview', 'report'].includes(view)"
+        :insights="report.insights"
+      />
       <template v-if="view === 'overview'">
         <section class="stat-strip" aria-label="阅读核心指标">
           <article>
@@ -409,30 +428,6 @@ watch([source, range], () => {
                 <li v-for="item in report.portrait.evidence" :key="item">{{ item }}</li>
               </ul>
             </details>
-            <div class="portrait-bottom">
-              <span>
-                自然日均
-                <b>
-                  {{
-                    report.summary.seconds != null && report.summary.naturalDays
-                      ? Math.round(report.summary.seconds / report.summary.naturalDays / 60)
-                      : '—'
-                  }}
-                  分钟
-                </b>
-              </span>
-              <span>
-                阅读日均
-                <b>
-                  {{
-                    report.summary.seconds != null && report.summary.readDays
-                      ? Math.round(report.summary.seconds / report.summary.readDays / 60)
-                      : '—'
-                  }}
-                  分钟
-                </b>
-              </span>
-            </div>
           </aside>
         </div>
         <div class="section-heading">
@@ -645,6 +640,7 @@ watch([source, range], () => {
           <Button v-if="month" variant="ghost" @click="month = ''">{{ month }} ×</Button>
         </div>
         <p class="result-count">{{ notes.length }} 条区间内已读取内容 · 仅检索已采集文字</p>
+        <MonthDetail v-if="month" :report="report" :month="month" />
         <div class="notes-grid">
           <article v-for="note in visibleNotes" :key="note.id" class="note-card">
             <header>
@@ -702,7 +698,16 @@ watch([source, range], () => {
     <div v-else-if="!busy && !error" class="empty-state">
       <h2>准备好你的第一份阅读档案</h2>
       <p>连接微信读书后，就能看见阅读的轨迹。</p>
-      <Button as-child><RouterLink to="/settings">连接微信读书 →</RouterLink></Button>
+      <Button as-child>
+        <RouterLink
+          :to="{
+            path: '/settings',
+            query: { connection: route.query.connection, range: route.query.range },
+          }"
+        >
+          连接微信读书 →
+        </RouterLink>
+      </Button>
     </div>
     <p v-if="feedback" class="feedback" role="status">{{ feedback }}</p>
   </div>
@@ -725,7 +730,9 @@ watch([source, range], () => {
       <p v-for="issue in report?.issues" :key="issue">{{ issue }}</p>
       <Button v-if="busy" @click="cancel">停止采集</Button>
       <template v-else>
-        <Button @click="retry">继续或重试剩余部分</Button>
+        <Button v-if="task?.retryAllowed !== false && !isSample" @click="retry">
+          继续或重试剩余部分
+        </Button>
         <Button variant="outline" @click="collect(range, true)">重新读取当前范围</Button>
       </template>
     </DialogContent>

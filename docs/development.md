@@ -1,12 +1,12 @@
 # 开发与部署
 
-本文记录当前工程与配置方式。游客接入及按需登录仍按[游客计划](plans/guest-access.md)实施；目标部署、资源命名和上线验收见[上线验收计划](plans/release.md)，当前进度见[总计划](../PLAN.md)。
+本文记录当前工程与配置方式。游客接入及按需登录保存已接入，完整验收状态见[游客计划](plans/guest-access.md)；目标部署、资源命名和上线验收见[上线验收计划](plans/release.md)，当前进度见[总计划](../PLAN.md)。
 
 ## 工程约定
 
 两个 Vue SPA 与 Hono 同仓库。桌面端 `web/`，独立 Vant 移动端 `web-mobile/`，共用 `client/` 交互逻辑与 `shared/` 数据契约。Vitesse 的文件路由、自动导入、布局目录和 TypeScript 能力保留；去除 I18n、UnoCSS、Iconify、SSG、PWA、示例 store 和 Cypress。原布局插件的 peer 版本不支持当前组合，因此使用一个 Vue 布局组件。基础按钮采用 shadcn/vue 的 Primitive + CVA 方式，Select、Dialog、Table 使用 shadcn/vue 官方组件源码，底层由 Reka UI 管理焦点和键盘操作。
 
-`pnpm dev` 同时启动桌面 Vite、移动 Vite 与本地 Hono；桌面 Vite 将 `/m/` 代理到移动 Vite、`/api` 代理到 Hono。浏览器统一从 5173 端口访问，两端保持同源认证；5180 是内部移动构建服务。两个 Vite 使用独立依赖缓存，并预构建 `d3-cloud`。词云的浏览器与 Node HTML 导出共用布局；仅 Node 导出加载 `@napi-rs/canvas` 和本地阅读字体，两端 Vite 明确排除该原生模块的浏览器预构建，生产浏览器包不包含原生绘图依赖。正式入口使用标准 Request/Response 的 Netlify Node.js Function。迁移文件由 Drizzle 生成，并纳入版本管理。
+`pnpm dev` 同时启动桌面 Vite、移动 Vite 与本地 Hono；桌面 Vite 将 `/m/` 代理到移动 Vite、`/api` 代理到 Hono。浏览器统一从 5173 端口访问，两端保持同源认证；5180 是内部移动构建服务。`PORT=8788 pnpm exec tsx --env-file=.env server/dev.ts` 可单独启动另一端口的 API，默认仍为 8787。两个 Vite 使用独立依赖缓存，并预构建 `d3-cloud`。词云的浏览器与 Node HTML 导出共用布局；仅 Node 导出加载 `@napi-rs/canvas` 和本地阅读字体，两端 Vite 明确排除该原生模块的浏览器预构建，生产浏览器包不包含原生绘图依赖。正式入口使用标准 Request/Response 的 Netlify Node.js Function。迁移文件由 Drizzle 生成，并纳入版本管理。
 
 ## 登录与数据库联调顺序
 
@@ -17,7 +17,7 @@
 5. 使用两个测试账号检查 Key、报告、笔记和详情隔离；检查多标签页替换 Key、取消和旧请求迟到。
 6. 验证退出、删除 Key、删除账号、闲置及绝对到期、数据库实例切换和清理任务。
 
-不要在生产环境配置本地联调 `WEREAD_API_KEY`。个人 Key 经认证后由账号设置提交。公开服务在认证未配置时只开放模拟示例。本地开发入口通过独立路由使用开发 Key，不依赖数据库，不改变正式账号接口的会话保护。
+不要在生产环境配置本地联调 `WEREAD_API_KEY`。个人 Key 可由游客临时接入或登录后的账号设置提交。公开服务只需数据库、应用地址和加密密钥即可提供游客连接；邮箱配置仅影响登录保存。本地开发入口通过独立路由使用开发 Key，不依赖数据库，不改变正式账号接口的会话保护。
 
 ## 本地与生产环境配置
 
@@ -29,21 +29,21 @@
 
 上述私有环境文件已由 `.gitignore` 忽略。生产运行使用 Neon pooled 连接；执行生产迁移时，临时在 `.env.migrate` 中填写生产 direct 连接作为 `DATABASE_URL`，从项目根目录执行 `pnpm exec tsx --env-file=.env.migrate server/db/migrate.ts`，完成后删除该临时文件。不要把生产连接放入默认开发 `.env`。
 
-公开 Deploy Preview 默认只开放模拟示例，不注入生产数据库或邮件凭据。需要联调预览登录时，再配置开发分支数据库、开发密钥和与该预览地址完全一致的 `APP_URL`。
+公开 Deploy Preview 只开放模拟示例。Functions 按可信 `context.deploy.context` 在非生产／本地环境拒绝个人接口，清理仅允许生产；即使平台误继承凭据也不访问数据库或发信。环境变量仍应在 Netlify 管理端隔离为 Production context；本轮没有改动控制台权限或变量作用域。后续需要联调预览登录时，应先明确独立开发库及可信域名，再调整这项限制。
 
 ## Netlify 准备
 
-构建命令 `pnpm build` 顺序构建桌面和移动入口，产物分别为 `dist` 与 `dist/m`，Functions 位于 `netlify/functions`。`api.ts` 服务 `/api/*`，移动路由 `/m/*` 回退到 `/m/index.html`，桌面路由最后回退到 `/index.html`。`cleanup.ts` 每 15 分钟分批删除过期报告、替换回执、会话、验证码与业务限流计数。
+构建命令 `pnpm build` 顺序构建桌面和移动入口，产物分别为 `dist` 与 `dist/m`，Functions 位于 `netlify/functions`。`api.ts` 服务 `/api/*`，移动路由 `/m/*` 回退到 `/m/index.html`，桌面路由最后回退到 `/index.html`。`cleanup.ts` 每 15 分钟分批删除过期游客连接及其凭据、报告、保存回执、替换回执、认证会话、验证码与业务限流计数。
 
 API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.netlify/functions/api` 地址，不再声明函数 `config.path`。Netlify 设置自定义路径后会关闭默认函数地址，两者同时使用会使重写目标失效，产生平台 404。`GET /api/health` 返回的 `auth` 只检查登录环境变量是否非空，不验证数据库连接、邮件投递或加密密钥。
 
-上线前还需验证 Netlify 实际路径重写、函数打包、冷启动、数据库连接与函数区域、可信来源、HTTPS Cookie、发信域、DNS、备份恢复和资源消耗。当前仓库配置不代表已完成平台部署。
+上线前还需验证 Netlify 实际路径重写、函数打包、冷启动、数据库连接与函数区域、可信来源、HTTPS Cookie、发信域、DNS、备份恢复和资源消耗。正式健康接口已返回 `200 / auth:true`，生产空库已完成 0000–0002 初始化；PR 的 Netlify 预览成功，合并主分支自动发布。完整线上场景和资源预算仍按质量记录验收。
 
-回滚时先恢复上一版静态和函数部署。数据库迁移采用兼容变更；涉及删除字段/数据前单独规划备份及回滚，不自动通过应用回滚恢复已删除凭证。备份与解密密钥分开保管，生产保留期限尚待服务接入时确定。
+回滚时先恢复上一版静态和函数部署。游客迁移是兼容新增，不自动执行反向删表；回滚后的旧版本不提供游客功能，临时游客数据继续按原期限清理。数据库迁移采用兼容变更；涉及删除字段/数据前单独规划备份及回滚，不自动通过应用回滚恢复已删除凭证。备份与解密密钥分开保管，生产保留期限尚待服务接入时确定。
 
 ## 当前限制
 
-- 当前配置 PostgreSQL 迁移已于 2026-10-04 成功执行，新增 `report_replacement` 短期回执表；普通报告替换要求先应用 `0001_slim_ultimatum.sql`。真实邮件、跨账号/跨登录会话并发、生产迁移与跨函数实例集成仍未验收。
+- 当前配置 PostgreSQL 迁移已于 2026-10-04 成功执行，包含 `report_replacement` 和游客连接、保存回执迁移；游客版本要求应用 `0002_nasty_black_knight.sql`。真实验证码收码、登录和游客保存 API 已核验；生产空库初始化也已成功；跨账号/跨登录会话并发与跨函数实例集成仍待验收。
 - 上游只有明确 HTTP 401 自动标记失效，其他业务错误码尚待真实案例补充。
 - 默认逐月采集以补充日明细；尚未优化为完整年汇总加边界月的混合策略。
 - 报告内容预算触顶可下载部分结果，但尚无分卷采集机制；失败重试由用户触发，没有自动退避重试。
@@ -65,3 +65,5 @@ API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.ne
 生产构建和公开预览的示例固定为模拟，查询参数不能启用本地真实来源。Netlify Functions 仅导入 `server/app.ts`，不导入 `server/dev.ts`。
 
 字体固定为霞鹜文楷轻便版 v1.522，Regular 400、Medium 500，压缩为 WOFF2 后放入 `web/public/fonts/`；双端与离线导出均从同一份 `/fonts/` 资源读取。移动构建引用根目录公共资源，不再复制一套字体。HTML 每份字体仅嵌入一次，并附 OFL 许可。
+
+构建遇到宿主文件监听 `EMFILE` 时，可使用 `CHOKIDAR_USEPOLLING=true pnpm build`；这只改变本次构建监听方式，不修改运行时功能。

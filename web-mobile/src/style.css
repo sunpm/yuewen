@@ -109,13 +109,13 @@ blockquote {
 h1 {
   font-size: 28px;
   line-height: 1.5;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.8px;
 }
 h2 {
   font-size: 22px;
   line-height: 1.5;
-  font-weight: 600;
+  font-weight: 500;
 }
 .mobile-header {
   height: 60px;
@@ -135,7 +135,7 @@ h2 {
   gap: 8px;
   font-family: var(--font-reading);
   font-size: 23px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1;
   color: var(--brand);
 }
@@ -146,7 +146,7 @@ h2 {
 .header-caption {
   flex: 1;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 1px;
 }
 .icon-button {
@@ -161,9 +161,9 @@ h2 {
   padding: 0;
 }
 .eyebrow {
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 1.8px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.8;
 }
 .mobile-page {
@@ -245,7 +245,7 @@ h2 {
   bottom: 10px;
   width: 100%;
   text-align: center;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 3px;
   color: var(--muted);
 }
@@ -303,7 +303,7 @@ h2 {
   margin: 5px auto;
 }
 .field-hint {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.8;
   color: var(--muted);
   margin: 12px 0;
@@ -332,7 +332,7 @@ h2 {
   gap: 6px;
 }
 .heading-meta > a {
-  font-size: 11px;
+  font-size: 12px;
   padding: 8px 0;
 }
 .reading-heading h1 {
@@ -343,7 +343,7 @@ h2 {
   gap: 10px;
 }
 .range-caption {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 15px;
 }
@@ -369,7 +369,7 @@ h2 {
   border-bottom: 1px solid var(--line);
 }
 .mobile-stats span {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .mobile-stats strong {
@@ -381,7 +381,7 @@ h2 {
 }
 .mobile-stats small {
   font-family: var(--font-reading);
-  font-size: 10px;
+  font-size: 12px;
   margin-left: 7px;
 }
 .mobile-portrait {
@@ -410,7 +410,7 @@ h2 {
 }
 .mobile-portrait small {
   display: block;
-  font-size: 9px;
+  font-size: 12px;
   margin-top: 10px;
   opacity: 0.8;
 }
@@ -435,7 +435,7 @@ h2 {
 }
 .module-scope,
 .module-description {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.8;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -465,7 +465,7 @@ h2 {
   font-weight: 500;
 }
 .mobile-data {
-  font-size: 11px;
+  font-size: 12px;
   border-top: 1px solid var(--line);
 }
 .mobile-data summary {
@@ -483,7 +483,7 @@ h2 {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 10px;
+  font-size: 12px;
 }
 .mobile-data caption {
   text-align: left;
@@ -510,7 +510,7 @@ h2 {
   margin: 18px 0;
 }
 .mobile-quote > p:last-child {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .mobile-book-strip {
@@ -559,11 +559,11 @@ h2 {
   font-size: 12px;
   line-height: 1.5;
   margin: 10px 0 4px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .mobile-book > span,
 .mobile-book > small {
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.8;
   color: var(--muted);
 }
@@ -576,7 +576,7 @@ h2 {
 .imported-badge {
   display: inline-block;
   width: fit-content;
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 7px;
   margin-top: 6px;
   border-radius: 4px;
@@ -649,7 +649,7 @@ h2 {
   right: -20px;
 }
 .result-caption {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   margin: 20px;
 }
@@ -667,7 +667,7 @@ h2 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   margin: -8px -7px 8px 0;
 }
@@ -679,7 +679,7 @@ h2 {
   white-space: pre-wrap;
 }
 .mobile-note > footer {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.9;
   margin-top: 22px;
@@ -702,7 +702,7 @@ h2 {
 }
 .reading-footnote {
   margin: 26px 22px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.9;
 }

@@ -11,10 +11,20 @@
     <link rel="icon" type="image/svg+xml" href="/brand/logo-mark-light.svg" />
     <title>阅纹 · 随身阅读档案</title>
     <script>
+      let preference = 'auto'
       try {
-        if (localStorage.getItem('yuewen-theme') === 'dark')
-          document.documentElement.classList.add('dark')
+        preference = localStorage.getItem('yuewen-theme') || 'auto'
       } catch {}
+      const dark =
+        preference === 'dark' ||
+        (preference !== 'light' &&
+          typeof matchMedia === 'function' &&
+          matchMedia('(prefers-color-scheme: dark)').matches)
+      document.documentElement.classList.toggle('dark', dark)
+      document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+      document
+        .querySelector('meta[name="theme-color"]')
+        .setAttribute('content', dark ? '#111213' : '#F5EFE3')
     </script>
   </head>
   <body>
