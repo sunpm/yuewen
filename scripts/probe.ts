@@ -24,12 +24,14 @@ for (const [api, params] of [
   ['/shelf/sync', {}],
   ['/readdata/detail', { mode: 'annually' }],
   ['/readdata/detail', { mode: 'monthly' }],
+  ['/readdata/detail', { mode: 'weekly' }],
+  ['/readdata/detail', { mode: 'overall', baseTime: 0 }],
   ['/user/notebooks', { count: 10 }],
 ] as const) {
   const start = Date.now()
   try {
     const data = await weread(key, api, params)
-    console.log(JSON.stringify({ api, elapsedMs: Date.now() - start, shape: shape(data) }))
+    console.log(JSON.stringify({ api, params, elapsedMs: Date.now() - start, shape: shape(data) }))
     if (api === '/user/notebooks' && Array.isArray(data.books) && data.books.length) {
       const first = (data.books.find((b) => Number((b as Record<string, unknown>).noteCount) > 0) ??
         data.books[0]) as Record<string, unknown>

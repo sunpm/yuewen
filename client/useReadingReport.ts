@@ -1,7 +1,8 @@
-import { computed, ref, shallowRef, watch, onUnmounted } from 'vue'
+import { computed, ref, shallowRef, watch, onMounted, onBeforeUnmount } from 'vue'
 import type { Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { Book, RangeKey } from '@shared/report'
+import { isRangeKey, shanghaiDate } from '@shared/report'
 import { createDemo } from '@shared/demo'
 import { useReport } from './useReport'
 import type { ReportTask } from './useReport'
@@ -11,8 +12,30 @@ export function useReadingReport(demo: Ref<boolean>) {
   const personal = useReport()
   const route = useRoute(),
     router = useRouter()
-  const range = ref<RangeKey>(
-    !demo.value && personal.task.value ? personal.task.value.report.range.key : 'recent',
+  const range = computed<RangeKey>({
+    get: () => (isRangeKey(route.query.range) ? route.query.range : 'recent'),
+    set: (key) => {
+      void router.push({ query: { ...route.query, range: key, month: undefined } })
+    },
+  })
+  const years = computed(() => {
+    const year = Number(shanghaiDate().slice(0, 4))
+    return [
+      ...new Set([
+        year,
+        year - 1,
+        year - 2,
+        ...(/^\d{4}$/.test(range.value) ? [Number(range.value)] : []),
+      ]),
+    ].sort((a, b) => b - a)
+  })
+  watch(
+    () => route.query.range,
+    (key) => {
+      if (!isRangeKey(key))
+        void router.replace({ query: { ...route.query, range: 'recent', month: undefined } })
+    },
+    { immediate: true },
   )
   const source = computed(() =>
     !demo.value
@@ -26,7 +49,10 @@ export function useReadingReport(demo: Ref<boolean>) {
     localError = ref(''),
     localCode = ref('')
   const simulated = computed(() => createDemo(range.value))
-  const task = computed(() => (source.value === 'account' ? personal.task.value : localTask.value))
+  const task = computed(() => {
+    const current = source.value === 'account' ? personal.task.value : localTask.value
+    return current?.report.range.key === range.value ? current : null
+  })
   const report = computed(() => (source.value === 'sample' ? simulated.value : task.value?.report))
   const busy = computed(() => (source.value === 'account' ? personal.busy.value : localBusy.value))
   const error = computed(() =>
@@ -48,8 +74,8 @@ export function useReadingReport(demo: Ref<boolean>) {
     localBusy.value = false
     personal.suspend()
   }
-  async function collect(key: RangeKey, fresh = false, action?: string) {
-    if (source.value === 'account') return personal.collect(key, fresh)
+  async function collect(key: RangeKey, fresh = false, action?: string, automatic = false) {
+    if (source.value === 'account') return personal.collect(key, fresh, false, automatic)
     if (source.value === 'sample') return
     const run = ++generation
     localBusy.value = true
@@ -124,13 +150,27 @@ export function useReadingReport(demo: Ref<boolean>) {
       localTask.value = null
       localError.value = ''
       localCode.value = ''
-      void collect(range.value)
+      if (personal.conflict.value)
+        personal.conflict.value = { ...personal.conflict.value, key: range.value }
+      void collect(range.value, false, undefined, true)
     },
     { immediate: true },
   )
-  onUnmounted(suspend)
+  function checkVisibleReport() {
+    if (document.visibilityState === 'visible' && source.value === 'account')
+      void personal.touch(true)
+  }
+  onMounted(() => document.addEventListener('visibilitychange', checkVisibleReport))
+  onBeforeUnmount(() => {
+    suspend()
+    document.removeEventListener('visibilitychange', checkVisibleReport)
+  })
   return {
     range,
+    years,
+    conflict: computed(() => (source.value === 'account' ? personal.conflict.value : null)),
+    confirmReplacement: personal.confirmReplacement,
+    dismissConflict: personal.dismissConflict,
     task,
     report,
     busy,

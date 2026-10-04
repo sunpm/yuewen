@@ -117,3 +117,22 @@ export const requestLimit = pgTable('request_limit', {
   count: integer('count').notNull().default(0),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 })
+// Only replacement receipts survive; report bodies and leases are deleted atomically.
+export const reportReplacement = pgTable(
+  'report_replacement',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => session.id, { onDelete: 'cascade' }),
+    requestId: text('request_id').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index('replacement_expiry_idx').on(t.expiresAt),
+    uniqueIndex('replacement_request_idx').on(t.userId, t.requestId),
+  ],
+)

@@ -1,4 +1,9 @@
 export type RangeKey = 'recent' | 'weekly' | 'monthly' | 'overall' | `${number}`
+export interface ReportTarget {
+  id: string | null
+  keyVersion: number
+  otherSession: boolean
+}
 export interface ReadingRange {
   key: RangeKey
   start: string
@@ -109,6 +114,20 @@ export function shanghaiDate(date = new Date()): string {
     day: '2-digit',
   }).format(date)
 }
+export function isRangeKey(value: unknown): value is RangeKey {
+  return (
+    typeof value === 'string' &&
+    (['recent', 'weekly', 'monthly', 'overall'].includes(value) ||
+      (/^\d{4}$/.test(value) &&
+        Number(value) >= 2015 &&
+        Number(value) <= Number(shanghaiDate().slice(0, 4))))
+  )
+}
+export function preferenceScope(range: ReadingRange): string {
+  return range.key === 'recent'
+    ? `${range.end.slice(0, 4)} 自然年 · 截至 ${range.end} · 年度偏好，非最近 24 月汇总`
+    : `${range.label} · ${range.start || '起始日期未知'} — ${range.end}`
+}
 export function getRange(key: RangeKey, now = new Date()): ReadingRange {
   const end = shanghaiDate(now)
   const [year, month] = end.split('-').map(Number)
@@ -208,7 +227,7 @@ export function emptyModules(range: ReadingRange): ReportModule[] {
       section === '书架'
         ? '当前书架快照'
         : section === '偏好'
-          ? '自然年偏好 · 有展示阈值'
+          ? preferenceScope(range)
           : section === '笔记'
             ? '已读取笔记'
             : `${range.start || '起始日期未知'} — ${range.end}`,

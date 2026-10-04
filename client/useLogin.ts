@@ -85,10 +85,14 @@ export function useLogin() {
         error.value = '密码已更新，请重新登录。'
         return
       }
-      const next = String(route.query.next ?? '/settings')
+      const next = typeof route.query.next === 'string' ? route.query.next : '/settings'
+      const destination = router.resolve(next)
       await router.replace(
-        ['/overview', '/report', '/shelf', '/notes', '/settings'].includes(next)
-          ? next
+        next.startsWith('/') &&
+          !next.startsWith('//') &&
+          !next.includes('\\') &&
+          ['/overview', '/report', '/shelf', '/notes', '/settings'].includes(destination.path)
+          ? destination.fullPath
           : '/settings',
       )
     } catch {

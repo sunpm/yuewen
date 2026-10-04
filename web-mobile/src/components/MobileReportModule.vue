@@ -21,7 +21,7 @@ const labels = ['阅读时长', '阅读天数', '读过', '读完', '笔记']
         module.section === '书架'
           ? '当前书架'
           : module.section === '偏好'
-            ? module.scope.split(' · ')[0]
+            ? module.scope
             : '已读取笔记 · 详见范围'
       }}
     </p>

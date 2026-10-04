@@ -4,6 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { Locale } from 'vant'
 import zhCN from 'vant/es/locale/lang/zh-CN'
 import App from './App.vue'
+import { reportScroll } from '@client/reportScroll'
 import './style.css'
 
 Locale.use('zh-CN', zhCN)
@@ -20,7 +21,7 @@ const router = createRouter({
     })),
     { path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue') },
   ],
-  scrollBehavior: (_to, _from, saved) => saved ?? { top: 0 },
+  scrollBehavior: reportScroll,
 })
 router.afterEach((to) => {
   document.title = `${to.path === '/demo' ? '示例档案' : to.path === '/login' ? '邮箱登录' : '随身阅读档案'} · 阅纹`

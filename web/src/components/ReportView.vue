@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { duration, shanghaiDate, noteLocation } from '@shared/report'
+import { duration, noteLocation } from '@shared/report'
 import type { Book } from '@shared/report'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,6 +19,10 @@ const view = computed(() =>
 )
 const {
   range,
+  years,
+  conflict,
+  confirmReplacement,
+  dismissConflict,
   task,
   report,
   busy,
@@ -35,10 +39,6 @@ const {
   switchSample,
   canUseDevelopment,
 } = useReadingReport(isDemo)
-const years = computed(() => {
-  const year = Number(shanghaiDate().slice(0, 4))
-  return [year, year - 1, year - 2]
-})
 const search = ref(''),
   category = ref('全部'),
   noteType = ref('全部'),
@@ -90,20 +90,41 @@ const noteLimit = ref(24)
 const visibleNotes = computed(() => notes.value.slice(0, noteLimit.value))
 const routeFor = (name: string) =>
   isDemo.value
-    ? { path: '/demo', query: { view: name, source: route.query.source } }
-    : { path: `/${name}` }
+    ? {
+        path: '/demo',
+        query: {
+          ...route.query,
+          view: name,
+          book: name === 'notes' ? route.query.book : undefined,
+          month: name === 'notes' ? route.query.month : undefined,
+        },
+      }
+    : {
+        path: `/${name}`,
+        query: {
+          ...route.query,
+          book: name === 'notes' ? route.query.book : undefined,
+          month: name === 'notes' ? route.query.month : undefined,
+        },
+      }
 function clearFilters() {
   search.value = ''
   category.value = '全部'
   noteType.value = '全部'
   month.value = ''
+  void router.replace({ query: { ...route.query, book: undefined, month: undefined } })
 }
 async function openSelectedNotes() {
   const id = selected.value?.id
   detailsOpen.value = false
   await router.push({
     path: isDemo.value ? '/demo' : '/notes',
-    query: { ...(isDemo.value ? { view: 'notes', source: route.query.source } : {}), book: id },
+    query: {
+      ...route.query,
+      ...(isDemo.value ? { view: 'notes' } : {}),
+      book: id,
+      month: undefined,
+    },
   })
 }
 const rangeChanged = () => {
@@ -121,7 +142,8 @@ watch(
   { immediate: true },
 )
 watch(errorCode, (code) => {
-  if (code === 'AUTH_REQUIRED') void router.replace({ path: '/login', query: { next: route.path } })
+  if (code === 'AUTH_REQUIRED')
+    void router.replace({ path: '/login', query: { next: route.fullPath } })
 })
 watch([search, category, noteType, month], () => {
   noteLimit.value = 24
@@ -153,6 +175,8 @@ async function copy(text: string) {
   }
 }
 async function exportReport(type: 'html' | 'json') {
+  const snapshot = report.value,
+    origin = source.value
   if (!report.value || (!isSample.value && (busy.value || !task.value?.notesComplete))) {
     feedback.value = '笔记仍在加载，请读取完成后下载。'
     return
@@ -163,8 +187,10 @@ async function exportReport(type: 'html' | 'json') {
     const exporter = await import('@client/export')
     const text =
       type === 'html'
-        ? await exporter.makeHtml(report.value, exportDetails.value)
-        : JSON.stringify(exporter.exportData(report.value, exportDetails.value), null, 2)
+        ? await exporter.makeHtml(snapshot!, exportDetails.value)
+        : JSON.stringify(exporter.exportData(snapshot!, exportDetails.value), null, 2)
+    if (report.value !== snapshot || source.value !== origin)
+      throw new Error('报告范围或来源已变化')
     exporter.download(text, type, isSample.value)
     feedback.value = '报告已生成，可以在下载中查看。'
   } catch {
@@ -178,12 +204,20 @@ function selectMonth(label: string) {
     void router.push({
       path: isDemo.value ? '/demo' : '/notes',
       query: {
-        ...(isDemo.value ? { view: 'notes', source: route.query.source } : {}),
+        ...route.query,
+        ...(isDemo.value ? { view: 'notes' } : {}),
+        book: undefined,
         month: label,
       },
     })
   }
 }
+watch([source, range], () => {
+  detailsOpen.value = false
+  selected.value = null
+  exportOpen.value = false
+  progressOpen.value = false
+})
 </script>
 <template>
   <div class="report-shell wrap" @click="touch()" @keydown="touch()">
@@ -191,8 +225,22 @@ function selectMonth(label: string) {
       <span class="eyebrow">
         {{ sourceLabel }}
       </span>
-      <RouterLink v-if="isDemo" to="/login" class="text-link">连接我的微信读书 ↗</RouterLink>
-      <RouterLink v-else to="/settings" class="text-link">账号设置 ↗</RouterLink>
+      <RouterLink
+        v-if="isDemo"
+        :to="{
+          path: '/login',
+          query: {
+            next: router.resolve({
+              path: `/${view}`,
+              query: { ...route.query, view: undefined, source: undefined },
+            }).fullPath,
+          },
+        }"
+        class="text-link"
+      >
+        连接我的微信读书 ↗
+      </RouterLink>
+      <RouterLink v-else :to="routeFor('settings')" class="text-link">账号设置 ↗</RouterLink>
     </div>
     <div class="report-heading">
       <div>
@@ -257,7 +305,12 @@ function selectMonth(label: string) {
         </Select>
       </label>
     </div>
-    <div v-if="error" class="notice" role="alert">
+    <div v-if="conflict" class="notice" role="alert">
+      <p>{{ error }}</p>
+      <Button :disabled="busy" @click="confirmReplacement">替换并生成</Button>
+      <Button variant="outline" :disabled="busy" @click="dismissConflict">取消</Button>
+    </div>
+    <div v-else-if="error" class="notice" role="alert">
       {{ error }}
       <RouterLink
         v-if="source === 'account' && errorCode.startsWith('WEREAD_KEY')"
@@ -266,7 +319,11 @@ function selectMonth(label: string) {
       >
         配置微信读书 →
       </RouterLink>
-      <Button v-else variant="ghost" @click="collect(range)">重试</Button>
+      <Button v-else variant="ghost" @click="collect(range)">
+        {{
+          errorCode === 'REPORT_REPLACED' || errorCode === 'REPORT_CANCELLED' ? '重新生成' : '重试'
+        }}
+      </Button>
     </div>
     <div v-if="busy" class="notice" role="status">
       <span class="loading-dot"></span>
@@ -609,7 +666,7 @@ function selectMonth(label: string) {
         <summary>关于数据范围与阅读画像</summary>
         <p>
           时间采用
-          Asia/Shanghai；书架始终是当前快照；累计笔记包括书签，正文只包括已读取的划线与个人想法。自然年偏好有展示阈值与排行截断，不将多期榜单相加。
+          Asia/Shanghai；书架始终是当前快照；累计笔记包括书签，正文只包括已读取的划线与个人想法。偏好榜单有展示阈值与排行截断，不将多期榜单相加。
         </p>
         <p v-for="issue in report.issues" :key="issue">{{ issue }}</p>
         <p>阅读画像由阅纹按指标归纳，用于阅读回顾。</p>
@@ -688,6 +745,11 @@ function selectMonth(label: string) {
       <DialogDescription>
         下载文件保留统计范围、数据覆盖与来源说明。HTML 可以离线阅读和打印。
       </DialogDescription>
+      <p v-if="report">
+        {{ sourceLabel }} · {{ report.range.label }} · {{ report.range.start || '起始日期未知' }} —
+        {{ report.range.end }}
+      </p>
+      <p>下载当前范围的整份已采集报告，月份、单书、分类和搜索筛选不改变下载范围。</p>
       <label class="check-row">
         <input v-model="exportDetails" type="checkbox" />
         加入全部已读取的划线与想法
@@ -698,10 +760,17 @@ function selectMonth(label: string) {
         }}
       </p>
       <div class="dialog-actions">
-        <Button :disabled="exporting" @click="exportReport('html')">
+        <Button
+          :disabled="exporting || !report || busy || (!isSample && !task?.notesComplete)"
+          @click="exportReport('html')"
+        >
           {{ exporting ? '正在生成…' : '下载 HTML' }}
         </Button>
-        <Button variant="outline" :disabled="exporting" @click="exportReport('json')">
+        <Button
+          variant="outline"
+          :disabled="exporting || !report || busy || (!isSample && !task?.notesComplete)"
+          @click="exportReport('json')"
+        >
           下载 JSON
         </Button>
       </div>

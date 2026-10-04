@@ -33,7 +33,7 @@
 
 ## Netlify 准备
 
-构建命令 `pnpm build` 顺序构建桌面和移动入口，产物分别为 `dist` 与 `dist/m`，Functions 位于 `netlify/functions`。`api.ts` 服务 `/api/*`，移动路由 `/m/*` 回退到 `/m/index.html`，桌面路由最后回退到 `/index.html`。`cleanup.ts` 每 15 分钟分批删除过期报告、会话、验证码与业务限流计数。
+构建命令 `pnpm build` 顺序构建桌面和移动入口，产物分别为 `dist` 与 `dist/m`，Functions 位于 `netlify/functions`。`api.ts` 服务 `/api/*`，移动路由 `/m/*` 回退到 `/m/index.html`，桌面路由最后回退到 `/index.html`。`cleanup.ts` 每 15 分钟分批删除过期报告、替换回执、会话、验证码与业务限流计数。
 
 API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.netlify/functions/api` 地址，不再声明函数 `config.path`。Netlify 设置自定义路径后会关闭默认函数地址，两者同时使用会使重写目标失效，产生平台 404。`GET /api/health` 返回的 `auth` 只检查登录环境变量是否非空，不验证数据库连接、邮件投递或加密密钥。
 
@@ -43,7 +43,7 @@ API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.ne
 
 ## 当前限制
 
-- 未运行真实 PostgreSQL 迁移、真实邮件、跨账号与跨函数实例集成验证。
+- 当前配置 PostgreSQL 迁移已于 2026-10-04 成功执行，新增 `report_replacement` 短期回执表；普通报告替换要求先应用 `0001_slim_ultimatum.sql`。真实邮件、跨账号/跨登录会话并发、生产迁移与跨函数实例集成仍未验收。
 - 上游只有明确 HTTP 401 自动标记失效，其他业务错误码尚待真实案例补充。
 - 默认逐月采集以补充日明细；尚未优化为完整年汇总加边界月的混合策略。
 - 报告内容预算触顶可下载部分结果，但尚无分卷采集机制；失败重试由用户触发，没有自动退避重试。

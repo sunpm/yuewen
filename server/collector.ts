@@ -6,6 +6,7 @@ import {
   shanghaiDate,
   wordFrequency,
   longestStreak,
+  preferenceScope,
 } from '../shared/report'
 import type { Book, Datum, Note, RangeKey, ReadingRange, ReadingReport } from '../shared/report'
 import { AppError, weread } from './weread'
@@ -43,11 +44,15 @@ export function newCollector(key: RangeKey, now = new Date()): CollectorState {
   const range = getRange(key, now)
   const queue: Operation[] = [
     { id: 'shelf', api: '/shelf/sync', params: {} },
-    {
-      id: 'preference',
-      api: '/readdata/detail',
-      params: { mode: 'annually', baseTime: timestamp(`${range.end.slice(0, 4)}-01-01`) },
-    },
+    ...(!['weekly', 'monthly', 'overall'].includes(key)
+      ? [
+          {
+            id: 'preference',
+            api: '/readdata/detail' as const,
+            params: { mode: 'annually', baseTime: timestamp(`${range.end.slice(0, 4)}-01-01`) },
+          },
+        ]
+      : []),
     { id: 'notebooks', api: '/user/notebooks', params: { count: 100 } },
   ]
   if (['weekly', 'monthly', 'overall'].includes(key))
@@ -442,16 +447,25 @@ export function buildReport(state: CollectorState): ReadingReport {
     undefined,
     completePeriods,
   )
-  const pref = results.preference,
-    prefScope = `${range.end.slice(0, 4)} 自然年 · 榜单有截断与展示阈值`
+  const prefId = ['weekly', 'monthly', 'overall'].includes(range.key)
+    ? `period:${range.key}`
+    : 'preference'
+  const pref = results[prefId],
+    prefScope = preferenceScope(
+      range.key === 'overall' && dateOf(pref?.registTime)
+        ? { ...range, start: dateOf(pref?.registTime)! }
+        : range,
+    )
   const categories = arr(pref?.preferCategory).filter((c) => num(c.readingTime) != null)
   set(
     9,
     Array.isArray(pref?.readLongest)
-      ? arr(pref.readLongest).map((b) => ({
-          label: str(obj(b.book).title) || str(obj(b.albumInfo).name),
-          value: (num(b.readTime) ?? 0) / 3600,
-        }))
+      ? arr(pref.readLongest)
+          .map((b) => ({
+            label: str(obj(b.book).title) || str(obj(b.albumInfo).name),
+            value: num(b.readTime) == null ? NaN : Number(b.readTime) / 3600,
+          }))
+          .filter((b) => Number.isFinite(b.value))
       : null,
     '最多 10 条，低于 5 分钟的条目可能被过滤；不合并跨年榜单。',
     prefScope,
@@ -462,28 +476,36 @@ export function buildReport(state: CollectorState): ReadingReport {
   }))
   set(
     10,
-    categories.length
-      ? categories.map((c) => ({
-          label: str(c.categoryTitle),
-          value:
-            num(c.val) ??
-            (Number(c.readingTime) / Math.max(1, ...categories.map((x) => Number(x.readingTime)))) *
-              100,
-        }))
+    Array.isArray(pref?.preferCategory)
+      ? arr(pref.preferCategory)
+          .filter((c) => num(c.val) != null || num(c.readingTime) != null)
+          .map((c) => ({
+            label: str(c.categoryTitle),
+            value:
+              num(c.val) ??
+              (Number(c.readingTime) /
+                Math.max(1, ...categories.map((x) => Number(x.readingTime)))) *
+                100,
+          }))
       : null,
     '相对最大分类的时长权重，不是占比；缺少 val 时按已返回的分类时长归一化。',
     prefScope,
   )
-  set(11, pref?.preferCategory ? categoryData : null, '仅统计已返回且有数值时长的分类。', prefScope)
+  set(
+    11,
+    Array.isArray(pref?.preferCategory) ? categoryData : null,
+    '仅统计已返回且有数值时长的分类。',
+    prefScope,
+  )
   set(
     12,
-    pref?.preferCategory ? categoryData : null,
+    Array.isArray(pref?.preferCategory) ? categoryData : null,
     '分类面积按阅读时长；默认占位分类不补零。',
     prefScope,
   )
   set(
     13,
-    pref?.preferAuthor
+    Array.isArray(pref?.preferAuthor)
       ? arr(pref.preferAuthor)
           .filter((a) => num(a.count) != null)
           .map((a) => ({ label: `${str(a.name)} · ${str(a.readTime)}`, value: Number(a.count) }))
@@ -493,7 +515,7 @@ export function buildReport(state: CollectorState): ReadingReport {
   )
   set(
     14,
-    pref?.preferPublisher
+    Array.isArray(pref?.preferPublisher)
       ? arr(pref.preferPublisher)
           .filter((p) => num(p.count) != null)
           .map((p) => ({ label: str(p.name), value: Number(p.count) }))
@@ -501,6 +523,31 @@ export function buildReport(state: CollectorState): ReadingReport {
     '出版社字段有展示阈值，未返回不代表零。',
     prefScope,
   )
+  for (const module of modules.slice(8, 14)) {
+    if (!pref) {
+      module.description = state.queue.some((op) => op.id === prefId)
+        ? '正在读取对应周期的排行与偏好。'
+        : state.failed.some((op) => op.id === prefId)
+          ? '对应周期的排行与偏好读取失败，可重试剩余部分。'
+          : '旧报告缺少对应周期的偏好来源，请重新读取。'
+    } else if (module.status === 'unavailable') {
+      module.description = `此周期未返回该偏好字段，不代表零。${module.description}`
+    } else if (module.status === 'empty') {
+      const field =
+        module.id === 9
+          ? 'readLongest'
+          : module.id === 13
+            ? 'preferAuthor'
+            : module.id === 14
+              ? 'preferPublisher'
+              : 'preferCategory'
+      if (arr(pref[field]).length) {
+        module.status = 'unavailable'
+        module.coverage.complete = false
+        module.description = '上游条目未提供可用数值，不以零补齐。'
+      }
+    }
+  }
   set(
     15,
     completePeriods &&
@@ -719,7 +766,7 @@ export function buildReport(state: CollectorState): ReadingReport {
       ...(!state.positionsCollected && state.notes.length
         ? ['旧报告未保留笔记位置，请重新读取以取得完整定位信息。']
         : []),
-      '偏好榜单属于对应自然年；当前书架与累计笔记不受时间筛选限制。',
+      `${preferenceScope(range)}；偏好榜单有截断与展示阈值，当前书架与累计笔记不受时间筛选限制。`,
       ...(notes.some((n) => !n.date)
         ? ['部分笔记没有创建日期，保留在检索中，但未纳入笔记时间线。']
         : []),

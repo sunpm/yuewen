@@ -1,6 +1,6 @@
 import { ref, shallowRef } from 'vue'
-import type { RangeKey, ReadingReport } from '@shared/report'
-import { api } from '@client/api'
+import type { RangeKey, ReadingReport, ReportTarget } from '@shared/report'
+import { api, ApiError } from '@client/api'
 export interface ReportTask {
   id: string
   version: number
@@ -17,12 +17,30 @@ const busy = ref(false),
   errorCode = ref('')
 let generation = 0,
   touchedAt = 0
+const conflict = shallowRef<{ key: RangeKey; target: ReportTarget; requestId: string } | null>(null)
+let halted = false
+let creating: Promise<unknown> = Promise.resolve()
+let pending: {
+  key: RangeKey
+  requestId: string
+  expected?: ReportTarget
+  replace?: boolean
+} | null = null
 export function useReport() {
   const showError = (e: unknown) => {
     error.value = e instanceof Error ? e.message : '读取失败，请重试。'
     errorCode.value = e && typeof e === 'object' && 'code' in e ? String(e.code) : ''
-    if (['AUTH_REQUIRED', 'KEY_CHANGED', 'REPORT_EXPIRED'].includes(errorCode.value))
+    if (
+      ['AUTH_REQUIRED', 'KEY_CHANGED', 'REPORT_EXPIRED', 'REPORT_REPLACED'].includes(
+        errorCode.value,
+      )
+    )
       task.value = null
+    if (errorCode.value === 'REPORT_REPLACED') {
+      halted = true
+      conflict.value = null
+      pending = null
+    }
   }
   const suspend = () => {
     generation++
@@ -35,27 +53,40 @@ export function useReport() {
     error.value = ''
     errorCode.value = ''
     touchedAt = 0
+    halted = false
+    conflict.value = null
+    pending = null
   }
-  const touch = async () => {
-    if (!task.value || Date.now() - touchedAt < 60000) return
+  const touch = async (force = false) => {
+    if (!task.value || (!force && Date.now() - touchedAt < 60000)) return
+    const current = task.value,
+      run = generation
     touchedAt = Date.now()
     try {
-      await api(`/reports/${task.value.id}/touch`, { method: 'POST' })
+      await api(`/reports/${current.id}/touch`, { method: 'POST' })
     } catch (e) {
-      showError(e)
+      if (run === generation && task.value?.id === current.id) {
+        suspend()
+        showError(e)
+      }
     }
   }
-  const collect = async (key: RangeKey, fresh = false) => {
+  const collect = async (key: RangeKey, fresh = false, confirmed = false, automatic = false) => {
+    if (automatic && halted) return
+    const confirmation = confirmed ? conflict.value : null
     const run = ++generation
+    halted = false
+    conflict.value = null
     busy.value = true
     error.value = ''
     errorCode.value = ''
-    if (task.value?.report.range.key !== key) task.value = null
     try {
-      if (task.value && !fresh) {
+      await creating.catch(() => {})
+      if (run !== generation) return
+      if (task.value && !confirmed) {
         const current = await api<ReportTask>(`/reports/${task.value.id}`)
         if (run !== generation) return
-        task.value = current
+        task.value = current.report.range.key === key ? current : null
       }
       if (!task.value && !fresh) {
         const cached = await api<ReportTask[]>('/session/reports')
@@ -63,12 +94,35 @@ export function useReport() {
         task.value = cached.find((t) => t.report.range.key === key) ?? null
       }
       if (!task.value || task.value.report.range.key !== key || fresh) {
-        const created = await api<ReportTask>('/reports', {
-          method: 'POST',
-          body: JSON.stringify({ range: key, requestId: crypto.randomUUID() }),
-        })
+        task.value = null
+        // Serialize creation across route remounts; obsolete runs never post after a newer run.
+        const creation = creating
+          .catch(() => {})
+          .then(async () => {
+            if (run !== generation) return
+            const attempt = confirmation
+              ? {
+                  key,
+                  requestId: confirmation.requestId,
+                  expected: confirmation.target,
+                  replace: true,
+                }
+              : pending?.key === key
+                ? pending
+                : { key, requestId: crypto.randomUUID() }
+            pending = attempt
+            attempt.expected ??= await api<ReportTarget>('/reports/target')
+            if (run !== generation) return
+            return api<ReportTask>('/reports', {
+              method: 'POST',
+              body: JSON.stringify({ range: key, ...attempt }),
+            })
+          })
+        creating = creation
+        const created = await creation
         if (run !== generation) return
-        task.value = created
+        task.value = created ?? null
+        pending = null
       }
       while (
         run === generation &&
@@ -107,10 +161,26 @@ export function useReport() {
       }
     } catch (e) {
       if (run !== generation) return
+      if (e instanceof ApiError && ['REPORT_CONFLICT', 'REPORT_TARGET_CHANGED'].includes(e.code)) {
+        const target = e.details as ReportTarget
+        conflict.value = { key, target, requestId: pending?.requestId ?? crypto.randomUUID() }
+        pending = null
+        halted = true
+      }
       showError(e)
     } finally {
       if (run === generation) busy.value = false
     }
+  }
+  const confirmReplacement = () => {
+    if (conflict.value) return collect(conflict.value.key, true, true)
+  }
+  const dismissConflict = () => {
+    conflict.value = null
+    pending = null
+    halted = true
+    error.value = '已取消生成，原临时报告保持不变。'
+    errorCode.value = 'REPORT_CANCELLED'
   }
   const cancel = async () => {
     const current = task.value,
@@ -139,5 +209,19 @@ export function useReport() {
       if (run === generation) showError(e)
     }
   }
-  return { task, busy, error, errorCode, collect, cancel, retry, clear, suspend, touch }
+  return {
+    task,
+    busy,
+    error,
+    errorCode,
+    conflict,
+    confirmReplacement,
+    dismissConflict,
+    collect,
+    cancel,
+    retry,
+    clear,
+    suspend,
+    touch,
+  }
 }

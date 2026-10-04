@@ -5,13 +5,13 @@ import { and, eq, gt, lt, or, sql, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { authConfigured, getAuth } from './auth'
 import { getDb } from './db'
-import { credential, report, requestLimit, user } from './db/schema'
+import { credential, report, reportReplacement, requestLimit, user } from './db/schema'
 import { decryptKey, encryptKey, keyring } from './crypto'
 import { AppError, weread } from './weread'
 import { advanceCollector, buildReport, newCollector, num, obj, str } from './collector'
 import { createDemo } from '../shared/demo'
-import { shanghaiDate } from '../shared/report'
-import type { RangeKey } from '../shared/report'
+import { isRangeKey } from '../shared/report'
+import type { RangeKey, ReportTarget } from '../shared/report'
 
 type Session = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuth>['api']['getSession']>>>
 type Row = typeof report.$inferSelect
@@ -60,13 +60,7 @@ app.use('/api/*', async (c, next) => {
   await next()
 })
 export function parseRange(value: unknown): RangeKey {
-  const currentYear = Number(shanghaiDate().slice(0, 4))
-  if (
-    typeof value === 'string' &&
-    (['recent', 'weekly', 'monthly', 'overall'].includes(value) ||
-      (/^\d{4}$/.test(value) && Number(value) >= 2015 && Number(value) <= currentYear))
-  )
-    return value as RangeKey
+  if (isRangeKey(value)) return value
   throw new AppError('INVALID_INPUT', '请选择有效的统计周期。', 400)
 }
 function publicTask(row: Row) {
@@ -114,7 +108,22 @@ const active = (id: string, session: Session) =>
   )
 async function readTask(id: string, session: Session) {
   const [row] = await getDb().select().from(report).where(active(id, session))
-  if (!row) throw new AppError('REPORT_EXPIRED', '临时报告已清除或过期，请重新生成。', 404)
+  if (!row) {
+    const [replaced] = await getDb()
+      .select({ id: reportReplacement.id })
+      .from(reportReplacement)
+      .where(
+        and(
+          eq(reportReplacement.id, id),
+          eq(reportReplacement.userId, session.user.id),
+          eq(reportReplacement.sessionId, session.session.id),
+          gt(reportReplacement.expiresAt, new Date()),
+        ),
+      )
+    if (replaced)
+      throw new AppError('REPORT_REPLACED', '该临时报告已被替换。已停止读取，可主动重新生成。', 409)
+    throw new AppError('REPORT_EXPIRED', '临时报告已清除或过期，请重新生成。', 404)
+  }
   const [key] = await getDb()
     .select({ version: credential.version })
     .from(credential)
@@ -236,23 +245,53 @@ app.delete('/api/session/reports', async (c) => {
     .where(eq(report.sessionId, c.get('session').session.id))
   return c.body(null, 204)
 })
+const validReport = (userId: string) =>
+  and(
+    eq(report.userId, userId),
+    gt(report.expiresAt, new Date()),
+    gt(report.idleExpiresAt, new Date()),
+  )
+function reportTarget(row: Row | undefined, session: Session, keyVersion: number): ReportTarget {
+  return {
+    id: row?.id ?? null,
+    keyVersion,
+    otherSession: !!row && row.sessionId !== session.session.id,
+  }
+}
+app.get('/api/reports/target', async (c) => {
+  const session = c.get('session'),
+    key = await getKey(session.user.id)
+  const [row] = await getDb()
+    .select()
+    .from(report)
+    .where(and(validReport(session.user.id), eq(report.keyVersion, key.version)))
+  return c.json(reportTarget(row, session, key.version))
+})
 app.post('/api/reports', async (c) => {
   const body = z
-    .object({ range: z.string(), requestId: z.string().uuid() })
+    .object({
+      range: z.string(),
+      requestId: z.string().uuid(),
+      expected: z.object({
+        id: z.string().uuid().nullable(),
+        keyVersion: z.number().int().positive(),
+      }),
+      replace: z.boolean().default(false),
+    })
     .parse(await c.req.json())
   const range = parseRange(body.range),
     session = c.get('session'),
     db = getDb()
   await limit(`report:${session.user.id}`, 6, 60)
-  const key = await getKey(session.user.id)
   const row = await db.transaction(async (tx) => {
     await tx.select().from(user).where(eq(user.id, session.user.id)).for('update')
     const [current] = await tx
       .select()
       .from(credential)
       .where(eq(credential.userId, session.user.id))
-    if (!current || current.version !== key.version)
-      throw new AppError('KEY_CHANGED', '连接已更新，请重新生成报告。', 409)
+    if (!current) throw new AppError('WEREAD_KEY_REQUIRED', '请先连接你的微信读书。', 409)
+    if (current.status === 'invalid')
+      throw new AppError('WEREAD_KEY_INVALID', '微信读书 API Key 已失效，请重新配置。', 409)
     const [existing] = await tx
       .select()
       .from(report)
@@ -266,6 +305,44 @@ app.post('/api/reports', async (c) => {
         ),
       )
     if (existing) return existing
+    const [receipt] = await tx
+      .select()
+      .from(reportReplacement)
+      .where(
+        and(
+          eq(reportReplacement.userId, session.user.id),
+          eq(reportReplacement.sessionId, session.session.id),
+          eq(reportReplacement.requestId, body.requestId),
+          gt(reportReplacement.expiresAt, new Date()),
+        ),
+      )
+    if (receipt)
+      throw new AppError('REPORT_REPLACED', '该生成请求的报告已被替换，请重新选择范围。', 409)
+    const [previous] = await tx.select().from(report).where(validReport(session.user.id))
+    const target = reportTarget(previous, session, current.version)
+    if (
+      body.expected.id !== target.id ||
+      body.expected.keyVersion !== target.keyVersion ||
+      (target.otherSession && !body.replace)
+    )
+      throw new AppError(
+        target.otherSession ? 'REPORT_CONFLICT' : 'REPORT_TARGET_CHANGED',
+        target.otherSession
+          ? '继续生成会替换此账号在其他会话中的临时报告。'
+          : '当前报告或连接已变化，请核对后重新生成。',
+        409,
+        false,
+        undefined,
+        target,
+      )
+    if (previous)
+      await tx.insert(reportReplacement).values({
+        id: previous.id,
+        userId: previous.userId,
+        sessionId: previous.sessionId,
+        requestId: previous.requestId,
+        expiresAt: previous.expiresAt,
+      })
     await tx.delete(report).where(eq(report.userId, session.user.id))
     const [created] = await tx
       .insert(report)
@@ -273,7 +350,7 @@ app.post('/api/reports', async (c) => {
         id: randomUUID(),
         userId: session.user.id,
         sessionId: session.session.id,
-        keyVersion: key.version,
+        keyVersion: current.version,
         requestId: body.requestId,
         state: newCollector(range),
         idleExpiresAt: new Date(Date.now() + 1800000),
@@ -314,10 +391,12 @@ app.get('/api/reports/:id/notes', async (c) => {
 app.post('/api/reports/:id/touch', async (c) => {
   const session = c.get('session'),
     row = await readTask(c.req.param('id'), session)
-  await getDb()
+  const [updated] = await getDb()
     .update(report)
     .set({ idleExpiresAt: new Date(Math.min(Date.now() + 1800000, row.expiresAt.getTime())) })
     .where(active(row.id, session))
+    .returning({ id: report.id })
+  if (!updated) await readTask(row.id, session)
   return c.body(null, 204)
 })
 app.post('/api/reports/:id/cancel', async (c) => {
@@ -333,6 +412,8 @@ app.post('/api/reports/:id/cancel', async (c) => {
     })
     .where(active(row.id, session))
     .returning()
+  if (!updated) await readTask(row.id, session)
+  if (!updated) throw new AppError('REPORT_CHANGED', '报告状态已更新，请重新读取。', 409)
   return c.json(publicTask(updated))
 })
 app.post('/api/reports/:id/retry', async (c) => {
@@ -358,7 +439,10 @@ app.post('/api/reports/:id/retry', async (c) => {
     })
     .where(and(active(row.id, session), eq(report.version, row.version)))
     .returning()
-  if (!updated) throw new AppError('REPORT_CHANGED', '报告状态已更新，请刷新后重试。', 409, true)
+  if (!updated) {
+    await readTask(row.id, session)
+    throw new AppError('REPORT_CHANGED', '报告状态已更新，请刷新后重试。', 409, true)
+  }
   return c.json(publicTask(updated))
 })
 app.post('/api/reports/:id/advance', async (c) => {
@@ -440,7 +524,10 @@ app.post('/api/reports/:id/advance', async (c) => {
       ),
     )
     .returning()
-  if (!updated) throw new AppError('REPORT_CHANGED', '采集已停止或连接已更新，旧结果未写入。', 409)
+  if (!updated) {
+    await readTask(row.id, session)
+    throw new AppError('REPORT_CHANGED', '采集已停止或连接已更新，旧结果未写入。', 409)
+  }
   if (issue?.code === 'WEREAD_KEY_INVALID')
     await db
       .update(credential)
@@ -513,6 +600,7 @@ app.onError((error, c) => {
       code: known ? error.code : 'SERVICE_ERROR',
       message: known ? error.message : '服务暂时无法完成操作，请稍后重试。',
       retryable: known ? error.retryable : true,
+      ...(known && error.details ? { details: error.details } : {}),
       requestId: c.get('requestId'),
     },
     (known ? error.status : 503) as 400,

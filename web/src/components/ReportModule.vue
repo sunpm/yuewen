@@ -121,7 +121,7 @@ const Chart = defineAsyncComponent(() => import('@client/components/ReportChart.
         module.section === '书架'
           ? '当前书架'
           : module.section === '偏好'
-            ? module.scope.split(' · ')[0]
+            ? module.scope
             : module.scope.replace(/\d{4}-\d{2}-\d{2}/g, '').trim()
       }}
     </p>
