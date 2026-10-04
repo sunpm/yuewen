@@ -7,6 +7,7 @@ import {
   preferenceScope,
   shanghaiDate,
   wordFrequency,
+  bookCategory,
 } from './report'
 import type { Book, Datum, Note, RangeKey, ReadingReport } from './report'
 
@@ -39,20 +40,22 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
     title: book.title,
     author: book.author,
     cover: book.cover,
-    category: [
-      '文学',
-      '文学',
-      '文学',
-      '文学',
-      '文学',
-      '文学',
-      '文学',
-      '科幻',
-      '文学',
-      '社会文化',
-      '心理学',
-      '人物传记',
-    ][i],
+    ...bookCategory(
+      [
+        '文学-中国文学',
+        '文学-散文杂著',
+        '文学-外国文学',
+        '文学-散文杂著',
+        '文学-中国文学',
+        '文学-外国文学',
+        '文学-外国文学',
+        '精品小说-科幻小说',
+        '文学-中国文学',
+        '社会文化-社科',
+        '心理-心理学研究',
+        '人物传记-历史人物',
+      ][i],
+    ),
     publisher: undefined,
     kind: 'book',
     progress: [100, 68, 100, 42, 100, 13, 100, 100, 28, 0, 81, 35][i],
@@ -62,6 +65,15 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
     description:
       '书名、作者及封面来自微信读书公开书目。阅读记录为模拟数据，笔记为阅纹原创演示文本，不是本书原文。',
   }))
+  books.push({
+    id: 'demo-imported',
+    title: '山间阅读手记：写给未来的自己，关于日常、远方与慢慢生长的长篇记录',
+    author: '阅纹原创示例',
+    ...bookCategory(),
+    kind: 'book',
+    progress: 0,
+    finished: false,
+  })
   const allDays: Datum[] = []
   const start = Date.parse(`${history.start}T00:00:00Z`)
   const end = Date.parse(`${history.end}T00:00:00Z`)

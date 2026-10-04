@@ -429,7 +429,7 @@ h2 {
   border-radius: 12px;
   background: var(--surface);
 }
-.mobile-module h2 {
+.mobile-module > header h3 {
   font-size: 20px;
   margin: 8px 0;
 }
@@ -558,6 +558,12 @@ h2 {
   border: 0;
 }
 .mobile-book > strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  min-height: 3em;
   font-size: 12px;
   line-height: 1.5;
   margin: 10px 0 4px;
@@ -568,6 +574,29 @@ h2 {
   font-size: 9px;
   line-height: 1.8;
   color: var(--muted);
+}
+.mobile-book > span:not(.imported-badge) {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.imported-badge {
+  display: inline-block;
+  width: fit-content;
+  font-size: 11px;
+  padding: 2px 7px;
+  margin-top: 6px;
+  border-radius: 4px;
+  background: var(--line);
+  color: var(--ink);
+}
+.highlight-text {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
 }
 .mobile-cover {
   width: 100%;
@@ -665,14 +694,19 @@ h2 {
   border-top: 1px solid var(--line);
   padding-top: 13px;
 }
-.mobile-note details {
-  font-size: 12px;
+.note-abstract {
+  font-size: 15px;
   line-height: 1.8;
   margin-top: 16px;
 }
-.mobile-note details p {
+.note-abstract p {
   margin-top: 12px;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.note-abstract .abstract-label {
+  font-size: 12px;
+  color: var(--muted);
 }
 .reading-footnote {
   margin: 26px 22px;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { duration, noteLocation } from '@shared/report'
+import { duration, mergeBookDetail } from '@shared/report'
 import type { Book, RangeKey } from '@shared/report'
 import { useReadingReport } from '@client/useReadingReport'
 import { showToast } from 'vant'
@@ -12,6 +12,8 @@ const view = computed(() =>
 )
 const {
   range,
+  displayRange,
+  collectionStatus,
   years,
   conflict,
   confirmReplacement,
@@ -172,7 +174,7 @@ async function openBook(book: Book) {
     try {
       const detail = await bookDetail(book.id)
       if (selected.value?.id === book.id && detailsOpen.value) {
-        selected.value = { ...book, ...detail }
+        selected.value = mergeBookDetail(book, detail)
         detailMessage.value = ''
       }
     } catch (e) {
@@ -271,9 +273,10 @@ watch([source, range], () => {
           下载{{ isSample ? '示例' : '' }}报告
         </van-button>
       </div>
-      <p v-if="report" class="range-caption">
-        {{ report.range.start || '起始日期未知' }} — {{ report.range.end }}
-        <span>· {{ sourceLabel }}</span>
+      <p class="range-caption" aria-live="polite">
+        {{ displayRange.start || '起始日期未知' }} — {{ displayRange.end }}
+        <span>· {{ collectionStatus }}</span>
+        <button v-if="!isSample" class="text-button" @click="progressOpen = true">采集详情</button>
       </p>
     </div>
     <div v-if="conflict" class="status-card" role="alert">
@@ -298,15 +301,7 @@ watch([source, range], () => {
         }}
       </van-button>
     </div>
-    <div v-if="busy" class="status-card" role="status">
-      <van-loading size="18">正在读取阅读档案…</van-loading>
-      <van-button size="small" @click="progressOpen = true">采集详情</van-button>
-    </div>
     <template v-if="report">
-      <div v-if="!isSample && !busy" class="status-card">
-        <p>{{ report.coverage.complete ? '当前采集已完成' : '已保留部分数据' }}</p>
-        <van-button size="small" @click="progressOpen = true">采集详情</van-button>
-      </div>
       <template v-if="view === 'overview'">
         <section class="mobile-stats" aria-label="阅读核心指标">
           <div>
@@ -364,9 +359,17 @@ watch([source, range], () => {
           <p class="eyebrow">曾让你停下的一句</p>
           <blockquote>
             <span v-if="report.portrait.quote.demoText" class="demo-text-label">演示文本 ·</span>
-            {{ report.portrait.quote.text }}
+            <span :class="{ 'highlight-text': report.portrait.quote.type === 'highlight' }">
+              {{ report.portrait.quote.text }}
+            </span>
           </blockquote>
-          <p>《{{ report.portrait.quote.title }}》 · {{ noteLocation(report.portrait.quote) }}</p>
+          <p>
+            {{
+              [`《${report.portrait.quote.title}》`, report.portrait.quote.chapter]
+                .filter(Boolean)
+                .join(' · ')
+            }}
+          </p>
         </section>
         <van-cell
           title="书架里的世界"
@@ -382,6 +385,7 @@ watch([source, range], () => {
           >
             <MobileBookCover :book="book" :index="index" />
             <span>{{ book.title }}</span>
+            <small v-if="book.imported" class="imported-badge">导入书籍</small>
           </button>
         </div>
         <van-cell title="重读划线与想法" is-link :to="destination('notes')" />
@@ -408,9 +412,11 @@ watch([source, range], () => {
           <article v-for="note in report.portrait.selections" :key="note.id" class="mobile-note">
             <p>
               <span v-if="note.demoText" class="demo-text-label">演示文本 ·</span>
-              {{ note.text }}
+              <span :class="{ 'highlight-text': note.type === 'highlight' }">{{ note.text }}</span>
             </p>
-            <footer>《{{ note.title }}》 · {{ noteLocation(note) }} · {{ note.date }}</footer>
+            <footer>
+              {{ [`《${note.title}》`, note.chapter, note.date].filter(Boolean).join(' · ') }}
+            </footer>
           </article>
         </section>
       </template>
@@ -437,6 +443,7 @@ watch([source, range], () => {
             <MobileBookCover :book="book" :index="index" />
             <strong>{{ book.title }}</strong>
             <span>{{ book.author }}</span>
+            <span v-if="book.imported" class="imported-badge">导入书籍</span>
             <small>
               {{
                 book.progress == null
@@ -489,16 +496,21 @@ watch([source, range], () => {
             </header>
             <p>
               <span v-if="note.demoText" class="demo-text-label">演示文本 ·</span>
-              {{ note.text }}
+              <span :class="{ 'highlight-text': note.type === 'highlight' }">{{ note.text }}</span>
             </p>
-            <details v-if="note.abstract">
-              <summary>展开对应原文</summary>
-              <p>{{ note.abstract }}</p>
-            </details>
+            <div v-if="note.abstract" class="note-abstract">
+              <p class="abstract-label">
+                对应原文
+                <span v-if="note.demoText">· 演示文本</span>
+              </p>
+              <p>
+                <span class="highlight-text">{{ note.abstract }}</span>
+              </p>
+            </div>
             <footer>
               《{{ note.title }}》
               <br />
-              {{ noteLocation(note) }} · {{ note.date ?? '日期未知' }}
+              {{ [note.chapter, note.date ?? '日期未知'].filter(Boolean).join(' · ') }}
             </footer>
           </article>
         </div>
@@ -534,13 +546,10 @@ watch([source, range], () => {
       </button>
       <h2>阅读数据采集</h2>
       <p role="status">
-        {{
-          busy
-            ? (task?.stage ?? '正在准备…')
-            : task?.status === 'completed'
-              ? '采集完成'
-              : '采集已暂停'
-        }}
+        {{ collectionStatus }}
+        <span v-if="busy && task && ['queued', 'running'].includes(task.status)">
+          · {{ task.stage }}
+        </span>
       </p>
       <p v-if="report">
         笔记已读取 {{ report.coverage.loaded }} / {{ report.coverage.expected ?? '未知' }} 本，失败
@@ -578,13 +587,30 @@ watch([source, range], () => {
         <van-icon name="cross" aria-hidden="true" />
       </button>
       <template v-if="selected">
-        <p class="eyebrow">{{ isSample ? '公开书目 · 模拟阅读记录' : '书籍详情' }}</p>
+        <p class="eyebrow">
+          {{
+            isSample
+              ? selected.imported
+                ? '原创导入示例 · 模拟阅读记录'
+                : '公开书目 · 模拟阅读记录'
+              : '书籍详情'
+          }}
+        </p>
         <MobileBookCover :book="selected" class="detail-cover" />
         <h2>{{ selected.title }}</h2>
-        <p>{{ selected.author }} · {{ selected.category }}</p>
-        <p>{{ selected.publisher || '出版社未提供' }}</p>
+        <p>
+          {{
+            [selected.author, !selected.imported && selected.category].filter(Boolean).join(' · ')
+          }}
+        </p>
+        <span v-if="selected.imported" class="imported-badge">导入书籍</span>
+        <p v-if="selected.publisher || !selected.imported">
+          {{ selected.publisher || '出版社未提供' }}
+        </p>
         <p v-if="detailMessage" role="alert">{{ detailMessage }}</p>
-        <p class="book-description">{{ selected.description ?? '这本书暂时没有简介。' }}</p>
+        <p v-if="selected.description || !selected.imported" class="book-description">
+          {{ selected.description ?? '这本书暂时没有简介。' }}
+        </p>
         <div class="module-key-values">
           <div>
             <span>阅读进度</span>

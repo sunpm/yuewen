@@ -10,7 +10,7 @@ import { decryptKey, encryptKey, keyring } from './crypto'
 import { AppError, weread } from './weread'
 import { advanceCollector, buildReport, newCollector, num, obj, str } from './collector'
 import { createDemo } from '../shared/demo'
-import { isRangeKey } from '../shared/report'
+import { bookCategory, isRangeKey } from '../shared/report'
 import type { RangeKey, ReportTarget } from '../shared/report'
 
 type Session = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuth>['api']['getSession']>>>
@@ -566,7 +566,7 @@ app.get('/api/books/:id', async (c) => {
     author: str(info.author),
     publisher: str(info.publisher),
     cover: str(info.cover) || undefined,
-    category: str(info.category) || undefined,
+    ...(str(info.category).trim() ? bookCategory(str(info.category)) : {}),
     description: str(info.intro),
     progress: num(obj(progress.book).progress),
   })

@@ -27,7 +27,7 @@ const Chart = defineAsyncComponent(() => import('@client/components/ReportChart.
     :data-module="module.id"
   >
     <header>
-      <p class="eyebrow">{{ String(module.id).padStart(2, '0') }} / {{ module.section }}</p>
+      <h3>{{ module.title }}</h3>
       <Dialog>
         <DialogTrigger class="text-link module-more">查看更多</DialogTrigger>
         <DialogContent class="module-dialog">
@@ -114,8 +114,7 @@ const Chart = defineAsyncComponent(() => import('@client/components/ReportChart.
         </DialogContent>
       </Dialog>
     </header>
-    <h3>{{ module.title }}</h3>
-    <p class="module-description">{{ module.description }}</p>
+    <p v-if="module.description" class="module-description">{{ module.description }}</p>
     <p v-if="module.section !== '时间'" class="module-scope">
       {{
         module.section === '书架'

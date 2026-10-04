@@ -2,7 +2,7 @@
 
 契约版本 1；网关规范版本 1.0.4；核对日期 2026-10-04。
 
-本文记录已实现的字段与接口，不将代码实现等同于完整联调通过。待实施的笔记位置移除、作者字段拆分及图表调整见[报告体验计划](plans/report-experience.md)，游客权限与保存转换见[游客计划](plans/guest-access.md)。进度从[总计划](../PLAN.md)查看。
+本文记录已实现的字段与接口，不将代码实现等同于完整联调通过。已实施的书架与笔记调整，以及待实施的作者字段拆分、图表调整见[报告体验计划](plans/report-experience.md)，游客权限与保存转换见[游客计划](plans/guest-access.md)。进度从[总计划](../PLAN.md)查看。
 
 ## 真实接口证据
 
@@ -11,6 +11,8 @@
 实际回包为顶层业务对象。书架含 `books`、`albums`、`mp`、`archive`；笔记分页使用 `lastSort`，想法分页使用 `synckey`。年度统计未返回 `dailyReadTimes`、`preferTime` 或阅读/听书拆分，本月 `readTimes` 可以取得日桶。分类回包有 `readingTime`，但没有 `val`。这些字段均按可选处理。
 
 2026-10-04 探针补充 `weekly` 与 `overall(baseTime: 0)`。本账号全历史返回 `readLongest` 10 条、`preferCategory` 8 条、`preferAuthor` 10 条、`preferPublisher` 10 条及 `preferTime` 24 项；本月返回排行及分类，本周返回排行但未返回分类、作者与出版社。仅输出字段类型和数组长度，不输出书名、正文或身份。该样本不保证其他账号拥有相同字段。
+
+2026-10-04 另执行 `pnpm probe --shelf`：书架及各一本普通、无分类书籍的详情与进度共 5 次只读请求成功。书架和普通详情分类为“一级-二级”字符串；无分类条目的详情、进度成功，详情没有分类和简介。按本账号已核实的 `-` 分隔处理层级，其他格式不猜测；证据入口为[官方书架字段](https://github.com/Tencent/WeChatReading/blob/main/skills/shelf.md)、[书籍详情字段](https://github.com/Tencent/WeChatReading/blob/main/skills/book.md)及本地探针。未观察到导入书籍不支持详情的业务错误，现有鉴权、限流和网络错误处理保持生效。
 
 ## 口径
 
@@ -38,6 +40,8 @@
 `shared/report.ts` 定义 `ReadingReport` 与 27 个模块目录。每个模块都有 `id`、`title`、`section`、`scope`、`unit`、`status`、`description`、`coverage` 和 `data`。状态为 `ready / empty / unavailable / partial`。
 
 `summary` 区分未知值与零；`books` 仅保留显示所需字段；`notes` 保留稳定 ID、书名、作者、日期、章节、正文、类型和可选对应原文。画像包含有指标依据的文字、来自真实划线的顶部选句、最多 20 条精选。模拟示例始终标记 `sampleReport: true`。
+
+电子书的 `Book.category` 是一级分类，`rawCategory` 保留已返回的原始分类；空白、缺失或“未分类”按已确认业务规则统一为“导入书籍”，并设 `imported: true`。有声内容、文章收藏保留独立类别。缺作者、出版社或简介不会额外触发导入分类。书架筛选、模块 17 和 JSON 复用同一归一结果；HTML 的书架分类统计同口径。正式和开发详情接口统一分类；两端合并详情时忽略空字符串及缺失值，并保持书架的分类、原始分类和导入标识。
 
 报告响应先返回最多 200 条正文，前端在采集结束后通过 `/notes?cursor=` 补齐余下分页。分页未齐时不允许导出，避免误称完整。浏览器只使用内存保存阅读正文；localStorage 仅保存主题。
 
@@ -90,12 +94,14 @@ HTML 用同一报告对象生成，包含内嵌 SVG、完整数据表、范围�
 
 <a id="period-statistics"></a>
 
-## 周期统计与笔记位置
+## 周期统计与笔记内容
 
 07 使用可选 `periods: PeriodStatistics[]`：每个完整周期有 `label`、`start`、`end`、`seconds`、`readDays` 和 `stats[{ name, text }]`。秒数与阅读天数取官方数值，`readStat` 名称和数量文案原样保留，不再拼接后用 `parseFloat` 解析。固定列只映射已核实的“读过”“读完”“笔记”，其他字段保留在全部原始明细中；缺失显示“—”，原始零不丢失。本周跨月仍是一组；本月截止当天；自然年和最近 24 月按月；全部历史仅一组汇总。`Datum.unit` 为可选逐项单位，01 的小时与天分别标注。
 
-`Note.chapterUid`、`Note.range` 保留上游定位字段，`range` 原样保存并显示为位置范围，不解析为页码或长度。两次真实探针核对未发现稳定页码字段；`page` 仅预留可选字段，当前采集不填入。章节、位置同步顶部选句、精选、列表与 HTML/JSON。旧采集状态可重新聚合原始周期统计；没有保留笔记位置的旧状态提示重新采集。
+`Note` 只保留正文、对应原文、有效章节、书名、作者、日期、类型、稳定 ID、演示标识与章节关联 `chapterUid`，不再采集或输出 `range`、`page` 等笔记位置。报告聚合和正式笔记分页使用字段白名单重新构造笔记；JSON 对 `notes`、`portrait.quote`、`portrait.selections` 再次应用同一白名单。旧采集状态可直接重聚合，无需清空报告或为补位置重采。报告统计范围 `ReadingReport.range` 和分页游标不受影响。
 
-`meta.generatedAt` 是报告采集开始时间，页面明确标为“报告采集时间”，不是最近成功更新时间。新增可选 `meta.source` 区分 `sample / development / account`；原有 `sampleReport` 保持兼容。公开书目来自微信读书公开页面，阅读记录独立模拟；演示文字标记 `demoText: true`，不作为该书真实原文署名。
+想法的 `abstract` 默认完整可见；只给划线正文及引用原文加下划线，想法正文不加。HTML 的完整笔记选项同时输出对应原文，仍做 HTML 转义；默认最多 20 条精选。缺章节时省略，列表、顶部选句、精选与导出均无位置占位。
+
+`meta.generatedAt` 是报告采集开始时间，页面明确标为“报告采集时间”，不是最近成功更新时间。新增可选 `meta.source` 区分 `sample / development / account`；原有 `sampleReport` 保持兼容。12 本公开书目来自微信读书公开页面，另有一本原创导入示例；阅读记录独立模拟；演示文字标记 `demoText: true`，不作为该书真实原文署名。
 
 本地开发的 `/api/dev/*` 不属于正式接口；本地内存任务因内容预算受限可一次返回当前已读取的全部正文，正式账号任务继续使用 200 条分页。两端通过同一来源逻辑选择模拟、开发或账号报告。来源或范围变化时旧响应不再写回。

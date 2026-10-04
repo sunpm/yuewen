@@ -58,7 +58,9 @@ API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.ne
 
 `pnpm dev` 下 `/demo` 与 `/m/demo` 默认读取服务端 `WEREAD_API_KEY`。启动器为三个开发服务固定设置 `NODE_ENV=development`，避免继承外部的生产环境变量后隐藏开发数据入口。`server/dev.ts` 才挂载 `/api/dev/*`，服务仅绑定回环地址；请求必须携带本地页面发出的专用请求头，写请求核对来源。缺失或失效 Key 显示错误，可手动切换模拟示例，不静默回退。开发数据仅在进程内存存活两小时，每范围复用缓存；刷新才重采，沿用 600 请求、1.5 MB、10,000 条正文预算。
 
-显式模拟入口为 `?source=mock`。运行已有 E2E 前先停止现有 `pnpm dev`，使用 `WEREAD_DEMO_MODE=mock pnpm dev` 启动服务，再从另一个终端运行 `pnpm test:e2e --workers=3`；已有配置会复用开发服务，仅给测试命令设置变量不能改变正在运行的服务器。检查结束后重新启动普通 `pnpm dev` 恢复真实开发模式。
+显式模拟入口为 `?source=mock`，包含 12 本公开书目与一本原创导入示例。`pnpm probe --shelf` 只读取书架及各一本普通/无分类书籍的详情与进度，最多 5 次请求，观察分类字符串与字段类型，不输出书名、正文或凭据；任一请求失败返回非零退出码。
+
+运行已有 E2E 前先停止现有 `pnpm dev`，使用 `WEREAD_DEMO_MODE=mock pnpm dev` 启动服务，再从另一个终端运行 `pnpm test:e2e --workers=3`；已有配置会复用开发服务，仅给测试命令设置变量不能改变正在运行的服务器。检查结束后重新启动普通 `pnpm dev` 恢复真实开发模式。
 
 生产构建和公开预览的示例固定为模拟，查询参数不能启用本地真实来源。Netlify Functions 仅导入 `server/app.ts`，不导入 `server/dev.ts`。
 

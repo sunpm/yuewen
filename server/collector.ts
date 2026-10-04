@@ -7,6 +7,8 @@ import {
   wordFrequency,
   longestStreak,
   preferenceScope,
+  bookCategory,
+  normalizeNote,
 } from '../shared/report'
 import type { Book, Datum, Note, RangeKey, ReadingRange, ReadingReport } from '../shared/report'
 import { AppError, weread } from './weread'
@@ -29,7 +31,6 @@ export interface CollectorState {
   requests: number
   retryAt?: number
   createdAt: string
-  positionsCollected?: boolean
 }
 export const obj = (v: unknown): JsonObject =>
   v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as JsonObject) : {}
@@ -84,7 +85,6 @@ export function newCollector(key: RangeKey, now = new Date()): CollectorState {
     notes: [],
     requests: 0,
     createdAt: now.toISOString(),
-    positionsCollected: true,
   }
 }
 function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
@@ -155,7 +155,6 @@ export async function advanceCollector(
                 date: dateOf(n.createTime),
                 chapter: chapters.get(n.chapterUid),
                 chapterUid: num(n.chapterUid),
-                range: str(n.range) || undefined,
               }))
           : arr(result.reviews)
               .map((n) => obj(n.review))
@@ -170,7 +169,6 @@ export async function advanceCollector(
                 date: dateOf(n.createTime),
                 chapter: str(n.chapterName) || str(n.chapterTitle) || undefined,
                 chapterUid: num(n.chapterUid),
-                range: str(n.range) || undefined,
                 abstract: str(n.abstract) || undefined,
               }))
       state.notes = uniqueBy([...state.notes, ...additions], (n) => n.id)
@@ -209,7 +207,7 @@ export function normalizeShelf(raw: JsonObject, notebooks: JsonObject[] = []): B
       title: str(b.title) || '未命名书籍',
       author: str(b.author),
       cover: str(b.cover),
-      category: str(b.category) || '未分类',
+      ...bookCategory(str(b.category)),
       kind: 'book',
       finished: b.finishReading === 1 ? true : b.finishReading === 0 ? false : undefined,
       progress: progress != null && progress >= 0 && progress <= 100 ? progress : undefined,
@@ -283,6 +281,7 @@ export function buildReport(state: CollectorState): ReadingReport {
   }
   const notes = state.notes
     .filter((n) => !n.date || ((!range.start || n.date >= range.start) && n.date <= range.end))
+    .map(normalizeNote)
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
   const books = normalizeShelf(results.shelf ?? {}, state.notebookBooks)
   const daily: Datum[] = periods
@@ -763,9 +762,6 @@ export function buildReport(state: CollectorState): ReadingReport {
     coverage,
     issues: [
       ...state.issues,
-      ...(!state.positionsCollected && state.notes.length
-        ? ['旧报告未保留笔记位置，请重新读取以取得完整定位信息。']
-        : []),
       `${preferenceScope(range)}；偏好榜单有截断与展示阈值，当前书架与累计笔记不受时间筛选限制。`,
       ...(notes.some((n) => !n.date)
         ? ['部分笔记没有创建日期，保留在检索中，但未纳入笔记时间线。']
