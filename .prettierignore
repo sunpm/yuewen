@@ -8,4 +8,3 @@ web/src/*.d.ts
 server/db/migrations/meta
 test-results
 playwright-report
-PLAN.md

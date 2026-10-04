@@ -2,6 +2,8 @@
 
 契约版本 1；网关规范版本 1.0.4；核对日期 2026-10-03。
 
+本文记录已实现的字段与接口。待实施的笔记位置移除、作者字段拆分、周期偏好调整见[报告体验计划](plans/report-experience.md)，游客权限与保存转换见[游客计划](plans/guest-access.md)；相应功能实现后再更新本契约。进度从[总计划](../PLAN.md)查看。
+
 ## 真实接口证据
 
 本地只读验证了书架、自然年与本月统计、笔记概览和下一页、非空划线、个人想法、书籍进度。另运行一次完整的本月采集与聚合：42 次请求，约 6 秒，失败为 0，临时采集状态约 150 KB。仅代表一个账号、当前网络和当前数据量，不作为生产容量或服务时延承诺。探针不落盘真实正文，不输出书名、身份、Key 或完整回包。
@@ -66,6 +68,8 @@ Key 使用 AES-256-GCM，随机 IV，以本站用户 ID 作 AAD；密钥版本�
 HTML 用同一报告对象生成，包含内嵌 SVG、完整数据表、范围和文本转义，离线无外部脚本或封面依赖。JSON 只投影公开报告契约，不携带任务、凭证或账号身份。默认仅含精选，完整笔记可选择加入。
 
 依据：[官方网关](https://github.com/Tencent/WeChatReading/blob/main/skills/SKILL.md)、[统计](https://github.com/Tencent/WeChatReading/blob/main/skills/readdata.md)、[书架](https://github.com/Tencent/WeChatReading/blob/main/skills/shelf.md)、[笔记](https://github.com/Tencent/WeChatReading/blob/main/skills/notes.md)、[进度](https://github.com/Tencent/WeChatReading/blob/main/skills/book.md)。
+
+<a id="period-statistics"></a>
 
 ## 周期统计与笔记位置
 

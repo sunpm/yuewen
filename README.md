@@ -50,7 +50,9 @@ pnpm test:e2e
 - 后端：Hono、Node.js、Better Auth、PostgreSQL、Drizzle。
 - `web/` 桌面页面；`web-mobile/` Vant 移动页面；`client/` 两端共用的登录、账号、采集与导出；`shared/` 报告契约与原创示例；`server/` 认证、采集、聚合与数据模型；`netlify/functions/` 函数入口；`tests/` 自动化验证。
 
-[设计规范](docs/design-system.md) · [数据契约](docs/data-contract.md) · [开发与部署说明](docs/development.md) · [模板来源](docs/third-party-notices.md)
+[总计划与下一步](PLAN.md) · [Agent 协作入口](AGENTS.md) · [设计规范](docs/design-system.md) · [数据契约](docs/data-contract.md) · [开发与部署说明](docs/development.md) · [模板来源](docs/third-party-notices.md)
+
+计划按主题维护在 `docs/plans/`。查看进度或继续开发时，从根目录 `PLAN.md` 进入对应专题；已完成方案放在 `docs/plans/archive/`，实际验证结果统一记录在质量记录中。
 
 ## 品牌
 

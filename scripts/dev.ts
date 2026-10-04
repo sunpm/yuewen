@@ -1,6 +1,9 @@
 import { spawn } from 'node:child_process'
 const children = ['dev:api', 'dev:web', 'dev:mobile'].map((script) =>
-  spawn('pnpm', [script], { stdio: 'inherit' }),
+  spawn('pnpm', [script], {
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'development' },
+  }),
 )
 const stop = () => children.forEach((child) => child.kill('SIGTERM'))
 process.on('SIGINT', stop)
