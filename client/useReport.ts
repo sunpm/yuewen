@@ -19,7 +19,8 @@ let generation = 0,
   touchedAt = 0
 const conflict = shallowRef<{ key: RangeKey; target: ReportTarget; requestId: string } | null>(null)
 let halted = false
-let creating: Promise<unknown> = Promise.resolve()
+// Keep report writes ordered even when navigation invalidates their UI response.
+let updating: Promise<unknown> = Promise.resolve()
 let pending: {
   key: RangeKey
   requestId: string
@@ -81,7 +82,7 @@ export function useReport() {
     error.value = ''
     errorCode.value = ''
     try {
-      await creating.catch(() => {})
+      await updating.catch(() => {})
       if (run !== generation) return
       if (task.value && !confirmed) {
         const current = await api<ReportTask>(`/reports/${task.value.id}`)
@@ -96,7 +97,7 @@ export function useReport() {
       if (!task.value || task.value.report.range.key !== key || fresh) {
         task.value = null
         // Serialize creation across route remounts; obsolete runs never post after a newer run.
-        const creation = creating
+        const creation = updating
           .catch(() => {})
           .then(async () => {
             if (run !== generation) return
@@ -113,26 +114,30 @@ export function useReport() {
             pending = attempt
             attempt.expected ??= await api<ReportTarget>('/reports/target')
             if (run !== generation) return
-            return api<ReportTask>('/reports', {
+            const created = await api<ReportTask>('/reports', {
               method: 'POST',
               body: JSON.stringify({ range: key, ...attempt }),
             })
+            // A successful obsolete run must not leave its ID for a later fresh request.
+            if (pending === attempt) pending = null
+            return created
           })
-        creating = creation
+        updating = creation
         const created = await creation
         if (run !== generation) return
         task.value = created ?? null
-        pending = null
-      }
+      } else pending = null
       while (
         run === generation &&
         task.value &&
         ['queued', 'running'].includes(task.value.status)
       ) {
-        const next: ReportTask = await api<ReportTask>(`/reports/${task.value.id}/advance`, {
+        const advancement = api<ReportTask>(`/reports/${task.value.id}/advance`, {
           method: 'POST',
           body: JSON.stringify({ version: task.value.version, requestId: crypto.randomUUID() }),
         })
+        updating = advancement
+        const next = await advancement
         if (run !== generation) return
         task.value = next
       }
@@ -188,7 +193,11 @@ export function useReport() {
     busy.value = false
     if (!current) return
     try {
-      const next = await api<ReportTask>(`/reports/${current.id}/cancel`, { method: 'POST' })
+      await updating.catch(() => {})
+      if (run !== generation) return
+      const cancellation = api<ReportTask>(`/reports/${current.id}/cancel`, { method: 'POST' })
+      updating = cancellation
+      const next = await cancellation
       if (run !== generation) return
       task.value = next
       await collect(next.report.range.key)
@@ -201,7 +210,11 @@ export function useReport() {
       run = ++generation
     if (!current) return
     try {
-      const next = await api<ReportTask>(`/reports/${current.id}/retry`, { method: 'POST' })
+      await updating.catch(() => {})
+      if (run !== generation) return
+      const retrying = api<ReportTask>(`/reports/${current.id}/retry`, { method: 'POST' })
+      updating = retrying
+      const next = await retrying
       if (run !== generation) return
       task.value = next
       await collect(next.report.range.key)
