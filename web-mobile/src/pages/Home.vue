@@ -22,9 +22,7 @@
       <div class="art-caption">读过的，都会留下纹理。</div>
     </div>
     <div class="home-actions">
-      <van-button type="primary" block round size="large" to="/overview">
-        开启我的阅读档案
-      </van-button>
+      <van-button type="primary" block round size="large" to="/settings">查看我的阅读</van-button>
       <van-button plain block round size="large" to="/demo">先翻翻示例</van-button>
     </div>
     <div class="home-features">
@@ -44,7 +42,10 @@
         <span>下载可离线阅读的报告</span>
       </div>
     </div>
-    <p class="privacy-note">登录后连接你自己的微信读书。Key 加密保存，个人阅读内容不会公开。</p>
+    <p class="privacy-note">
+      无需登录即可临时连接和下载。Key 在服务端加密暂存，个人阅读内容不会公开。
+    </p>
     <a class="desktop-link" href="/">打开桌面版 ↗</a>
+    <FeedbackLink />
   </div>
 </template>

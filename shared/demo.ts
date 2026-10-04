@@ -1,3 +1,4 @@
+import { buildInsights } from './insights'
 import {
   emptyModules,
   getRange,
@@ -80,12 +81,16 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
   const end = Date.parse(`${history.end}T00:00:00Z`)
   const notes: Note[] = []
   const bookTimes = new Map<string, number>()
+  const monthlyTimes = new Map<string, Map<string, number>>()
   const preferenceTimes = new Map<string, number>()
   for (let stamp = start, i = 0; stamp <= end; stamp += 86400000, i++) {
     const date = new Date(stamp).toISOString().slice(0, 10)
     const seconds = i % 9 === 0 || i % 17 === 0 ? 0 : 900 + ((i * 7919) % 5200)
     const book = books[i % books.length]
     allDays.push({ label: date, value: seconds })
+    if (!monthlyTimes.has(date.slice(0, 7))) monthlyTimes.set(date.slice(0, 7), new Map())
+    const monthTimes = monthlyTimes.get(date.slice(0, 7))!
+    monthTimes.set(book.id, (monthTimes.get(book.id) ?? 0) + seconds)
     if (seconds) book.updatedAt = date
     if (date >= range.start && date <= range.end)
       bookTimes.set(book.id, (bookTimes.get(book.id) ?? 0) + seconds)
@@ -361,7 +366,7 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
     .filter((n) => n.type === 'highlight')
     .slice(-20)
     .reverse()
-  return {
+  const output: ReadingReport = {
     meta: {
       version: 1,
       sampleReport: true,
@@ -397,4 +402,22 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
       `书名、作者和封面取自微信读书公开书目，分类为本站展示分组；阅读记录均为模拟，笔记是原创演示文本，不是书中原文。书架快照日期：${shanghaiDate(now)}。`,
     ],
   }
+  output.insights = buildInsights(output, {
+    daily: scoped,
+    hourly: Array.from({ length: 24 }, (_, i) => (seconds * (i + 1)) / 300),
+    hourlyScope: `${range.start} — ${range.end} · 模拟时段`,
+    bookTimes,
+    monthlyBooks: Object.fromEntries(
+      [...monthlyTimes].map(([month, times]) => [
+        month,
+        [...times]
+          .filter(([, seconds]) => seconds >= 300)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10)
+          .map(([id, seconds]) => ({ title: books.find((b) => b.id === id)!.title, seconds })),
+      ]),
+    ),
+    loadedBooks: new Set(books.map((b) => b.id)),
+  })
+  return output
 }

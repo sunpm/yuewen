@@ -1,3 +1,4 @@
+import type { Insights } from './insights'
 export type RangeKey = 'recent' | 'weekly' | 'monthly' | 'overall' | `${number}`
 export interface ReportTarget {
   id: string | null
@@ -89,10 +90,11 @@ export interface ReportModule {
   coverage: Coverage
 }
 export interface ReadingReport {
+  insights?: Insights
   meta: {
     version: 1
     sampleReport: boolean
-    source?: 'sample' | 'development' | 'account'
+    source?: 'sample' | 'development' | 'account' | 'guest'
     generatedAt: string
     timezone: 'Asia/Shanghai'
   }

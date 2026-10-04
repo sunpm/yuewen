@@ -8,7 +8,9 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  check,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import type { CollectorState } from '../collector'
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -85,16 +87,24 @@ export const credential = pgTable('weread_credential', {
   validatedAt: timestamp('validated_at', { withTimezone: true }).notNull().defaultNow(),
   ...timestamps,
 })
+export const guest = pgTable('guest_connection', {
+  id: text('id').primaryKey(),
+  tokenHash: text('token_hash').notNull().unique(),
+  encryptedKey: text('encrypted_key').notNull(),
+  encryptionVersion: integer('encryption_version').notNull(),
+  version: integer('version').notNull().default(1),
+  status: text('status').notNull().default('valid'),
+  idleExpiresAt: timestamp('idle_expires_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  ...timestamps,
+})
 export const report = pgTable(
   'reading_report',
   {
     id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    sessionId: text('session_id')
-      .notNull()
-      .references(() => session.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'cascade' }),
+    guestId: text('guest_id').references(() => guest.id, { onDelete: 'cascade' }),
     keyVersion: integer('key_version').notNull(),
     requestId: text('request_id').notNull(),
     version: integer('version').notNull().default(0),
@@ -110,6 +120,11 @@ export const report = pgTable(
     index('report_session_idx').on(t.sessionId),
     index('report_expiry_idx').on(t.expiresAt),
     uniqueIndex('report_request_idx').on(t.userId, t.requestId),
+    uniqueIndex('report_guest_idx').on(t.guestId),
+    check(
+      'report_owner_check',
+      sql`(${t.guestId} is not null and ${t.userId} is null and ${t.sessionId} is null) or (${t.guestId} is null and ${t.userId} is not null and ${t.sessionId} is not null)`,
+    ),
   ],
 )
 export const requestLimit = pgTable('request_limit', {
@@ -135,4 +150,21 @@ export const reportReplacement = pgTable(
     index('replacement_expiry_idx').on(t.expiresAt),
     uniqueIndex('replacement_request_idx').on(t.userId, t.requestId),
   ],
+)
+export const connectionSave = pgTable(
+  'connection_save',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    requestId: text('request_id').notNull(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => session.id, { onDelete: 'cascade' }),
+    guestId: text('guest_id').notNull(),
+    reportId: text('report_id').notNull(),
+    keyVersion: integer('key_version').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex('connection_save_request_idx').on(t.userId, t.requestId)],
 )

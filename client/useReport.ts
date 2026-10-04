@@ -1,6 +1,6 @@
 import { ref, shallowRef } from 'vue'
 import type { RangeKey, ReadingReport, ReportTarget } from '@shared/report'
-import { api, ApiError } from '@client/api'
+import { api as request, ApiError } from '@client/api'
 export interface ReportTask {
   id: string
   version: number
@@ -10,6 +10,8 @@ export interface ReportTask {
   keyVersion: number
   noteTotal: number
   notesComplete: boolean
+  retryAllowed?: boolean
+  issueCode?: string
 }
 const task = shallowRef<ReportTask | null>(null)
 const busy = ref(false),
@@ -19,6 +21,12 @@ let generation = 0,
   touchedAt = 0
 const conflict = shallowRef<{ key: RangeKey; target: ReportTarget; requestId: string } | null>(null)
 let halted = false
+let connection: 'guest' | 'account' = 'account'
+const api = <T>(path: string, options: RequestInit = {}) =>
+  request<T>(path, {
+    ...options,
+    headers: { ...options.headers, 'X-Yuewen-Connection': connection },
+  })
 // Keep report writes ordered even when navigation invalidates their UI response.
 let updating: Promise<unknown> = Promise.resolve()
 let pending: {
@@ -32,9 +40,13 @@ export function useReport() {
     error.value = e instanceof Error ? e.message : '读取失败，请重试。'
     errorCode.value = e && typeof e === 'object' && 'code' in e ? String(e.code) : ''
     if (
-      ['AUTH_REQUIRED', 'KEY_CHANGED', 'REPORT_EXPIRED', 'REPORT_REPLACED'].includes(
-        errorCode.value,
-      )
+      [
+        'AUTH_REQUIRED',
+        'GUEST_EXPIRED',
+        'KEY_CHANGED',
+        'REPORT_EXPIRED',
+        'REPORT_REPLACED',
+      ].includes(errorCode.value)
     )
       task.value = null
     if (errorCode.value === 'REPORT_REPLACED') {
@@ -57,6 +69,16 @@ export function useReport() {
     halted = false
     conflict.value = null
     pending = null
+  }
+  const selectConnection = (value: 'guest' | 'account') => {
+    if (connection !== value) {
+      clear()
+      connection = value
+    }
+  }
+  const settle = async () => {
+    suspend()
+    await updating.catch(() => {})
   }
   const touch = async (force = false) => {
     if (!task.value || (!force && Date.now() - touchedAt < 60000)) return
@@ -141,6 +163,10 @@ export function useReport() {
         if (run !== generation) return
         task.value = next
       }
+      if (task.value?.issueCode) {
+        errorCode.value = task.value.issueCode
+        error.value = task.value.report.issues[0] ?? '采集已停止，已有结果可下载。'
+      }
       if (task.value && !task.value.notesComplete && run === generation) {
         const id = task.value.id,
           version = task.value.version
@@ -223,6 +249,8 @@ export function useReport() {
     }
   }
   return {
+    selectConnection,
+    settle,
     task,
     busy,
     error,

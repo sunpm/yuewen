@@ -3,6 +3,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { authClient } from '@client/auth'
 import { api } from '@client/api'
 import { useReport } from '@client/useReport'
+import { safeReturn } from './useConnection'
 export function useLogin() {
   const email = ref(''),
     otp = ref(''),
@@ -78,23 +79,14 @@ export function useLogin() {
       }
       password.value = ''
       otp.value = ''
-      clear()
+      if (!safeReturn(route.query.next).includes('save=')) clear()
       if (mode.value === 'reset') {
         mode.value = 'password'
         sent.value = false
         error.value = '密码已更新，请重新登录。'
         return
       }
-      const next = typeof route.query.next === 'string' ? route.query.next : '/settings'
-      const destination = router.resolve(next)
-      await router.replace(
-        next.startsWith('/') &&
-          !next.startsWith('//') &&
-          !next.includes('\\') &&
-          ['/overview', '/report', '/shelf', '/notes', '/settings'].includes(destination.path)
-          ? destination.fullPath
-          : '/settings',
-      )
+      await router.replace(safeReturn(route.query.next))
     } catch {
       error.value = '服务暂时无法连接，请稍后重试。'
     } finally {
@@ -109,6 +101,10 @@ export function useLogin() {
     otp.value = ''
   }
   return {
+    returnTo: safeReturn(route.query.next)
+      .replace(/([?&])save=[^&]*&?/, '$1')
+      .replace(/([?&])saveReport=[^&]*&?/, '$1')
+      .replace(/[?&]$/, ''),
     email,
     otp,
     password,

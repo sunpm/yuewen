@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import MonthDetail from '@client/components/MonthDetail.vue'
+import ReportInsights from '@client/components/ReportInsights.vue'
+import ConnectionNotice from '@client/components/ConnectionNotice.vue'
 import { duration, mergeBookDetail } from '@shared/report'
 import type { Book, RangeKey } from '@shared/report'
 import { useReadingReport } from '@client/useReadingReport'
@@ -164,8 +167,16 @@ useReportViewState(
   busy,
 )
 watch(errorCode, (code) => {
-  if (code === 'AUTH_REQUIRED')
-    void router.replace({ path: '/login', query: { next: route.fullPath } })
+  if (['AUTH_REQUIRED', 'GUEST_EXPIRED', 'WEREAD_KEY_REQUIRED'].includes(code))
+    void router.replace({
+      path: '/settings',
+      query: {
+        connection: route.query.connection,
+        range: route.query.range,
+        next: route.fullPath,
+        expired: code,
+      },
+    })
 })
 function chooseRange(action: { key: string }) {
   range.value = action.key as RangeKey
@@ -256,7 +267,7 @@ watch([source, range], () => {
         <RouterLink
           v-if="demo"
           :to="{
-            path: '/login',
+            path: '/settings',
             query: {
               next: router.resolve({
                 path: `/${view}`,
@@ -269,6 +280,7 @@ watch([source, range], () => {
           <van-icon name="arrow" />
         </RouterLink>
       </div>
+      <ConnectionNotice v-if="!demo" />
       <h1>{{ title }}</h1>
       <van-button v-if="demo && canUseDevelopment" size="small" plain @click="switchSample">
         {{ isSample ? '使用开发数据' : '切换模拟示例' }}
@@ -305,9 +317,12 @@ watch([source, range], () => {
     <div v-else-if="error" class="status-card" role="alert">
       <p>{{ error }}</p>
       <van-button
-        v-if="source === 'account' && errorCode.startsWith('WEREAD_KEY')"
+        v-if="['account', 'guest'].includes(source) && errorCode.startsWith('WEREAD_KEY')"
         size="small"
-        to="/settings"
+        :to="{
+          path: '/settings',
+          query: { connection: route.query.connection, range: route.query.range },
+        }"
       >
         配置微信读书
       </van-button>
@@ -318,6 +333,10 @@ watch([source, range], () => {
       </van-button>
     </div>
     <template v-if="report">
+      <ReportInsights
+        v-if="report.insights && ['overview', 'report'].includes(view)"
+        :insights="report.insights"
+      />
       <template v-if="view === 'overview'">
         <section class="mobile-stats" aria-label="阅读核心指标">
           <div>
@@ -498,6 +517,7 @@ watch([source, range], () => {
             清除筛选
           </button>
         </p>
+        <MonthDetail v-if="month" :report="report" :month="month" />
         <div class="mobile-notes">
           <article v-for="note in notes.slice(0, noteLimit)" :key="note.id" class="mobile-note">
             <header>
@@ -574,7 +594,9 @@ watch([source, range], () => {
       <p v-for="issue in report?.issues" :key="issue">{{ issue }}</p>
       <van-button v-if="busy" round block @click="cancel">停止采集</van-button>
       <template v-else>
-        <van-button round block @click="retry">继续或重试剩余部分</van-button>
+        <van-button v-if="task?.retryAllowed !== false && !isSample" round block @click="retry">
+          继续或重试剩余部分
+        </van-button>
         <van-button round block plain @click="collect(range, true)">重新读取当前范围</van-button>
       </template>
     </van-popup>

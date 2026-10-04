@@ -47,11 +47,12 @@ local.post('/api/dev/report', async (c) => {
   }
   if (body.action === 'cancel') entry.stopped = true
   if (body.action === 'retry') {
-    if (entry.state.requests >= 600)
+    if (entry.state.budgetReached || entry.state.requests >= 600)
       throw new AppError('COLLECTION_BUDGET', '已达到请求预算，请下载已有结果。', 409)
     entry.state.queue.push(...entry.state.failed)
     entry.state.failed = []
     entry.state.issues = []
+    entry.state.issueCode = undefined
     entry.stopped = false
   }
   if (!entry.stopped && entry.state.queue.length) {
@@ -63,16 +64,14 @@ local.post('/api/dev/report', async (c) => {
         Buffer.byteLength(JSON.stringify(entry.state)) > 1500000 ||
         entry.state.notes.length > 10000
       ) {
-        entry.state = previous
+        const requests = entry.state.requests
+        entry.state = { ...previous, requests, budgetReached: true }
         throw new AppError('COLLECTION_BUDGET', '达到本次内容预算，已保留取得的结果。', 409)
       }
     } catch (error) {
       entry.stopped = true
-      if (
-        error instanceof AppError &&
-        ['WEREAD_KEY_INVALID', 'UPSTREAM_UPGRADE'].includes(error.code)
-      )
-        throw error
+      entry.state.issueCode = error instanceof AppError ? error.code : 'COLLECTION_ERROR'
+      if (entry.state.issueCode === 'COLLECTION_BUDGET') entry.state.budgetReached = true
       const message = error instanceof AppError ? error.message : '采集暂停，请重试。'
       if (!entry.state.issues.includes(message)) entry.state.issues.push(message)
     } finally {
@@ -95,6 +94,11 @@ local.post('/api/dev/report', async (c) => {
     status,
     report,
     notesComplete: true,
+    retryAllowed:
+      !entry.state.budgetReached &&
+      entry.state.requests < 600 &&
+      entry.state.issueCode !== 'WEREAD_KEY_INVALID',
+    issueCode: entry.state.issueCode,
     noteTotal: report.notes.length,
     stage:
       status === 'running'
@@ -131,6 +135,7 @@ local.onError((error, c) =>
     (error instanceof AppError ? error.status : 503) as 400,
   ),
 )
-serve({ fetch: local.fetch, hostname: '127.0.0.1', port: 8787 }, () =>
-  console.log('阅纹 API：http://127.0.0.1:8787'),
+const port = Number(process.env.PORT ?? 8787)
+serve({ fetch: local.fetch, hostname: '127.0.0.1', port }, () =>
+  console.log(`阅纹 API：http://127.0.0.1:${port}`),
 )

@@ -1,21 +1,42 @@
 import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { and, eq, gt, lt, or, sql, isNull } from 'drizzle-orm'
+import { and, eq, gt, lt, or, sql, isNull, exists } from 'drizzle-orm'
 import { z } from 'zod'
 import { authConfigured, getAuth } from './auth'
 import { getDb } from './db'
-import { credential, report, reportReplacement, requestLimit, user } from './db/schema'
-import { decryptKey, encryptKey, keyring } from './crypto'
+import {
+  credential,
+  guest,
+  report,
+  reportReplacement,
+  user,
+  session as authSession,
+} from './db/schema'
+import { encryptKey, keyring } from './crypto'
 import { AppError, weread } from './weread'
 import { advanceCollector, buildReport, newCollector, num, obj, str } from './collector'
 import { createDemo } from '../shared/demo'
 import { bookCategory, isRangeKey } from '../shared/report'
 import type { RangeKey, ReportTarget } from '../shared/report'
 
-type Session = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuth>['api']['getSession']>>>
+import {
+  connections,
+  resolveAccess,
+  accountSession,
+  limit,
+  limitSource,
+  ownerReports,
+  sessionReports,
+  lockOwner,
+  readCredential,
+  decryptConnection,
+  invalidateConnection,
+  liveGuest,
+} from './connections'
+import type { Access, AppEnv } from './connections'
 type Row = typeof report.$inferSelect
-export const app = new Hono<{ Variables: { session: Session; requestId: string } }>()
+export const app = new Hono<AppEnv>()
 app.use('/api/*', async (c, next) => {
   c.set('requestId', randomUUID())
   c.header('Cache-Control', 'no-store')
@@ -49,14 +70,18 @@ app.get('/api/health', (c) => c.json({ status: 'ok', auth: authConfigured() }))
 app.get('/api/demo', (c) => c.json(createDemo(parseRange(c.req.query('range') ?? 'recent'))))
 app.on(['GET', 'POST'], '/api/auth/*', (c) => {
   if (!authConfigured())
-    throw new AppError('AUTH_UNAVAILABLE', '邮箱登录服务尚未配置，你可以先浏览示例。', 503)
+    throw new AppError('AUTH_UNAVAILABLE', '邮箱登录服务暂不可用，你仍可临时连接和下载报告。', 503)
   return getAuth().handler(c.req.raw)
 })
+app.route('/api', connections)
 app.use('/api/*', async (c, next) => {
-  if (!authConfigured()) throw new AppError('AUTH_REQUIRED', '请先登录阅纹。', 401)
-  const session = await getAuth().api.getSession({ headers: c.req.raw.headers })
-  if (!session) throw new AppError('AUTH_REQUIRED', '登录已过期，请重新登录。', 401)
-  c.set('session', session)
+  if (c.req.path.startsWith('/api/account')) {
+    const session = await accountSession(c)
+    if (!session) throw new AppError('AUTH_REQUIRED', '请先登录阅纹。', 401)
+    c.set('access', { kind: 'account', ownerId: session.user.id, sessionId: session.session.id })
+  } else c.set('access', await resolveAccess(c))
+  if (c.req.method === 'POST' && c.req.path === '/api/reports') await limitSource(c, 'report', 12)
+  if (c.req.path.startsWith('/api/books/')) await limitSource(c, 'book', 60)
   await next()
 })
 export function parseRange(value: unknown): RangeKey {
@@ -65,6 +90,7 @@ export function parseRange(value: unknown): RangeKey {
 }
 function publicTask(row: Row) {
   const data = buildReport(row.state)
+  data.meta.source = row.guestId ? 'guest' : 'account'
   const noteTotal = data.notes.length
   data.notes = data.notes.slice(0, 200)
   return {
@@ -80,33 +106,31 @@ function publicTask(row: Row) {
     report: data,
     noteTotal,
     notesComplete: noteTotal <= 200,
+    retryAllowed:
+      !row.state.budgetReached &&
+      row.state.requests < 600 &&
+      row.state.issueCode !== 'WEREAD_KEY_INVALID',
+    issueCode: row.state.issueCode,
   }
 }
-async function limit(key: string, maximum: number, windowSeconds: number) {
-  const db = getDb()
-  const expiresAt = new Date(Date.now() + windowSeconds * 1000)
-  const [row] = await db
-    .insert(requestLimit)
-    .values({ key, count: 1, expiresAt })
-    .onConflictDoUpdate({
-      target: requestLimit.key,
-      set: {
-        count: sql`case when ${requestLimit.expiresAt} < now() then 1 else ${requestLimit.count} + 1 end`,
-        expiresAt: sql`case when ${requestLimit.expiresAt} < now() then ${expiresAt} else ${requestLimit.expiresAt} end`,
-      },
-    })
-    .returning()
-  if (row.count > maximum) throw new AppError('RATE_LIMIT', '操作过于频繁，请稍后重试。', 429, true)
-}
-const active = (id: string, session: Session) =>
+const active = (id: string, session: Access) =>
   and(
     eq(report.id, id),
-    eq(report.userId, session.user.id),
-    eq(report.sessionId, session.session.id),
+    sessionReports(session),
+    session.kind === 'guest'
+      ? exists(getDb().select({ id: guest.id }).from(guest).where(liveGuest(session.ownerId)))
+      : exists(
+          getDb()
+            .select({ id: authSession.id })
+            .from(authSession)
+            .where(
+              and(eq(authSession.id, session.sessionId), gt(authSession.expiresAt, new Date())),
+            ),
+        ),
     gt(report.expiresAt, new Date()),
     gt(report.idleExpiresAt, new Date()),
   )
-async function readTask(id: string, session: Session) {
+async function readTask(id: string, session: Access) {
   const [row] = await getDb().select().from(report).where(active(id, session))
   if (!row) {
     const [replaced] = await getDb()
@@ -115,8 +139,8 @@ async function readTask(id: string, session: Session) {
       .where(
         and(
           eq(reportReplacement.id, id),
-          eq(reportReplacement.userId, session.user.id),
-          eq(reportReplacement.sessionId, session.session.id),
+          eq(reportReplacement.userId, session.ownerId),
+          eq(reportReplacement.sessionId, session.sessionId),
           gt(reportReplacement.expiresAt, new Date()),
         ),
       )
@@ -124,32 +148,23 @@ async function readTask(id: string, session: Session) {
       throw new AppError('REPORT_REPLACED', '该临时报告已被替换。已停止读取，可主动重新生成。', 409)
     throw new AppError('REPORT_EXPIRED', '临时报告已清除或过期，请重新生成。', 404)
   }
-  const [key] = await getDb()
-    .select({ version: credential.version })
-    .from(credential)
-    .where(eq(credential.userId, session.user.id))
+  const key = await readCredential(session)
   if (!key || key.version !== row.keyVersion)
     throw new AppError('KEY_CHANGED', '微信读书连接已更新，请重新生成报告。', 409)
   return row
 }
-async function getKey(userId: string) {
-  const [key] = await getDb().select().from(credential).where(eq(credential.userId, userId))
+async function getKey(session: Access) {
+  const key = await readCredential(session)
   if (!key) throw new AppError('WEREAD_KEY_REQUIRED', '请先连接你的微信读书。', 409)
   if (key.status === 'invalid')
     throw new AppError('WEREAD_KEY_INVALID', '微信读书 API Key 已失效，请重新配置。', 409)
   return key
 }
-function decrypt(key: typeof credential.$inferSelect) {
-  const ring = keyring(),
-    secret = ring.keys[key.encryptionVersion]
-  if (!secret) throw new AppError('SERVICE_MAINTENANCE', '连接服务正在维护，请稍后重试。', 503)
-  return decryptKey(key.encryptedKey, key.userId, secret)
-}
 app.get('/api/account/weread-key', async (c) => {
   const [key] = await getDb()
     .select()
     .from(credential)
-    .where(eq(credential.userId, c.get('session').user.id))
+    .where(eq(credential.userId, c.get('access').ownerId))
   return c.json({
     status: key?.status ?? 'missing',
     updatedAt: key?.updatedAt,
@@ -167,7 +182,7 @@ app.put('/api/account/weread-key', async (c) => {
         .regex(/^wrk-[A-Za-z0-9_-]+$/),
     })
     .parse(await c.req.json())
-  const userId = c.get('session').user.id,
+  const userId = c.get('access').ownerId,
     db = getDb()
   await limit(`key:${userId}`, 5, 60)
   const [before] = await db.select().from(credential).where(eq(credential.userId, userId))
@@ -203,7 +218,7 @@ app.put('/api/account/weread-key', async (c) => {
   return c.json({ status: 'valid', updatedAt: new Date().toISOString() })
 })
 app.delete('/api/account/weread-key', async (c) => {
-  const id = c.get('session').user.id
+  const id = c.get('access').ownerId
   await getDb().transaction(async (tx) => {
     await tx.select().from(user).where(eq(user.id, id)).for('update')
     await tx.delete(report).where(eq(report.userId, id))
@@ -212,59 +227,46 @@ app.delete('/api/account/weread-key', async (c) => {
   return c.body(null, 204)
 })
 app.delete('/api/account', async (c) => {
-  const session = c.get('session')
-  if (Date.now() - session.session.createdAt.getTime() > 600000)
+  const session = c.get('access')
+  const login = await accountSession(c)
+  if (!login || Date.now() - login.session.createdAt.getTime() > 600000)
     throw new AppError('REAUTH_REQUIRED', '删除账号前，请先退出并重新登录。', 403)
   const response = await getAuth().api.signOut({ headers: c.req.raw.headers, asResponse: true })
-  await getDb().delete(user).where(eq(user.id, session.user.id))
+  await getDb().delete(user).where(eq(user.id, session.ownerId))
   return response
 })
 app.get('/api/session/reports', async (c) => {
-  const session = c.get('session'),
+  const session = c.get('access'),
     now = new Date()
   const rows = await getDb()
     .select()
     .from(report)
-    .where(
-      and(
-        eq(report.userId, session.user.id),
-        eq(report.sessionId, session.session.id),
-        gt(report.expiresAt, now),
-        gt(report.idleExpiresAt, now),
-      ),
-    )
-  const [key] = await getDb()
-    .select({ version: credential.version })
-    .from(credential)
-    .where(eq(credential.userId, session.user.id))
+    .where(and(sessionReports(session), gt(report.expiresAt, now), gt(report.idleExpiresAt, now)))
+  const key = await readCredential(session)
   return c.json(rows.filter((r) => r.keyVersion === key?.version).map((r) => publicTask(r)))
 })
 app.delete('/api/session/reports', async (c) => {
   await getDb()
     .delete(report)
-    .where(eq(report.sessionId, c.get('session').session.id))
+    .where(sessionReports(c.get('access')))
   return c.body(null, 204)
 })
-const validReport = (userId: string) =>
-  and(
-    eq(report.userId, userId),
-    gt(report.expiresAt, new Date()),
-    gt(report.idleExpiresAt, new Date()),
-  )
-function reportTarget(row: Row | undefined, session: Session, keyVersion: number): ReportTarget {
+const validReport = (session: Access) =>
+  and(ownerReports(session), gt(report.expiresAt, new Date()), gt(report.idleExpiresAt, new Date()))
+function reportTarget(row: Row | undefined, session: Access, keyVersion: number): ReportTarget {
   return {
     id: row?.id ?? null,
     keyVersion,
-    otherSession: !!row && row.sessionId !== session.session.id,
+    otherSession: session.kind === 'account' && !!row && row.sessionId !== session.sessionId,
   }
 }
 app.get('/api/reports/target', async (c) => {
-  const session = c.get('session'),
-    key = await getKey(session.user.id)
+  const session = c.get('access'),
+    key = await getKey(session)
   const [row] = await getDb()
     .select()
     .from(report)
-    .where(and(validReport(session.user.id), eq(report.keyVersion, key.version)))
+    .where(and(validReport(session), eq(report.keyVersion, key.version)))
   return c.json(reportTarget(row, session, key.version))
 })
 app.post('/api/reports', async (c) => {
@@ -280,15 +282,12 @@ app.post('/api/reports', async (c) => {
     })
     .parse(await c.req.json())
   const range = parseRange(body.range),
-    session = c.get('session'),
+    session = c.get('access'),
     db = getDb()
-  await limit(`report:${session.user.id}`, 6, 60)
+  await limit(`report:${session.ownerId}`, 6, 60)
   const row = await db.transaction(async (tx) => {
-    await tx.select().from(user).where(eq(user.id, session.user.id)).for('update')
-    const [current] = await tx
-      .select()
-      .from(credential)
-      .where(eq(credential.userId, session.user.id))
+    await lockOwner(tx, session)
+    const current = await readCredential(session, tx)
     if (!current) throw new AppError('WEREAD_KEY_REQUIRED', '请先连接你的微信读书。', 409)
     if (current.status === 'invalid')
       throw new AppError('WEREAD_KEY_INVALID', '微信读书 API Key 已失效，请重新配置。', 409)
@@ -297,8 +296,7 @@ app.post('/api/reports', async (c) => {
       .from(report)
       .where(
         and(
-          eq(report.userId, session.user.id),
-          eq(report.sessionId, session.session.id),
+          sessionReports(session),
           eq(report.requestId, body.requestId),
           gt(report.expiresAt, new Date()),
           gt(report.idleExpiresAt, new Date()),
@@ -310,15 +308,15 @@ app.post('/api/reports', async (c) => {
       .from(reportReplacement)
       .where(
         and(
-          eq(reportReplacement.userId, session.user.id),
-          eq(reportReplacement.sessionId, session.session.id),
+          eq(reportReplacement.userId, session.ownerId),
+          eq(reportReplacement.sessionId, session.sessionId),
           eq(reportReplacement.requestId, body.requestId),
           gt(reportReplacement.expiresAt, new Date()),
         ),
       )
     if (receipt)
       throw new AppError('REPORT_REPLACED', '该生成请求的报告已被替换，请重新选择范围。', 409)
-    const [previous] = await tx.select().from(report).where(validReport(session.user.id))
+    const [previous] = await tx.select().from(report).where(validReport(session))
     const target = reportTarget(previous, session, current.version)
     if (
       body.expected.id !== target.id ||
@@ -335,7 +333,7 @@ app.post('/api/reports', async (c) => {
         undefined,
         target,
       )
-    if (previous)
+    if (previous?.userId && previous.sessionId)
       await tx.insert(reportReplacement).values({
         id: previous.id,
         userId: previous.userId,
@@ -343,18 +341,29 @@ app.post('/api/reports', async (c) => {
         requestId: previous.requestId,
         expiresAt: previous.expiresAt,
       })
-    await tx.delete(report).where(eq(report.userId, session.user.id))
+    await tx.delete(report).where(ownerReports(session))
     const [created] = await tx
       .insert(report)
       .values({
         id: randomUUID(),
-        userId: session.user.id,
-        sessionId: session.session.id,
+        userId: session.kind === 'account' ? session.ownerId : null,
+        sessionId: session.kind === 'account' ? session.sessionId : null,
+        guestId: session.kind === 'guest' ? session.ownerId : null,
         keyVersion: current.version,
         requestId: body.requestId,
         state: newCollector(range),
-        idleExpiresAt: new Date(Date.now() + 1800000),
-        expiresAt: new Date(Date.now() + 7200000),
+        idleExpiresAt: new Date(
+          Math.min(
+            Date.now() + 1800000,
+            'idleExpiresAt' in current ? current.idleExpiresAt.getTime() : Infinity,
+          ),
+        ),
+        expiresAt: new Date(
+          Math.min(
+            Date.now() + 7200000,
+            'expiresAt' in current ? current.expiresAt.getTime() : Infinity,
+          ),
+        ),
       })
       .returning()
     return created
@@ -362,10 +371,10 @@ app.post('/api/reports', async (c) => {
   return c.json(publicTask(row), 202)
 })
 app.get('/api/reports/:id', async (c) =>
-  c.json(publicTask(await readTask(c.req.param('id'), c.get('session')))),
+  c.json(publicTask(await readTask(c.req.param('id'), c.get('access')))),
 )
 app.get('/api/reports/:id/notes', async (c) => {
-  const row = await readTask(c.req.param('id'), c.get('session'))
+  const row = await readTask(c.req.param('id'), c.get('access'))
   const offset = z.coerce
     .number()
     .int()
@@ -389,7 +398,7 @@ app.get('/api/reports/:id/notes', async (c) => {
   })
 })
 app.post('/api/reports/:id/touch', async (c) => {
-  const session = c.get('session'),
+  const session = c.get('access'),
     row = await readTask(c.req.param('id'), session)
   const [updated] = await getDb()
     .update(report)
@@ -397,10 +406,15 @@ app.post('/api/reports/:id/touch', async (c) => {
     .where(active(row.id, session))
     .returning({ id: report.id })
   if (!updated) await readTask(row.id, session)
+  if (session.kind === 'guest')
+    await getDb()
+      .update(guest)
+      .set({ idleExpiresAt: new Date(Math.min(Date.now() + 1800000, row.expiresAt.getTime())) })
+      .where(liveGuest(session.ownerId))
   return c.body(null, 204)
 })
 app.post('/api/reports/:id/cancel', async (c) => {
-  const session = c.get('session'),
+  const session = c.get('access'),
     row = await readTask(c.req.param('id'), session)
   const [updated] = await getDb()
     .update(report)
@@ -417,17 +431,18 @@ app.post('/api/reports/:id/cancel', async (c) => {
   return c.json(publicTask(updated))
 })
 app.post('/api/reports/:id/retry', async (c) => {
-  const session = c.get('session'),
+  const session = c.get('access'),
     row = await readTask(c.req.param('id'), session)
-  await getKey(session.user.id)
+  await getKey(session)
   if (!['partial', 'cancelled', 'failed'].includes(row.status)) return c.json(publicTask(row))
   if (row.state.retryAt && row.state.retryAt > Date.now())
     throw new AppError('UPSTREAM_RATE_LIMIT', '请稍后再继续读取。', 429, true)
-  if (row.state.requests >= 600)
+  if (row.state.budgetReached || row.state.requests >= 600)
     throw new AppError('COLLECTION_BUDGET', '本次采集已达到请求预算，请下载已有结果。', 409)
   row.state.queue.push(...row.state.failed)
   row.state.failed = []
   row.state.issues = []
+  row.state.issueCode = undefined
   const [updated] = await getDb()
     .update(report)
     .set({
@@ -449,12 +464,12 @@ app.post('/api/reports/:id/advance', async (c) => {
   const body = z
     .object({ version: z.number().int().min(0), requestId: z.string().uuid() })
     .parse(await c.req.json())
-  const session = c.get('session'),
+  const session = c.get('access'),
     db = getDb(),
     row = await readTask(c.req.param('id'), session)
   if (row.version !== body.version || !['queued', 'running'].includes(row.status))
     return c.json(publicTask(row))
-  const key = await getKey(session.user.id),
+  const key = await getKey(session),
     leaseId = randomUUID()
   const leased = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(7263104)`)
@@ -480,7 +495,7 @@ app.post('/api/reports/:id/advance', async (c) => {
   let issue: AppError | undefined
   const previous = structuredClone(leased.state)
   try {
-    await advanceCollector(leased.state, decrypt(key))
+    await advanceCollector(leased.state, decryptConnection(key))
   } catch (error) {
     issue =
       error instanceof AppError
@@ -491,13 +506,16 @@ app.post('/api/reports/:id/advance', async (c) => {
     Buffer.byteLength(JSON.stringify(leased.state)) > 1500000 ||
     leased.state.notes.length > 10000
   ) {
-    leased.state = previous
+    const requests = leased.state.requests
+    leased.state = { ...previous, requests, budgetReached: true }
     issue = new AppError(
       'COLLECTION_BUDGET',
       '本次报告达到内容预算，已保留现有结果，请先下载。',
       409,
     )
   }
+  leased.state.issueCode = issue?.code
+  if (issue?.code === 'COLLECTION_BUDGET') leased.state.budgetReached = true
   if (issue && !leased.state.issues.includes(issue.message)) leased.state.issues.push(issue.message)
   const status =
     issue || (!leased.state.queue.length && leased.state.failed.length)
@@ -528,12 +546,7 @@ app.post('/api/reports/:id/advance', async (c) => {
     await readTask(row.id, session)
     throw new AppError('REPORT_CHANGED', '采集已停止或连接已更新，旧结果未写入。', 409)
   }
-  if (issue?.code === 'WEREAD_KEY_INVALID')
-    await db
-      .update(credential)
-      .set({ status: 'invalid' })
-      .where(and(eq(credential.userId, session.user.id), eq(credential.version, key.version)))
-  if (issue && ['WEREAD_KEY_INVALID', 'UPSTREAM_UPGRADE'].includes(issue.code)) throw issue
+  if (issue?.code === 'WEREAD_KEY_INVALID') await invalidateConnection(session, key.version)
   return c.json(publicTask(updated))
 })
 app.get('/api/books/:id', async (c) => {
@@ -541,24 +554,24 @@ app.get('/api/books/:id', async (c) => {
       .string()
       .regex(/^[\w-]{1,100}$/)
       .parse(c.req.param('id')),
-    session = c.get('session')
-  await limit(`book:${session.user.id}`, 30, 60)
-  const key = await getKey(session.user.id),
-    secret = decrypt(key)
+    session = c.get('access')
+  await limit(`book:${session.ownerId}`, 30, 60)
+  const key = await getKey(session),
+    secret = decryptConnection(key)
   const [info, progress] = await Promise.all([
     weread(secret, '/book/info', { bookId: id }),
     weread(secret, '/book/getprogress', { bookId: id }),
   ]).catch(async (error) => {
     if (error instanceof AppError && error.code === 'WEREAD_KEY_INVALID') {
-      await getDb()
-        .update(credential)
-        .set({ status: 'invalid' })
-        .where(and(eq(credential.userId, session.user.id), eq(credential.version, key.version)))
+      await invalidateConnection(session, key.version)
     }
     throw error
   })
   // Recheck after the upstream call so a removed/replaced key cannot release stale data.
-  const current = await getKey(session.user.id)
+  const access = await resolveAccess(c)
+  if (access.ownerId !== session.ownerId || access.sessionId !== session.sessionId)
+    throw new AppError('KEY_CHANGED', '连接已更新，请重新打开书籍。', 409)
+  const current = await getKey(session)
   if (current.version !== key.version)
     throw new AppError('KEY_CHANGED', '连接已更新，请重新打开书籍。', 409)
   return c.json({

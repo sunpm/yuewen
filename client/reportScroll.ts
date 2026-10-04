@@ -24,6 +24,13 @@ export const reportScroll: RouterScrollBehavior = async (to, from, saved) => {
     await nextTick()
     return current === navigation.value ? saved : false
   }
+  if (
+    !from.query.connection &&
+    ['guest', 'account'].includes(String(to.query.connection)) &&
+    to.path === from.path &&
+    ['view', 'source', 'book', 'month', 'range'].every((key) => to.query[key] === from.query[key])
+  )
+    return false
   if (to.path !== from.path) return { top: 0 }
   const keys = ['view', 'source', 'book', 'month', 'connection', 'range']
   const changed = keys.filter((key) => to.query[key] !== from.query[key])

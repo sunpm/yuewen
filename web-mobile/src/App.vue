@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { useTheme } from '@client/useTheme'
-const { dark, toggle } = useTheme()
+const { dark, preference, setTheme } = useTheme()
+const themeOpen = ref(false)
+const themes = [
+  { name: '自动（跟随系统）', value: 'auto' as const },
+  { name: '浅色', value: 'light' as const },
+  { name: '深色', value: 'dark' as const },
+]
 const route = useRoute()
 const demo = computed(() => route.path === '/demo')
 const active = computed(() => {
@@ -47,12 +53,21 @@ const destination = (view: string) =>
       <span class="header-caption">看见你的阅读轨迹</span>
       <button
         class="icon-button"
-        :aria-label="dark ? '切换浅色主题' : '切换深色主题'"
-        @click="toggle"
+        :aria-label="`选择主题，当前${themes.find((t) => t.value === preference)?.name}`"
+        @click="themeOpen = true"
       >
         <span aria-hidden="true">{{ dark ? '☀' : '◐' }}</span>
       </button>
     </header>
+    <van-action-sheet
+      v-model:show="themeOpen"
+      :actions="
+        themes.map((t) => ({ ...t, subname: t.value === preference ? '当前选择' : undefined }))
+      "
+      cancel-text="取消"
+      close-on-click-action
+      @select="setTheme($event.value)"
+    />
     <main id="main"><RouterView :key="route.path" /></main>
     <van-tabbar
       v-if="!['/', '/login'].includes(route.path)"

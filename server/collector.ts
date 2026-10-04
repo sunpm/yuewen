@@ -1,3 +1,4 @@
+import { buildInsights } from '../shared/insights'
 import {
   emptyModules,
   getRange,
@@ -5,7 +6,6 @@ import {
   naturalDays,
   shanghaiDate,
   wordFrequency,
-  longestStreak,
   preferenceScope,
   bookCategory,
   normalizeNote,
@@ -29,6 +29,8 @@ export interface CollectorState {
   notebookBooks: JsonObject[]
   notes: Note[]
   requests: number
+  budgetReached?: boolean
+  issueCode?: string
   retryAt?: number
   createdAt: string
 }
@@ -98,7 +100,7 @@ export async function advanceCollector(
   if (!state.queue.length) return state
   if (state.retryAt && Date.now() < state.retryAt)
     throw new AppError('UPSTREAM_RATE_LIMIT', '请稍后再继续读取。', 429, true)
-  if (state.requests >= 600)
+  if (state.budgetReached || state.requests >= 600)
     throw new AppError('COLLECTION_BUDGET', '本次采集已达到请求预算，可先下载已有结果。', 409)
   const op = state.queue.shift()!
   state.requests++
@@ -289,9 +291,15 @@ export function buildReport(state: CollectorState): ReadingReport {
       if (range.key === 'overall') return []
       return Object.entries(obj(p.readTimes))
         .filter(([, v]) => num(v) != null)
+        .filter(([t]) => Number.isFinite(Number(t)) && Number(t) > 0)
         .map(([t, v]) => ({ label: shanghaiDate(new Date(Number(t) * 1000)), value: Number(v) }))
+        .filter((d) => d.label >= range.start && d.label <= range.end)
     })
     .sort((a, b) => a.label.localeCompare(b.label))
+  const dailyComplete =
+    completePeriods &&
+    !!range.start &&
+    new Set(daily.map((d) => d.label)).size === naturalDays(range)
   const months: Datum[] = periods
     .map(([key, p]) => ({
       label: periodLabel(key),
@@ -370,14 +378,14 @@ export function buildReport(state: CollectorState): ReadingReport {
       : null,
     '根据已取得的日明细统计，不从年度汇总推造。',
     undefined,
-    completePeriods,
+    dailyComplete,
   )
   set(
     5,
     daily.length ? daily.map((d) => ({ ...d, value: d.value / 60 })) : null,
     '每格代表一天，按周排列；仅按已取得的日明细高亮。浅色为未阅读、统计范围外或未取得日明细的日期。',
     undefined,
-    completePeriods,
+    dailyComplete,
   )
   let cumulative = 0
   set(
@@ -731,7 +739,7 @@ export function buildReport(state: CollectorState): ReadingReport {
     range.key === 'overall' && num(periods[0]?.[1].registTime)
       ? { ...range, start: dateOf(periods[0][1].registTime)! }
       : range
-  return {
+  const output: ReadingReport = {
     meta: {
       version: 1,
       sampleReport: false,
@@ -754,7 +762,7 @@ export function buildReport(state: CollectorState): ReadingReport {
       title: '阅读，留下自己的纹理。',
       text:
         readDays != null
-          ? `在所选周期里，你有 ${readDays} 个有效阅读日。${completePeriods && daily.length ? `已取得日明细中，最长连续阅读 ${longestStreak(daily)} 天。` : '完整的日节律仍需更多明细。'}`
+          ? `在所选周期里，你有 ${readDays} 个有效阅读日。完整的日节律见扩展指标及其覆盖说明。`
           : '阅读数据正在逐步补齐。每一个安静读书的片刻，都值得被看见。',
       evidence: [
         `范围：${effectiveRange.start || '起始日期未知'} — ${range.end}`,
@@ -773,4 +781,53 @@ export function buildReport(state: CollectorState): ReadingReport {
         : []),
     ],
   }
+  const bookTimes = new Map<string, number>()
+  if (range.key !== 'recent')
+    for (const item of arr(pref?.readLongest)) {
+      const id = str(obj(item.book).bookId) || str(obj(item.albumInfo).albumId),
+        seconds = num(item.readTime)
+      if (id && seconds != null && seconds >= 0) bookTimes.set(id, seconds)
+    }
+  const hourly =
+    Array.isArray(pref?.preferTime) &&
+    pref.preferTime.length === 24 &&
+    pref.preferTime.every((v) => typeof v === 'number' && Number.isFinite(v) && v >= 0)
+      ? (pref.preferTime as number[])
+      : undefined
+  output.insights = buildInsights(output, {
+    daily,
+    hourly,
+    hourlyScope: prefScope,
+    monthlyBooks: Object.fromEntries(
+      periods
+        .filter(
+          ([key, value]) =>
+            (key === 'period:monthly' || /^period:\d{4}-\d{2}$/.test(key)) &&
+            Array.isArray(value.readLongest),
+        )
+        .map(([key, value]) => [
+          key === 'period:monthly' ? range.start.slice(0, 7) : key.slice(7),
+          arr(value.readLongest)
+            .filter((item) => num(item.readTime) != null)
+            .map((item) => ({
+              title: str(obj(item.book).title) || str(obj(item.albumInfo).name),
+              seconds: Number(item.readTime),
+            })),
+        ]),
+    ),
+    bookTimes,
+    loadedBooks: new Set(
+      state.notebookBooks
+        .filter(
+          (b) =>
+            num(b.noteCount) != null &&
+            num(b.reviewCount) != null &&
+            ![...state.queue, ...state.failed].some(
+              (op) => op.params.bookId === b.bookId || op.params.bookid === b.bookId,
+            ),
+        )
+        .map((b) => str(b.bookId)),
+    ),
+  })
+  return output
 }
