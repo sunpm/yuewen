@@ -91,6 +91,10 @@ onUnmounted(() => {
   </div>
 </template>
 <style scoped>
+.report-chart {
+  /* Keep the previous SVG inside its host until ResizeObserver redraws it. */
+  overflow: hidden;
+}
 .calendar-hint {
   margin: 8px 0 0;
   font-size: 11px;

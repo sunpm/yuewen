@@ -26,11 +26,21 @@ const labels = ['阅读时长', '阅读天数', '读过', '读完', '笔记']
             : '已读取笔记 · 详见范围'
       }}
     </p>
+    <p v-if="module.status === 'partial'" class="module-coverage">
+      部分覆盖 · {{ module.coverage.reason || '当前仅展示已采集数据，完整范围见明细。' }}
+    </p>
     <van-empty
       v-if="['empty', 'unavailable'].includes(module.status)"
       image="search"
       image-size="62"
-      :description="module.status === 'empty' ? '这个范围内还没有记录' : '当前数据暂不可用'"
+      :description="
+        [
+          module.status === 'empty' ? '这个范围内还没有记录' : '当前数据暂不可用',
+          module.coverage.reason,
+        ]
+          .filter(Boolean)
+          .join('。')
+      "
     />
     <div v-else-if="module.periods?.length" class="period-groups">
       <section v-for="period in module.periods.slice(0, 3)" :key="period.label">

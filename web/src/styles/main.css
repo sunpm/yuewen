@@ -46,7 +46,7 @@
   box-sizing: border-box;
 }
 body {
-  min-width: 1280px;
+  min-width: 320px;
   margin: 0;
 }
 button,
@@ -673,6 +673,7 @@ h2,
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-bottom: 12px;
 }
 .module-card header > span {
@@ -686,9 +687,16 @@ h2,
 }
 .module-scope {
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 12px;
   margin: 7px 0 0;
   line-height: 1.6;
+}
+.module-coverage {
+  margin-block: 12px;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  font-size: 12px;
+  line-height: 1.8;
 }
 .report-chart {
   height: 255px;
@@ -917,11 +925,17 @@ th:not(:first-child) {
   padding: 9px 0;
 }
 .chart-empty {
-  height: 255px;
+  min-height: 255px;
   display: grid;
+  align-content: center;
+  gap: 12px;
   place-items: center;
+  text-align: center;
   color: var(--muted-foreground);
   font-size: 13px;
+}
+.chart-empty p {
+  line-height: 1.8;
 }
 .method-note {
   border-top: 1px solid var(--border);
@@ -1448,6 +1462,87 @@ form > label,
 @keyframes breathe {
   50% {
     opacity: 0.3;
+  }
+}
+
+@media (max-width: 1279px) {
+  .wrap {
+    width: calc(100% - 48px);
+  }
+  .landing-hero,
+  .auth-layout,
+  .overview-grid,
+  .module-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .hero-art {
+    width: min(100%, 560px);
+    margin-inline: auto;
+  }
+  .book-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+  }
+  .book-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .notes-grid {
+    columns: 2;
+  }
+  .stat-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 0;
+  }
+  .stat-strip article:nth-child(odd) {
+    border-left: 0;
+  }
+  .report-heading,
+  .report-controls,
+  .site-header,
+  .site-header nav,
+  .site-footer,
+  .intro-strip {
+    flex-wrap: wrap;
+  }
+  .report-controls {
+    margin-left: 0;
+  }
+}
+@media (max-width: 767px) {
+  .wrap {
+    width: calc(100% - 32px);
+  }
+  .report-toolbar nav,
+  .report-section-tabs,
+  .hero-actions {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .report-toolbar nav {
+    justify-content: space-between;
+    width: 100%;
+  }
+  .book-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .book-list,
+  .features {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .features article + article {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .notes-grid {
+    columns: 1;
+  }
+  .book-dialog {
+    grid-template-columns: 100px minmax(0, 1fr);
+    gap: 20px;
+  }
+  .dialog-content {
+    padding: 24px;
   }
 }
 
