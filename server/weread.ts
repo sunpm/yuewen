@@ -18,6 +18,7 @@ export class AppError extends Error {
     public status = 502,
     public retryable = false,
     public retryAfter?: number,
+    public details?: unknown,
   ) {
     super(message)
   }

@@ -13,8 +13,24 @@ const active = computed(() => {
 })
 const destination = (view: string) =>
   demo.value && view !== 'settings'
-    ? { path: '/demo', query: { view, source: route.query.source } }
-    : { path: `/${view}` }
+    ? {
+        path: '/demo',
+        query: {
+          ...route.query,
+          view,
+          book: view === 'notes' ? route.query.book : undefined,
+          month: view === 'notes' ? route.query.month : undefined,
+        },
+      }
+    : {
+        path: `/${view}`,
+        query: {
+          ...route.query,
+          view: undefined,
+          book: view === 'notes' ? route.query.book : undefined,
+          month: view === 'notes' ? route.query.month : undefined,
+        },
+      }
 </script>
 <template>
   <van-config-provider :theme="dark ? 'dark' : 'light'" theme-vars-scope="global">
@@ -59,7 +75,12 @@ const destination = (view: string) =>
       <van-tabbar-item name="notes" aria-label="笔记" icon="records-o" :to="destination('notes')">
         笔记
       </van-tabbar-item>
-      <van-tabbar-item name="settings" aria-label="我的" icon="user-o" to="/settings">
+      <van-tabbar-item
+        name="settings"
+        aria-label="我的"
+        icon="user-o"
+        :to="destination('settings')"
+      >
         我的
       </van-tabbar-item>
     </van-tabbar>

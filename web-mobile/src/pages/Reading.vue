@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { duration, shanghaiDate, noteLocation } from '@shared/report'
+import { duration, noteLocation } from '@shared/report'
 import type { Book, RangeKey } from '@shared/report'
 import { useReadingReport } from '@client/useReadingReport'
 import { showToast } from 'vant'
@@ -12,6 +12,10 @@ const view = computed(() =>
 )
 const {
   range,
+  years,
+  conflict,
+  confirmReplacement,
+  dismissConflict,
   task,
   report,
   busy,
@@ -28,14 +32,13 @@ const {
   switchSample,
   canUseDevelopment,
 } = useReadingReport(demo)
-const year = Number(shanghaiDate().slice(0, 4))
-const ranges = [
+const ranges = computed(() => [
   { name: '最近 24 个月', key: 'recent' },
   { name: '本周', key: 'weekly' },
   { name: '本月', key: 'monthly' },
-  ...[year, year - 1, year - 2].map((y) => ({ name: `${y} 年`, key: String(y) })),
+  ...years.value.map((y) => ({ name: `${y} 年`, key: String(y) })),
   { name: '全部历史', key: 'overall' },
-]
+])
 const rangeOpen = ref(false),
   exportOpen = ref(false),
   progressOpen = ref(false),
@@ -64,7 +67,13 @@ const title = computed(
 )
 const destination = (name: string, filters: Record<string, string> = {}) => ({
   path: demo.value ? '/demo' : `/${name}`,
-  query: { ...(demo.value ? { view: name, source: route.query.source } : {}), ...filters },
+  query: {
+    ...route.query,
+    book: undefined,
+    month: undefined,
+    ...(demo.value ? { view: name } : {}),
+    ...filters,
+  },
 })
 const books = computed(() =>
   (report.value?.books ?? [])
@@ -137,7 +146,8 @@ watch([search, noteBook, noteType, month], () => {
   noteLimit.value = 24
 })
 watch(errorCode, (code) => {
-  if (code === 'AUTH_REQUIRED') void router.replace({ path: '/login', query: { next: route.path } })
+  if (code === 'AUTH_REQUIRED')
+    void router.replace({ path: '/login', query: { next: route.fullPath } })
 })
 function chooseRange(action: { key: string }) {
   range.value = action.key as RangeKey
@@ -151,6 +161,7 @@ function clearFilters() {
   noteBook.value = '全部'
   noteType.value = '全部'
   month.value = ''
+  void router.replace({ query: { ...route.query, book: undefined, month: undefined } })
 }
 async function openBook(book: Book) {
   selected.value = book
@@ -187,6 +198,8 @@ async function copy(text: string) {
   }
 }
 async function download(type: 'html' | 'json') {
+  const snapshot = report.value,
+    origin = source.value
   if (!report.value || (!isSample.value && (busy.value || !task.value?.notesComplete))) {
     showToast('笔记仍在读取，请稍后下载')
     return
@@ -196,8 +209,10 @@ async function download(type: 'html' | 'json') {
     const exporter = await import('@client/export')
     const text =
       type === 'html'
-        ? await exporter.makeHtml(report.value, exportNotes.value)
-        : JSON.stringify(exporter.exportData(report.value, exportNotes.value), null, 2)
+        ? await exporter.makeHtml(snapshot!, exportNotes.value)
+        : JSON.stringify(exporter.exportData(snapshot!, exportNotes.value), null, 2)
+    if (report.value !== snapshot || source.value !== origin)
+      throw new Error('报告范围或来源已变化')
     exporter.download(text, type, isSample.value)
     showToast('报告已生成，请查看浏览器下载')
   } catch {
@@ -206,6 +221,12 @@ async function download(type: 'html' | 'json') {
     exporting.value = false
   }
 }
+watch([source, range], () => {
+  detailsOpen.value = false
+  selected.value = null
+  exportOpen.value = false
+  progressOpen.value = false
+})
 </script>
 <template>
   <div class="mobile-reading" @click="touch()" @keydown="touch()">
@@ -214,7 +235,18 @@ async function download(type: 'html' | 'json') {
         <span class="eyebrow">
           {{ sourceLabel }}
         </span>
-        <RouterLink v-if="demo" to="/login">
+        <RouterLink
+          v-if="demo"
+          :to="{
+            path: '/login',
+            query: {
+              next: router.resolve({
+                path: `/${view}`,
+                query: { ...route.query, view: undefined, source: undefined },
+              }).fullPath,
+            },
+          }"
+        >
           连接我的
           <van-icon name="arrow" />
         </RouterLink>
@@ -244,7 +276,14 @@ async function download(type: 'html' | 'json') {
         <span>· {{ sourceLabel }}</span>
       </p>
     </div>
-    <div v-if="error" class="status-card" role="alert">
+    <div v-if="conflict" class="status-card" role="alert">
+      <p>{{ error }}</p>
+      <van-button :disabled="busy" size="small" type="primary" @click="confirmReplacement">
+        替换并生成
+      </van-button>
+      <van-button :disabled="busy" size="small" @click="dismissConflict">取消</van-button>
+    </div>
+    <div v-else-if="error" class="status-card" role="alert">
       <p>{{ error }}</p>
       <van-button
         v-if="source === 'account' && errorCode.startsWith('WEREAD_KEY')"
@@ -253,7 +292,11 @@ async function download(type: 'html' | 'json') {
       >
         配置微信读书
       </van-button>
-      <van-button v-else size="small" @click="collect(range)">重试</van-button>
+      <van-button v-else size="small" @click="collect(range)">
+        {{
+          errorCode === 'REPORT_REPLACED' || errorCode === 'REPORT_CANCELLED' ? '重新生成' : '重试'
+        }}
+      </van-button>
     </div>
     <div v-if="busy" class="status-card" role="status">
       <van-loading size="18">正在读取阅读档案…</van-loading>
@@ -578,16 +621,34 @@ async function download(type: 'html' | 'json') {
         {{ isSample ? '下载文件会标记为模拟示例。' : '文件只下载到你的设备。' }}HTML
         可离线打开，包含图表与数据表。
       </p>
+      <p v-if="report">
+        {{ sourceLabel }} · {{ report.range.label }} · {{ report.range.start || '起始日期未知' }} —
+        {{ report.range.end }}
+      </p>
+      <p>下载当前范围的整份已采集报告，月份、单书、分类和搜索筛选不改变下载范围。</p>
       <van-cell title="附上全部已读取笔记" label="默认只附最多 20 条划线精选">
         <template #right-icon>
           <van-switch v-model="exportNotes" size="22" aria-label="附上全部已读取笔记" />
         </template>
       </van-cell>
       <div class="form-actions">
-        <van-button round block type="primary" :loading="exporting" @click="download('html')">
+        <van-button
+          round
+          block
+          type="primary"
+          :loading="exporting"
+          :disabled="!report || busy || (!isSample && !task?.notesComplete)"
+          @click="download('html')"
+        >
           下载 HTML
         </van-button>
-        <van-button round block :loading="exporting" @click="download('json')">
+        <van-button
+          round
+          block
+          :loading="exporting"
+          :disabled="!report || busy || (!isSample && !task?.notesComplete)"
+          @click="download('json')"
+        >
           下载 JSON
         </van-button>
       </div>

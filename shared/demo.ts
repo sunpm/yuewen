@@ -4,6 +4,7 @@ import {
   group,
   longestStreak,
   naturalDays,
+  preferenceScope,
   shanghaiDate,
   wordFrequency,
 } from './report'
@@ -66,6 +67,7 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
   const end = Date.parse(`${history.end}T00:00:00Z`)
   const notes: Note[] = []
   const bookTimes = new Map<string, number>()
+  const preferenceTimes = new Map<string, number>()
   for (let stamp = start, i = 0; stamp <= end; stamp += 86400000, i++) {
     const date = new Date(stamp).toISOString().slice(0, 10)
     const seconds = i % 9 === 0 || i % 17 === 0 ? 0 : 900 + ((i * 7919) % 5200)
@@ -74,6 +76,12 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
     if (seconds) book.updatedAt = date
     if (date >= range.start && date <= range.end)
       bookTimes.set(book.id, (bookTimes.get(book.id) ?? 0) + seconds)
+    if (
+      key === 'recent'
+        ? date.startsWith(range.end.slice(0, 4))
+        : date >= range.start && date <= range.end
+    )
+      preferenceTimes.set(book.id, (preferenceTimes.get(book.id) ?? 0) + seconds)
     if (seconds && i % 3 === 0) {
       const type = i % 12 === 0 ? 'thought' : 'highlight'
       notes.push({
@@ -107,14 +115,13 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
   const monthlyDays = group(
     scoped.map((d) => ({ label: bucket(d.label), value: d.value >= 60 ? 1 : 0 })),
   )
-  const preferenceYear = range.end.slice(0, 4)
-  const yearDays = allDays.filter((d) => d.label.startsWith(preferenceYear))
-  const annualBooks = books.map((b, i) => ({
+  const prefScope = preferenceScope(range)
+  const preferenceBooks = books.map((b) => ({
     ...b,
-    seconds: yearDays.filter((_, j) => j % 12 === i).reduce((a, d) => a + d.value, 0),
+    seconds: preferenceTimes.get(b.id) ?? 0,
   }))
   const categoryHours = group(
-    annualBooks.map((b) => ({ label: b.category, value: b.seconds / 3600 })),
+    preferenceBooks.map((b) => ({ label: b.category, value: b.seconds / 3600 })),
   )
   const modules = emptyModules(range)
   const set = (id: number, data: Datum[], description: string, scope?: string) => {
@@ -134,7 +141,13 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
     ],
     '原创示例，根据逐日记录汇总。',
   )
-  set(2, monthly, '每一个柱子，都是一个月留给阅读的时间。点击月份可查看对应笔记。')
+  set(
+    2,
+    monthly,
+    ['weekly', 'monthly'].includes(key)
+      ? '所选周期的阅读时长。'
+      : '每月的阅读时长；点击月份可查看对应笔记。',
+  )
   set(3, monthlyDays, '每天阅读满 1 分钟计为一个有效阅读日。')
   set(
     4,
@@ -212,12 +225,13 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
   )
   set(
     9,
-    annualBooks
+    preferenceBooks
+      .filter((b) => b.seconds >= 300)
       .map((b) => ({ label: b.title, value: b.seconds / 3600 }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10),
-    '自然年单书排行，不将多年的 Top 列表相加。',
-    `${preferenceYear} 自然年 · 前 10 本`,
+    '所示周期单书排行，不将多期 Top 列表相加。',
+    `${prefScope} · 前 10 本`,
   )
   set(
     10,
@@ -226,17 +240,17 @@ export function createDemo(key: RangeKey = 'recent', now = new Date()): ReadingR
       value: (d.value / Math.max(...categoryHours.map((c) => c.value), 1)) * 100,
     })),
     '相对最高分类的权重，不是百分比。',
-    `${preferenceYear} 自然年`,
+    prefScope,
   )
-  set(11, categoryHours, '分类阅读时长。', `${preferenceYear} 自然年`)
-  set(12, categoryHours, '面积表示分类时长。', `${preferenceYear} 自然年`)
+  set(11, categoryHours, '分类阅读时长。', prefScope)
+  set(12, categoryHours, '面积表示分类时长。', prefScope)
   set(
     13,
-    group(annualBooks.filter((b) => b.seconds).map((b) => ({ label: b.author, value: 1 }))),
+    group(preferenceBooks.filter((b) => b.seconds).map((b) => ({ label: b.author, value: 1 }))),
     '作者对应的阅读本数；不解析格式化时长。',
-    `${preferenceYear} 自然年`,
+    prefScope,
   )
-  set(14, [], '公开书目未核验出版社，不生成虚构出版社偏好。', `${preferenceYear} 自然年`)
+  set(14, [], '公开书目未核验出版社，不生成虚构出版社偏好。', prefScope)
   const listen = books.filter((b) => b.kind === 'audio').reduce((a, b) => a + (b.seconds ?? 0), 0)
   set(
     15,
