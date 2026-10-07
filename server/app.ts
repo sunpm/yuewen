@@ -492,10 +492,30 @@ app.post('/api/reports/:id/advance', async (c) => {
     if (!updated) throw new AppError('REPORT_BUSY', '这一批正在读取，请稍后继续。', 409, true)
     return updated
   })
+  const currentLease = () =>
+    and(
+      active(row.id, session),
+      eq(report.leaseId, leaseId),
+      gt(report.leaseUntil, new Date()),
+      eq(report.version, row.version),
+      eq(report.keyVersion, key.version),
+    )
   let issue: AppError | undefined
   const previous = structuredClone(leased.state)
   try {
-    await advanceCollector(leased.state, decryptConnection(key))
+    await advanceCollector(leased.state, decryptConnection(key), async (...args) => {
+      // Reserve the request before calling upstream; cancellation must not refund the budget.
+      const [reserved] = await db
+        .update(report)
+        .set({
+          state: sql`jsonb_set(${report.state}, '{requests}', to_jsonb(${leased.state.requests}::int))`,
+        })
+        .where(currentLease())
+        .returning({ id: report.id })
+      if (!reserved)
+        throw new AppError('REPORT_CHANGED', '采集已停止或连接已更新，请重新读取。', 409)
+      return weread(...args)
+    })
   } catch (error) {
     issue =
       error instanceof AppError
@@ -533,14 +553,7 @@ app.post('/api/reports/:id/advance', async (c) => {
       leaseUntil: null,
       updatedAt: new Date(),
     })
-    .where(
-      and(
-        active(row.id, session),
-        eq(report.leaseId, leaseId),
-        eq(report.version, row.version),
-        eq(report.keyVersion, key.version),
-      ),
-    )
+    .where(currentLease())
     .returning()
   if (!updated) {
     await readTask(row.id, session)
