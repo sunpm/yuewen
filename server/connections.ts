@@ -105,10 +105,10 @@ export async function limitSource(c: Context<AppEnv>, action: string, maximum: n
 export async function accountSession(c: Context) {
   return authConfigured() ? getAuth().api.getSession({ headers: c.req.raw.headers }) : null
 }
-async function guestSession(c: Context) {
+async function guestSession(c: Context, db?: Transaction | ReturnType<typeof getDb>) {
   const token = getCookie(c, cookie)
   if (!token || !/^[\w-]{43}$/.test(token) || !process.env.DATABASE_URL) return undefined
-  const [row] = await getDb()
+  const [row] = await (db ?? getDb())
     .select()
     .from(guest)
     .where(
@@ -255,7 +255,8 @@ connections.post('/guest/save', async (c) => {
         )
       return { reportId: current.id, range: current.state.range.key }
     }
-    let anonymous = await guestSession(c)
+    // Reuse this connection so concurrent saves cannot exhaust the transaction pool.
+    let anonymous = await guestSession(c, tx)
     if (!anonymous) throw new AppError('GUEST_EXPIRED', '临时连接已到期或清除，未执行保存。', 401)
     await lockOwner(tx, { kind: 'guest', ownerId: anonymous.id, sessionId: anonymous.id })
     const [lockedGuest] = await tx.select().from(guest).where(liveGuest(anonymous.id))
