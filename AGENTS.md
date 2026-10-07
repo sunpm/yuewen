@@ -16,8 +16,10 @@
 | 当前状态、里程碑、下一步、专题索引       | [PLAN.md](PLAN.md)                              |
 | 产品目标、页面流程、数据覆盖与首版边界   | [产品计划](docs/plans/product.md)               |
 | 架构、接口目标、采集预算、会话与导出约束 | [架构计划](docs/plans/architecture.md)          |
-| 设计目标、组件采用、双端体验             | [设计计划](docs/plans/design.md)                |
+| PC 设计目标、布局与组件采用              | [设计计划](docs/plans/design.md)                |
+| PC React 迁移、技术栈、H5 冻结与重构边界 | [PC 迁移计划](docs/plans/pc-refresh.md)         |
 | 笔记、图表、时间范围、书架及作者排行待办 | [报告体验计划](docs/plans/report-experience.md) |
+| 后台、截图反馈、用户与表管理、统计选型   | [后台计划](docs/plans/console.md)               |
 | 游客接入、按需登录、保存连接与后续存档   | [游客计划](docs/plans/guest-access.md)          |
 | 部署目标、资源命名、质量门槛与验收场景   | [上线验收计划](docs/plans/release.md)           |
 | 已实现的数据字段与服务端接口             | [数据契约](docs/data-contract.md)               |

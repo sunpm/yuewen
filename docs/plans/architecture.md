@@ -1,12 +1,12 @@
 # 架构、会话与导出方案
 
-更新日期：2026-10-04（Asia/Shanghai）
+更新日期：2026-10-08（Asia/Shanghai）
 
-状态：首版目标架构；现有账号链路与普通报告跨登录会话替换确认已实现，真实动态验收待完成；游客扩展待实施，下载范围已明确。
+状态：游客、账号链路与普通报告跨登录会话替换确认已实现，开发与生产迁移完成，完整动态验收待完成；PC React 迁移、后台、反馈与统计方案待实施，H5 冻结。
 
 [返回总计划](../../PLAN.md) · [游客接入实施计划](guest-access.md) · [现行数据契约](../data-contract.md) · [开发说明](../development.md)
 
-本文维护采集预算、生命周期、接口目标与导出约束。现有正式个人 API 仍要求账号登录；游客会话与保存转换的具体改动、冲突处理和验收由游客接入计划维护。实际代码、数据契约与验证证据用于判断完成状态，不能把下面的目标接口当作已开放接口。本文代码路径均相对于仓库根目录。
+本文维护采集预算、生命周期、接口目标与导出约束。现有正式个人 API 接受有效游客或账号会话；账号凭证管理与保存转换仍须登录。游客会话与保存转换的具体规则由游客接入计划维护；[后台、截图反馈与统计](console.md)维护新扩展。实际代码、数据契约与验证证据用于判断完成状态，不能把下面的目标接口当作已开放接口。本文代码路径均相对于仓库根目录。
 
 <a id="architecture"></a>
 
@@ -17,7 +17,7 @@
 ### 最小可部署结构
 
 ```text
-浏览器：Vue 页面、HttpOnly 游客或登录 Cookie、报告数据（内存）
+浏览器：当前 Vue 页面；目标 React PC + 冻结 Vant H5，HttpOnly Cookie、内存报告
                   │ 同源 HTTPS /api
                   ▼
 Netlify：静态前端 + Node.js Functions / Hono
@@ -29,13 +29,13 @@ Netlify：静态前端 + Node.js Functions / Hono
 微信读书官方 Agent Gateway
 ```
 
-单仓库、一个应用部署单元。当前主要目录如下，游客扩展沿用这些边界：
+单仓库、默认一个应用部署单元。当前主要目录如下，PC 迁移按[React 专题](pc-refresh.md)实施，后台另按[技术选型](console.md#stack)增加独立 React 入口；H5 保留但冻结：
 
 ```text
 yuewen/
-  web/                 裁剪后的 Vitesse 前端，使用 src/pages、src/layouts 等目录约定
-  web-mobile/          独立 Vant 移动页面与路由
-  client/              双端共享的登录、采集、图表与导出
+  web/                 当前裁剪后的 Vitesse/Vue PC，计划原目录迁移为 React
+  web-mobile/          冻结的独立 Vant 移动页面与路由
+  client/              既有 Vue composables 与可复用的纯 TS 图表、API、导出
   server/              本站路由、认证、Key 管理、微信读书适配、聚合和任务
   server/db/           数据模型、数据库连接与迁移
   netlify/functions/   Hono 函数入口与临时缓存清理任务
@@ -50,28 +50,17 @@ yuewen/
   netlify.toml
 ```
 
-采用一个根包与明确的开发/构建脚本，在同一个 Netlify 项目部署静态前端和 Functions。建议 PostgreSQL + Drizzle 管理模型与迁移，认证采用 [Better Auth 的 Hono 接入](https://better-auth.com/docs/integrations/hono)、[Drizzle 适配](https://better-auth.com/docs/adapters/drizzle)和邮箱验证码方案。复用同一数据库存放有期限的任务进度与分段报告，不依赖函数进程内存跨请求保存状态。暂不引入微服务、Redis 或单独队列服务。前端先用 Vue composables 管理少量共享状态，确实出现复杂跨页面状态需求时再引入状态库。
+采用一个根包与明确的开发/构建脚本，在同一个 Netlify 项目部署静态前端和 Functions。已使用 PostgreSQL + Drizzle 管理模型与迁移，认证采用 [Better Auth 的 Hono 接入](https://better-auth.com/docs/integrations/hono)、[Drizzle 适配](https://better-auth.com/docs/adapters/drizzle)和邮箱验证码方案。复用同一数据库存放有期限的任务进度与分段报告，不依赖函数进程内存跨请求保存状态。暂不引入微服务、Redis 或单独队列服务。PC 目标采用 TanStack Query、Zustand、React Hook Form 与 ahooks，职责及迁移边界统一见[PC 技术选型](pc-refresh.md#stack)；H5 保留现有 Vue composables，后台请求状态按其专题使用 ahooks。
 
-数据库长期保存范围为认证库需要的用户、登录身份、会话与验证记录，以及用户明确保存到账号的微信读书凭证。每个本站用户最多一份凭证，记录密文、加密密钥版本、凭证版本、配置状态、更新时间、最近验证时间及必要失效原因。另用临时表保存匿名会话、加密游客 Key、采集游标、任务版本、执行租约和报告分段，按[临时报告与访问隔离](#sessions)到期拒绝访问并定期删除；游客不自动创建长期账号。临时表用于适配无状态函数，不等于向用户提供长期报告存档；下载文件不上传服务器。游客链路仍依赖数据库与加密配置，但不依赖邮箱或登录服务已配置。
+阅读业务的数据库长期保存范围为认证库需要的用户、登录身份、会话与验证记录，以及用户明确保存到账号的微信读书凭证。每个本站用户最多一份凭证，记录密文、加密密钥版本、凭证版本、配置状态、更新时间、最近验证时间及必要失效原因。另用临时表保存匿名会话、加密游客 Key、采集游标、任务版本、执行租约和报告分段，按[临时报告与访问隔离](#sessions)到期拒绝访问并定期删除；游客不自动创建长期账号。临时表用于适配无状态函数，不等于向用户提供长期报告存档；下载文件不上传服务器。游客链路仍依赖数据库与加密配置，但不依赖邮箱或登录服务已配置。新增后台认证、反馈与管理审计按[后台计划](console.md)独立设定权限和保留期。用户主动提交的截图文件存私有 Cloudflare R2，数据库只存附件元信息，服务器不落盘；不把附件混入临时阅读报告或下载文件。
 
-图表使用 [ECharts 按需导入](https://echarts.apache.org/handbook/en/basics/import/)，报告页面懒加载。前端依照 [shadcn/vue 的 Vite 接入方式](https://www.shadcn-vue.com/docs/installation/vite)配置 Tailwind，由 Netlify 托管静态资源。后端以 [Netlify Functions 的 Request/Response 入口](https://docs.netlify.com/build/functions/get-started/)调用 Hono 的 `fetch`，在同源 `/api/*` 提供服务；使用 Node.js Functions，不照搬 Hono Netlify 教程中的 Deno Edge Functions 模板。请求边界执行运行时校验，响应按本站数据契约构造，不把 TypeScript 类型当作输入校验。
+图表使用 [ECharts 按需导入](https://echarts.apache.org/handbook/en/basics/import/)，报告页面懒加载。现有 PC 使用 shadcn/vue + Tailwind，目标迁移为 shadcn/ui + Radix + Tailwind；继续由 Netlify 托管静态资源。后端以 [Netlify Functions 的 Request/Response 入口](https://docs.netlify.com/build/functions/get-started/)调用 Hono 的 `fetch`，在同源 `/api/*` 提供服务；使用 Node.js Functions，不照搬 Hono Netlify 教程中的 Deno Edge Functions 模板。请求边界执行运行时校验，响应按本站数据契约构造，不把 TypeScript 类型当作输入校验。
 
-#### 前端模板采用与裁剪
+#### PC 迁移与既有模板边界
 
-前端以 [antfu-collective/vitesse](https://github.com/antfu-collective/vitesse) 为起点，来源记录见[模板与组件来源](../third-party-notices.md)；升级时核对版本兼容性。模板适配到本站 `web/` 目录和根级构建脚本，保持前后端同仓库、一个应用部署单元。以下是原计划核对的模板采用范围，依据当时的 [package.json](https://github.com/antfu-collective/vitesse/blob/main/package.json)、[Vite 配置](https://github.com/antfu-collective/vitesse/blob/main/vite.config.ts)和 [UnoCSS 配置](https://github.com/antfu-collective/vitesse/blob/main/uno.config.ts)整理：
+原 Vitesse/Vue 模板裁剪已实施，来源记录保留在[模板与组件来源](../third-party-notices.md)。后续 PC 采用 React + Vite，不再按 Vue 模板追加页面或迁移 shadcn/vue 控件；具体依赖、代码落点、状态与工具分工、分阶段验收统一见[PC 精简与 React 迁移](pc-refresh.md)。AIHOT 只作为 PC 布局与必要源码参考，不替换本站后端、采集与部署架构。
 
-| 模板部分                      | 本项目处理方式                                                                                                                                                                                                                 |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Vue 3、Vite、TypeScript、pnpm | 保留，使用 Composition API 与 `<script setup>`，沿用适用的类型检查和 lint 能力                                                                                                                                                 |
-| 路由、布局与自动导入          | 保留文件路由、布局组织、Vue API 与本地组件自动导入；将首页、登录、设置、报告等映射到既定路径                                                                                                                                   |
-| I18n ready                    | 移除 `locales/`、`vue-i18n`、`@intlify/unplugin-vue-i18n`、国际化注册与自动导入、语言切换及示例翻译调用；界面文案直接使用简体中文                                                                                              |
-| UI Frameworks 与样式          | 移除 `unocss`、`@unocss/reset`、`@unocss/eslint-config`、UnoCSS Vite 插件、`uno.config.ts` 与虚拟样式导入；清理模板 UI、`btn` 等快捷类、Attributify、字体预设和相关专用语法，接入 shadcn/vue + Tailwind CSS                    |
-| Icons                         | 移除模板 Iconify 图标集、`@iconify-json/carbon`、`presetIcons`、`i-*` 图标类与示例图标引用；清理对应编辑器推荐。shadcn/vue 官方组件所需图标依赖按需接入，复用组件箭头和关闭图标，不自行绘制一套基础控件图标                    |
-| VueUse 与状态管理             | VueUse 按实际需要使用；不保留演示 store。首版先用 composables，Pinia 按已确定的状态管理需求决定，不照搬示例中的状态持久化                                                                                                      |
-| 示例与附加能力                | 清理模板示例页面、品牌资源、演示组件和失效引用；PWA、Markdown 页面、SSG 等不自动纳入首版，先按 Vue SPA 与 Hono 同域服务准备                                                                                                    |
-| 测试与部署配置                | 保留适用的 Vitest 基础；端到端沿用已有 Playwright，验证边界见[上线验收方案](release.md#validation)，移除模板 Cypress 配置及依赖；调整模板 Netlify 配置，适配本站构建目录、Functions 和 SPA 回退，确保 `/api/*` 不被回退为 HTML |
-
-裁剪需同时覆盖依赖声明、插件、模块注册、自动生成类型、样式入口、组件引用、脚本与编辑器推荐，避免只删除目录却留下构建依赖。shadcn/vue 组件放入 `web/src/components/ui/`，页面、图表和导出共用本站设计变量；ECharts 继续按需加载。日期与数字使用固定的中文展示口径和 `Asia/Shanghai`，不为此引入多语言框架。
+保持单仓库、一个根包与明确的入口构建；PC 迁移后继续保留 H5 所需的 Vue/Vant 和共享 composables。未迁移的文件仍由原工具检查，PC 使用 Biome 与 TypeScript 检查；不因为 PC 切换删除 H5 依赖或对整个仓库强制格式迁移。简体中文、上海时区、数字口径、字体与 ECharts 按需加载沿用现行约定。
 
 后端选型参考用户提供的 [pomodoro-technique API 包](https://github.com/sunpm/pomodoro-technique/blob/main/apps/api/package.json)，于 2026-10-03 核对远程 `main`：
 
@@ -109,7 +98,7 @@ yuewen/
 | `GET /api/demo`                  | 获取公开示例                                                         | 模拟阅读记录及演示文本；书目与封面可用核验后的公开资料，`sampleReport: true`，不调用用户接口                                                                           |
 | `GET /api/health`                | 部署健康检查                                                         | 只返回服务状态，不含会话或阅读数据                                                                                                                                     |
 
-初版由前端串行调用 `advance` 推进分批采集，每次响应同时返回实际进度，不再另开高频轮询。`GET` 仅用于查询和恢复，不产生采集副作用；报告以版本号避免重传未变化结果，笔记正文分页返回。关闭页面后不保证继续采集，重新进入时在临时缓存期限内接着执行；页面明确显示这一行为。具体查询参数、错误响应和模块字段沿用 [data-contract.md](../data-contract.md)，游客扩展实现后同步更新；不按早期草案另建不兼容契约。
+初版由前端串行调用 `advance` 推进分批采集，每次响应同时返回实际进度，不再另开高频轮询。`GET` 仅用于查询和恢复，不产生采集副作用；报告以版本号避免重传未变化结果，笔记正文分页返回。关闭页面后不保证继续采集，重新进入时在临时缓存期限内接着执行；页面明确显示这一行为。具体查询参数、错误响应和模块字段沿用已同步游客扩展的 [data-contract.md](../data-contract.md)，不按早期草案另建不兼容契约。
 
 统一错误至少包含 `code`、中文 `message`、`retryable` 和无敏感信息的 `requestId`。账号专属操作未登录或账号会话过期使用 `AUTH_REQUIRED`（401）；游客未连接或临时会话到期返回独立、可识别的连接状态，引导重新配置而非强制跳转登录。两种会话的 Key 缺少或失效均使用 `WEREAD_KEY_REQUIRED` / `WEREAD_KEY_INVALID`（409），不混同账号登录状态。另行区分输入错误、上游限流、超时、部分失败与版本维护。只允许预先定义的上游接口和参数，不向浏览器提供任意网关代理入口。
 
@@ -126,7 +115,7 @@ yuewen/
 5. 单书失败记录到覆盖率，成功数据继续分析。筛选在已覆盖范围内优先本地执行。
 6. 聚合完成后生成统一报告对象。前端展示和下载共用它，不维护两份计算逻辑。
 
-报告对象沿用 `shared/report.ts` 的 `ReadingReport`：`meta`、`range`、`summary`、`modules`、`books`、`notes`、`portrait`、`coverage`、`issues`。时间、偏好与书架图表继续放在 `modules`，不新增并行的 `rhythm / preferences / shelf` 顶层结构。任务响应沿用 `client/useReport.ts` 的 `ReportTask`，包含 `id`、`version`、`keyVersion`、`status`、`stage`、`report`、`noteTotal`、`notesComplete`；任务字段不进入报告导出。运行状态采用 `queued / running / completed / partial / failed / cancelled`，模块状态沿用 `ready / empty / unavailable / partial`。游客实现时在 `meta.source` 中补充 `guest`，同步共享类型、聚合、模拟兼容与导出标识；`sampleReport` 继续兼容保留，来源标签不替代服务端归属验证。
+报告对象沿用 `shared/report.ts` 的 `ReadingReport`：`meta`、`range`、`summary`、`modules`、`books`、`notes`、`portrait`、`coverage`、`issues`。时间、偏好与书架图表继续放在 `modules`，不新增并行的 `rhythm / preferences / shelf` 顶层结构。任务响应沿用 `client/useReport.ts` 的 `ReportTask`，包含 `id`、`version`、`keyVersion`、`status`、`stage`、`report`、`noteTotal`、`notesComplete`；任务字段不进入报告导出。运行状态采用 `queued / running / completed / partial / failed / cancelled`，模块状态沿用 `ready / empty / unavailable / partial`。`meta.source` 已包含 `guest`，共享类型、聚合与导出标识继续保持一致；`sampleReport` 继续兼容保留，来源标签不替代服务端归属验证。
 
 游客扩展沿用当前已有预算：每账号或游客会话最多保留 1 份有效临时报告，包括采集中、已完成与部分结果；单批 1 次上游请求，25 秒租约、12 秒上游超时，全应用最多 8 个有效租约；每报告最多 600 请求、10,000 条正文、1.5 MB 采集状态。游客报告转入已有报告的账号时，按 [保存连接与报告保留](guest-access.md#save-connection) 明确选择后原子替换，不额外保留第二份有效报告。应用总量继续使用数据库约束，不依赖函数实例内存计数。游客接入、Key 验证、详情与采集另按匿名会话及可信来源 IP 限流，不能只限制账号，也不能把 IP 当作数据归属。重试保留现有用户触发行为，自动退避仍是后续优化。游标、去重和版本检查保证重复调用不会重复计数，清除连接、退出或更换 Key 后旧批次不能写回。
 
@@ -140,7 +129,7 @@ yuewen/
 
 - **同一会话。** 当前游客或登录会话有同范围的有效报告时优先恢复；用户主动切换范围或明确重新生成时，可直接替换该会话的旧报告，不增加确认步骤。按服务端登录会话识别归属，不按屏幕尺寸或设备名称判断；同一浏览器的桌面与移动入口共用 Cookie，不算另一登录会话。
 - **另一登录会话。** 同账号的其他登录会话已有有效报告时，无论范围相同与否，都先说明“继续生成会替换此账号在其他会话中的临时报告”，提供“替换并生成”和“取消”。取消不改动原报告，不启动新采集；原报告仍只允许其所属会话读取，不把确认流程变成跨会话恢复正文。仅提示存在冲突及替换影响，不展示书籍、笔记或报告正文。
-- **确认与并发。** 确认绑定待替换报告的身份及账号凭证版本，服务端在事务锁内重新核验；目标报告或凭证变化时刷新冲突提示，普通采集进度变化不重复确认。成功替换时原子停止旧任务、撤销租约、删除旧正文并建立属于当前登录会话的新报告；失败保留原有效结果。沿用稳定的 `requestId` 处理重复提交，迟到的创建请求或旧批次不能覆盖最后一次有效选择。具体确认字段在实施后写入数据契约，不接受客户端自行声明归属。
+- **确认与并发。** 确认绑定待替换报告的身份及账号凭证版本，服务端在事务锁内重新核验；目标报告或凭证变化时刷新冲突提示，普通采集进度变化不重复确认。成功替换时原子停止旧任务、撤销租约、删除旧正文并建立属于当前登录会话的新报告；失败保留原有效结果。沿用稳定的 `requestId` 处理重复提交，迟到的创建请求或旧批次不能覆盖最后一次有效选择。确认字段已写入[现行数据契约](../data-contract.md#report-replacement)，迁移沿用，不接受客户端自行声明归属。
 - **原页面反馈。** 旧页面在下一次请求或恢复前台后的校验中识别“该临时报告已被替换”，停止推进和自动重建，清理失效报告引用。若用户主动再次生成，仍经过同样的冲突确认，避免两个页面反复自动替换。只保留供原会话识别替换结果的必要短期元信息，最晚随旧报告的原绝对期限清理，不保留其正文，也不延长报告期限。
 - **作用范围。** 普通报告替换不修改账号 Key，不撤销其他登录会话，不转移其他会话的报告内容。没有其他有效报告时正常生成；已过期的报告不触发替换确认。新生成继续受共享限流和报告预算约束，替换不是继续超预算旧任务的入口。
 
@@ -167,7 +156,7 @@ yuewen/
 
 账号、登录身份、认证会话和明确保存到账号的加密 Key 按账号策略保留；游客 Key、匿名会话和阅读报告仅进入带期限的临时缓存。本地下载和当前会话暂存不要求登录。首版不建设历史报告库，后续单独实现登录后的长期存档与跨设备恢复报告；不能将当前保存 Key 描述为已保存报告。
 
-本站登录建议使用数据库会话与 `HttpOnly`、`Secure`、`SameSite=Lax` Cookie，初始有效期建议 7 天，具体续期策略随认证方案确定。刷新或重新打开页面时可恢复有效登录，已配置的 Key 无需重填；登录过期后重新登录，仍可复用账号中的 Key。登录期限与下文临时报告缓存期限分别管理。
+本站登录已使用数据库会话与 `HttpOnly`、`SameSite=Lax` Cookie，HTTPS 下启用 `Secure`。当前 `server/auth.ts` 配置有效期 7 天、更新间隔 1 天、近期认证窗口 10 分钟，禁用 Cookie 会话缓存；完整生命周期仍须按验收清单验证。刷新或重新打开页面时可恢复有效登录，已配置的 Key 无需重填；登录过期后重新登录，仍可复用账号中的 Key。登录期限与下文临时报告缓存期限分别管理，后台使用独立的[管理会话规则](console.md#admin-auth)。
 
 配置 Key 时，经上游验证成功再使用服务端认证加密保存，例如通过 Node 标准库使用 AES-256-GCM。游客凭证绑定匿名会话并带到期时间；用户明确保存到账号后才成为账号长期凭证。加密密钥与数据库分开保管，凭证记录保存加密密钥版本以支持轮换；生产备份不把数据库与解密密钥打包存放。上游调用需要原始 Key，因此不能只存不可恢复的哈希。浏览器在提交成功后清空输入和明文引用，设置页仅显示配置状态与时间，不提供明文回显。
 
@@ -200,7 +189,7 @@ yuewen/
 - 日志不记录鉴权头、Cookie、Key 请求体、上游完整响应或笔记正文；只记录耗时、状态、数量和错误分类。
 - 书名、简介、划线和想法按不可信文本安全渲染；导出 HTML 同样转义，跳转 URL 检查协议和可信来源。
 - 为匿名接入、登录、验证码发送、Key 验证、详情与采集设置限流和资源预算；游客纳入共享限制，避免通过反复创建匿名会话绕过限制。
-- 生产不使用真实报告作为静态构建产物、演示数据或错误追踪附件。
+- 生产不使用真实报告作为静态构建产物、演示数据或自动错误追踪附件。用户主动预览并提交的当前页面反馈截图按[反馈规则](console.md#feedback)单独处理，不自动上传报告正文或完整数据。
 
 <a id="export"></a>
 
