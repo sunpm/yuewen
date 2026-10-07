@@ -2,7 +2,7 @@
 
 更新日期：2026-10-08（Asia/Shanghai）
 
-状态：用户确认新增计划，技术选型已确定；尚未开发、安装依赖或部署。当前 PC 仍为 Vue，H5 仍为独立 Vant 入口。
+状态：PC 与 console 的共用 React 技术栈、数据流和工程边界已确定；尚未开发、安装依赖或部署。当前 PC 仍为 Vue，H5 仍为独立 Vant 入口。
 
 [返回总计划](../../PLAN.md) · [设计与布局](design.md#pc-layout) · [架构与接口](architecture.md) · [后台计划](console.md)
 
@@ -24,34 +24,67 @@ PC 页面精简描述与重复信息，按 AIHOT 的桌面布局重做应用外�
 
 <a id="stack"></a>
 
-## 技术选型与职责
+## PC 与 console 共用技术栈
 
 决定采用 **React + Vite + TypeScript**，路由使用 React Router 的客户端路由。Next.js 是基于 React 的框架；本站已有 Hono API、会话、采集与静态部署，当前主要需求是交互式个人报告，没有已确认的 SSR、RSC 或内容型 SEO 需求，因此沿用 Vite 的迁移范围更小，也与后台方案一致。后续确有服务端渲染需求再评估，不在本次引入第二套服务端接口或渲染运行时。此取舍依据当前项目边界；React 官方说明了 [Vite 客户端应用及路由、取数的配套需求](https://react.dev/learn/build-a-react-app-from-scratch)，Next.js 的能力见[服务端与客户端组件](https://nextjs.org/docs/app/getting-started/server-and-client-components)。
 
-| 部分          | PC 采用方案与职责                                                                                                                                                                                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| UI 与布局     | [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/docs/installation/vite)；采用以 [Radix UI](https://www.radix-ui.com/) 为底层的组件，按需引入源码，替换 shadcn/vue。Radix 提供基础交互，不额外叠加 Radix Themes 或另一套相同控件 |
-| 动效          | Framer Motion，按现行 [Motion for React](https://motion.dev/docs/react) 接入；用于必要的页面和状态过渡，普通 hover/颜色变化仍用 CSS，支持减少动效                                                                                                            |
-| 通用 hooks    | [ahooks](https://github.com/alibaba/hooks) 用于防抖、事件和常用交互；PC 的服务端请求由 TanStack Query 管理，不再用 `useRequest` 复制缓存、轮询与重试                                                                                                         |
-| 服务端状态    | [TanStack Query](https://tanstack.com/query/latest)：连接状态、报告查询、分页、变更与失效处理；缓存只在内存中，不持久化报告正文或 Key                                                                                                                        |
-| 客户端状态    | [Zustand](https://github.com/pmndrs/zustand)：确需跨组件共享的界面状态；局部状态用 React，范围与可分享的筛选继续以 URL 为准，不复制 Query 缓存或建立第二份范围来源                                                                                           |
-| 表单          | [React Hook Form](https://github.com/react-hook-form/react-hook-form) + Zod：登录、Key 设置和反馈表单；错误、提交中、取消与重复提交沿用既有业务规则                                                                                                          |
-| 类型与校验    | 全链路 [TypeScript](https://www.typescriptlang.org/) + [Zod](https://zod.dev/)；共用必要类型与纯 schema，服务端继续验证信任边界，不将前端校验代替接口校验                                                                                                    |
-| Lint 与格式化 | [Biome](https://biomejs.dev/internals/language-support/) 负责 PC React/TS/TSX、JSON 与支持的样式文件；保留 `tsc` 类型检查。冻结 Vue 和 Markdown 等未迁移范围沿用既有 ESLint/Prettier，按路径划分、不重复处理同一文件                                         |
-| 图表与后端    | 保留 ECharts、词云布局、HTML/JSON 导出及 Hono、Better Auth、Drizzle、PostgreSQL、Netlify Functions；仅为 React 补必要生命周期与认证适配                                                                                                                      |
+本节是 PC 与 console 共用前端技术栈的唯一详细入口。两端统一路由、业务请求、状态、表单、校验和检查工具；UI 分别采用 shadcn/ui 与 antd。后台的控件接法和业务差异见[后台技术选型](console.md#stack)。
 
-上述选型在实施时锁定兼容的稳定版本并更新锁文件。Biome 官方仍将 Vue 全量支持标为实验性，本次不以工具切换为由改造 H5。后台继续按其专题采用 antd/ProComponents 与 ahooks，不因 PC 选型强制改用 shadcn/ui 或 React Hook Form；可共用 React/Vite/TypeScript 的工程配置，入口样式、请求缓存与认证保持独立。
+| 部分           | 共用方案与职责                                                                                                                                                        | 入口差异                                                                                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 框架与路由     | React + Vite + TypeScript；React Router 客户端路由，不用路由 loader/action 再维护一套业务取数与提交状态                                                               | PC 基址 `/`；console 基址 `/console`，独立 HTML、路由树与样式入口                                                                                                            |
+| UI 与样式      | [Tailwind CSS](https://tailwindcss.com/) 负责布局和间距，共用必要品牌变量与字体                                                                                       | PC 为 [shadcn/ui](https://ui.shadcn.com/docs/installation/vite) + [Radix UI](https://www.radix-ui.com/)；console 为 antd + 按需 ProComponents，组件主题使用 Ant Design token |
+| 服务端状态     | [TanStack Query](https://tanstack.com/query/latest) 统一业务查询、分页、mutation 和缓存失效；复用原生 `fetch` 与现有 API 错误模型                                     | PC 管理连接、报告和笔记；console 管理反馈、用户与管理动作；各建独立 QueryClient                                                                                              |
+| 客户端状态     | 局部状态用 React；确需跨组件共享时使用 [Zustand](https://github.com/pmndrs/zustand)，按实际需求建立 store；不复制 Query 数据                                          | 范围、分页及允许进入 URL 的筛选以 URL 为准；搜索词、邮箱等私有条件留在内存，不为统一状态强制建 store                                                                         |
+| 表单与校验     | [React Hook Form](https://github.com/react-hook-form/react-hook-form) + Zod，使用兼容版本的 `@hookform/resolvers` 接入；共用必要类型与纯 schema，服务端仍独立校验输入 | PC 连接 shadcn 控件，console 通过 Controller/useController 连接 antd 控件；每个表单只保留 RHF 一套字段与校验状态                                                             |
+| 通用 hooks     | [ahooks](https://github.com/alibaba/hooks) 仅用于防抖、事件和常用交互；两端都不使用 `useRequest`、`usePagination` 等另建业务请求状态                                  | 按页面实际需要引入                                                                                                                                                           |
+| 动效           | 必要的复杂过渡使用 [Motion for React](https://motion.dev/docs/react)，采用 `motion` 包及 `motion/react` 入口；普通 hover、颜色变化用 CSS，支持减少动效                | PC 按设计使用；后台优先用组件已有动效，有明确需要才加载 Motion                                                                                                               |
+| 认证           | Better Auth 的 React 适配负责认证协议和会话状态，不自行改写登录请求或复制一套认证缓存                                                                                 | PC 与 console 使用各自认证实例、basePath、Cookie 和密钥，沿用后台隔离规则                                                                                                    |
+| Lint 与类型    | [Biome](https://biomejs.dev/) 负责两端 React/TS/TSX 及各自支持的配置、样式文件；保留 `tsc` 和 React hooks 检查规则                                                    | 冻结 Vue 与未迁移共享/服务端文件继续使用原检查工具，Markdown 使用 Prettier；按路径明确归属，同一文件不重复处理                                                               |
+| 专用能力与后端 | 保留 Hono、Better Auth、Drizzle、PostgreSQL、Netlify Functions                                                                                                        | PC 保留 ECharts、词云、HTML/JSON 导出；后台按业务访问反馈与 R2 附件，不引入 PC 报告渲染依赖                                                                                  |
+
+实施时共同核对 React/React DOM、Vite 插件、两套 UI、Query、RHF/resolver/Zod、Tailwind 与 Biome 的兼容范围，在根包锁定兼容稳定版本并更新锁文件，不在纯计划阶段猜测版本号。统一技术栈不等于所有页面都加载全部库。H5 所需的 Vue/Vant、检查配置和公共资源继续保留。
+
+<a id="data-flow"></a>
+
+### 请求、缓存与表单约定
+
+业务请求只由 Query 管理；Better Auth 自身的认证请求继续交由认证客户端。复用 `client/api.ts` 中无框架依赖的 `fetch`、错误解析和必要类型，按入口配置 API 路径与错误处理；不抽象通用跨框架状态层。QueryClient、Zustand store、认证实例和敏感草稿均按入口隔离，不共享运行时单例。
+
+初始业务查询设 `staleTime: 0`、`gcTime: 5 分钟`、`retry: false`；窗口聚焦与重连不默认重取全部数据，按下表执行。mutation 关闭自动重试和离线排队，离线提交即时提示，重连不自动补交；只在用户主动重试时按现有幂等规则执行。这是首期配置，调整须有实际请求量和交互依据。Query 的新鲜度与垃圾回收不能代替服务器的会话、凭证版本和报告期限校验，参照[默认行为](https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults)。
+
+| 数据/操作                        | 获取与刷新                                                                 | 失效与恢复                                                                                             |
+| -------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 认证与连接状态                   | 入口加载、回到前台、重连时先核验当前会话及连接；同一恢复流程合并重复请求   | 核验期间暂停私有查询和写操作，不先展示待核验缓存；按现有错误码区分未登录、连接到期、Key 失效与网络故障 |
+| PC 报告                          | 连接核验通过后按当前任务读取；采集批次响应更新进度及版本，不另加高频查询   | query key 包含当前属主上下文、连接、范围和必要任务/凭证版本；范围切换不以旧报告作新范围占位            |
+| PC 笔记分页与详情                | 使用任务 ID、版本和分页/详情参数取数，复用已采集结果                       | 报告失效时连同分页清除；导出先校验归属并补齐已采集分页，不重新采集上游                                 |
+| console 列表与详情               | 管理会话核验后按分页、排序及已提交筛选查询；写入成功后仅失效相关列表/详情  | 401/403 立即隐藏管理数据并清理缓存；409 保留编辑草稿，提示重新读取并处理冲突，不自动覆盖               |
+| 创建、推进、保存、替换与管理写入 | 使用 mutation 与既有串行、版本和幂等规则；采集推进由明确的任务控制流程驱动 | 不由挂载、StrictMode、聚焦、重连或失败自动重放；响应丢失先按既有查询/回执恢复，再决定重试              |
+
+- 退出、清除连接、身份/凭证切换、报告到期或替换时，先停止相关流程，取消查询并清除受影响缓存，再允许新上下文加载。将 Query 提供的 `AbortSignal` 传给 `fetch`，迟到响应仍须核对上下文版本；取消浏览器请求不等于撤销已提交的服务端写入，见[Query 取消机制](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation)。游客保存到账号只迁移经回执确认属于当前会话的结果，不能误清除需要保留的报告。
+- PC2 核对报告响应能否表达闲置与绝对到期时间；若现有接口缺少客户端清理所需的期限元信息，补最小响应字段并在实现后更新契约，不推算或延长服务端期限。到期隐藏并清除缓存；只有真实用户交互触发既有 `touch`，后台查询与自动采集不续期。Key 失效仍可在原期限内读取已有结果，按[现有规则](architecture.md#key-lifecycle)执行。
+- 私有查询、mutation 和 store 不做浏览器持久化或跨标签广播。Key、密码及验证码只保留提交所需的短期引用，完成或离开相应表单后清除，包括 mutation 参数；反馈草稿按后台专题仅在当前页面内存保留，不因工具统一扩大保存范围。
+- RHF 管理字段、校验、dirty 和提交反馈，Zod 定义输入约束，mutation 管理业务提交。受控控件显式绑定 value/checked、change、blur 和 ref，保留中文错误、键盘提交、标签和焦点；不将同一字段再注册到 UI 库的表单状态中。
+
+<a id="engineering"></a>
+
+### 工程、加载与异常恢复
+
+- 两端共用兼容版本和必要配置片段，分别维护 Vite 入口、路由树、开发缓存、类型检查范围和样式扫描目录。根 `dev/build/typecheck/lint` 汇总已启用入口；React `.tsx` 用 `tsc`，H5 与仍依赖 Vue 的文件用 `vue-tsc`，共享 TS 和服务端不得漏检。Biome 启用 hooks 调用规则和依赖检查，按[官方规则](https://biomejs.dev/linter/rules/use-exhaustive-dependencies/)核对配置；不同时用 ESLint/Prettier 再处理同一 React 文件。
+- 共用品牌色、字体及必要语义变量，分别映射到 shadcn CSS variables 和 Ant Design token。后台固定 Tailwind 与 antd 的 CSS layer/reset 顺序，按[官方兼容说明](https://ant.design/docs/react/compatible-style/)接入；不导入另一入口的全局样式，也不为两套 UI 建通用控件封装。
+- 路由按需加载；PC 的图表、完整导出和截图能力在需要时加载。截图模块必须在打开反馈浮层前完成加载与当前页面捕获，保持既有截图时机。产物检查确认 PC 不包含 antd/ProComponents/Vant/Vue 运行时，console 不包含 PC 图表、词云、导出或 Vue/Vant；H5 依赖保留在其自身产物。先记录首页、报告与后台列表的加载体积及交互基线，再按[性能门槛](release.md#validation)验收。
+- 应用外壳和可能独立失败的报告模块设置 React 错误边界，路由懒加载提供加载及失败状态；局部图表失败保留可用正文、数据表和其他模块。网络、提交和事件回调错误由对应流程显式处理，不能依赖错误边界兜底。提供局部重试或用户主动刷新，禁止无限刷新与自动重放写操作；刷新前说明内存草稿影响，刷新后只通过服务端有效会话恢复任务。
 
 <a id="migration"></a>
 
 ## 迁移边界
 
 1. PC 最终仍使用 `web/` 和 `/`。PC0–PC3 在同一迁移分支持续开发，主分支保留可运行的 Vue PC；React 在本地或隔离的受控部署验收，公开 PR 预览仅验模拟数据。PC4 通过后才合并并切换正式入口，不能将阶段性替换直接合入会自动发布的主分支。H5 使用 `web-mobile/` 和 `/m/`，后台使用 `console/` 和 `/console`，保持一个根包和一个 Netlify 部署单元。
-2. 共用 `shared/` 类型与聚合口径、无框架依赖的 API/图表/导出函数。React hooks 与组件放在 PC 内，冻结 H5 继续使用现有 Vue composables；只在确有两处消费者时提取纯函数，不建立通用跨框架状态层。PC 完成后也不能删除 H5 仍引用的 Vue、Vant、插件与共享组件。
+2. 共用 `shared/` 类型与聚合口径、无框架依赖的 API/图表/导出函数。React 业务 hooks 与组件放在各自入口内，冻结 H5 继续使用现有 Vue composables；只在确有两处消费者时提取纯函数，不建立通用跨框架状态层。PC 完成后也不能删除 H5 仍引用的 Vue、Vant、插件与共享组件。
 3. React 认证适配沿用现有 Cookie、接口、连接选择与返回规则。报告 Query key 包含当前属主上下文、连接、范围及必要任务/凭证版本；退出、清除、切换连接或版本失效时清理对应缓存并取消或忽略旧响应。
 4. 采集创建、推进、保存、替换确认属于有副作用的操作，按既有幂等标识和串行规则驱动；不因组件挂载、StrictMode、重新聚焦或 Query 默认重试重复执行。只读恢复与任务推进区分，保留跨会话确认、迟到批次和响应丢失恢复约束。
 5. 原有路由、合法 query、登录返回、历史记录恢复、下载范围及公开预览隔离保持兼容；PC 缩放和窄窗只调整自身布局，不自动跳 H5。`/api/*`、`/m/*` 与 `/console/*` 的重写优先级沿用上线计划。
-6. 工程入口按职责拆分检查：React PC 与后台的 `.tsx` 由带 JSX 配置的 `tsc` 检查，冻结 H5 及其 `client/` Vue 依赖仍由 `vue-tsc` 检查，共享 TS 与服务端不能漏检。Biome、ESLint、Prettier 按文件归属划分，根命令汇总适用检查；Vitest 保留现有 Vue 用例发现范围，不因增加 React 配置遗漏旧检查。`web/public/` 的字体、品牌资源仍被 H5 和离线导出引用，迁移时保留根资源路径及构建复制关系。
+6. 检查和加载边界按[共用工程规则](#engineering)执行；Vitest 保留现有 Vue 用例发现范围，不因增加 React 配置遗漏旧检查。`web/public/` 的字体、品牌资源仍被 H5 和离线导出引用，迁移时保留根资源路径及构建复制关系。
 
 <a id="delivery"></a>
 
@@ -59,17 +92,19 @@ PC 页面精简描述与重复信息，按 AIHOT 的桌面布局重做应用外�
 
 总顺序由 [PLAN.md](../../PLAN.md) 维护；本专题先于新 PC 反馈界面实施，后台 API 与存储可按自身依赖推进。当前全部待实施。PC4 按 PC 与受影响共享能力的上线门槛验收，不等待尚未启用的后台、反馈或统计；新功能按[分批发布规则](release.md#batch-release)另行启用。
 
-| 阶段                 | 工作与主要落点                                                                                                                                               | 完成判据                                                                                                   |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| PC0 页面盘点与布局   | 对照 `web/src/pages/`、`layouts/default.vue`、`ReportView.vue`、`ReportModule.vue`，列出删除/合并/移入详情/保留项；按[设计计划](design.md#pc-layout)确定布局 | 首页、概览、报告、书架、笔记均有可审查的前后信息层级；共同范围只展示一次，异常范围与必要状态可见           |
-| PC1 React 工程与外壳 | `web/`、`vite.config.ts`、React Router、shadcn/ui 配置、Biome、类型检查、根脚本与样式入口                                                                    | 左侧导航、标题/筛选/搜索区、主题和路由直达可用；PC/H5 产物及后台预留子路径互不覆盖                         |
-| PC2 业务与状态迁移   | React 认证/hooks、Query/Zustand、RHF/Zod 表单、连接与报告流程，复用纯 TS 模块                                                                                | 游客到保存连接完整；保留旧范围/回执/取消/重试语义，无重复采集、旧响应覆盖或跨用户缓存                      |
-| PC3 页面精简与图表   | PC 页面与组件、ECharts 生命周期、详情/下载、Motion                                                                                                           | 27 图表与 3 画像能力保留，冗余文案和重复信息移除；图表 resize/dispose、全量明细与离线导出可用              |
-| PC4 切换与收尾       | 根构建与检查、Netlify 路由、文档、第三方声明                                                                                                                 | 适用既有检查与 PC 浏览器验收有证据；冻结 H5 兼容检查完成；再切换 PC 正式入口，清理仅旧 PC 使用的文件与依赖 |
+| 阶段                 | 工作与主要落点                                                                                                                                                                                             | 完成判据                                                                                                    |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| PC0 页面盘点与布局   | 对照 `web/src/pages/`、`layouts/default.vue`、`ReportView.vue`、`ReportModule.vue`，列出删除/合并/移入详情/保留项；登记旧路由/query、业务状态与新页面的对应关系，按[设计计划](design.md#pc-layout)确定布局 | 首页、概览、报告、书架、笔记有可审查的前后信息层级；迁移对应表覆盖既有能力和必要状态                        |
+| PC1 React 工程与外壳 | `web/`、`vite.config.ts`、React Router、shadcn/ui、Biome、类型检查与根脚本；锁定共用版本，接入样式、懒加载与错误边界                                                                                       | 导航、主题、路由直达和失败恢复可用；PC/H5 产物与后台预留路径互不覆盖，依赖归属明确                          |
+| PC2 业务与状态迁移   | React 认证/hooks、Query、必要的 Zustand、RHF/Zod；先打通游客接入 → 采集 → 查看/下载 → 登录保存 → 刷新恢复 → 退出，再扩展页面；落实[请求与缓存规则](#data-flow)                                             | 完整链路先通过既有检查和人工验收；旧范围/回执/取消/重试语义保留，无重复采集、迟到覆盖、过期显示或跨用户缓存 |
+| PC3 页面精简与图表   | PC 页面与组件、ECharts 生命周期、详情/下载、Motion                                                                                                                                                         | 27 图表与 3 画像能力保留，冗余文案和重复信息移除；图表 resize/dispose、全量明细与离线导出可用               |
+| PC4 切换与收尾       | 根构建与检查、Netlify 路由、文档、第三方声明                                                                                                                                                               | 适用既有检查与 PC 浏览器验收有证据；冻结 H5 兼容检查完成；再切换 PC 正式入口，清理仅旧 PC 使用的文件与依赖  |
 
 - [ ] 1280、1440、1920 下侧栏与正文比例清楚；200% 缩放、长中文、键盘与减少动效均可用，页面无意外横向溢出。
 - [ ] 默认界面不重复展示同一标题、范围、数量和说明；统计例外、未知/零值、缺失/部分覆盖、错误和关键操作影响仍能辨认，完整明细与笔记原文可读。
 - [ ] 示例、游客与账号的接入/保存/恢复/退出、范围切换、筛选、书籍详情、完整 HTML/JSON 下载保持既有语义；接口与资源路径没有被 SPA 回退吞掉。
+- [ ] 按 PC0 迁移对应表逐项记录结果；PC2 完整链路通过后再展开 PC3，客户端恢复不显示未经核验或过期的私有缓存，重连不补交写操作。
+- [ ] 记录分入口 JS/CSS 与按需模块体积，确认运行时和样式没有串入；图表异常、路由加载失败和主动刷新有恢复路径，其他模块及 H5 既有资源不受影响。
 - [ ] 运行受影响的既有测试、类型检查、lint、构建及必要人工操作；这次新增计划不新增测试授权。后台、反馈等此前已明确授权的测试范围仍按[验证边界](release.md#validation)执行，其余不新增/修改测试，也不以临时断言脚本替代。
 - [ ] 实际证据写入质量记录，确认完成后再更新现行设计规范、开发说明与数据契约；不得用旧 Vue 检查通过证明 React 已验收。
 
