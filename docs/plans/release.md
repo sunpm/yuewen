@@ -92,7 +92,7 @@ Neon 的两个分支使用独立连接串。公开预览使用模拟示例或脱
 
 ### 后台子路径与备用域名
 
-首选 `https://read.sunpm.me/console`，后台产物为 `dist/console/`，Vite `base` 为 `/console/`，React 路由基址为 `/console`；前台 `/` 和 `/m/` 保留。Netlify 已支持 [SPA 重写](https://docs.netlify.com/manage/routing/redirects/rewrites-proxies/)，现有项目已有 `/m/*` 的同类规则，据此判断子路径方案可行，但尚未构建或上线验证。
+首选 `https://read.sunpm.me/console`，后台产物为 `dist/console/`，Vite `base` 为 `/console/`，React Router 基址为 `/console`；前台 `/` 和 `/m/` 保留。Netlify 已支持 [SPA 重写](https://docs.netlify.com/manage/routing/redirects/rewrites-proxies/)，现有项目已有 `/m/*` 的同类规则，据此判断子路径方案可行，但尚未构建或上线验证。
 
 重写优先级为 `/api/*` → `/console` 精确入口与 `/console/*` → `/m/*` → 桌面 `/*`；后台回退到 `/console/index.html`，静态资源优先，不能强制把 JS/CSS 重写成 HTML。验证带/不带尾斜杠、`/console/login`、`/console/users`、刷新、登录返回和未知后台路由；当前不新增设备自动分流，统计排除管理页面和冻结 H5。构建顺序避免桌面清空其他两端产物，部署检查确认三个入口同时存在。
 
@@ -165,6 +165,8 @@ Neon 的两个分支使用独立连接串。公开预览使用模拟示例或脱
 以[Core Web Vitals](https://web.dev/articles/vitals)的良好体验阈值为线上目标：LCP ≤ 2.5s、INP ≤ 200ms、CLS ≤ 0.1。真实用户数据积累前，不用本地一次测量冒充线上 p75 达标。
 
 开发阶段在固定条件下检查示例与报告页；公开首页的 Lighthouse 目标为 Performance ≥ 90、Accessibility ≥ 95、Best Practices ≥ 95、SEO ≥ 90。记录环境与分数，报告页另检查图表加载、长列表滚动和筛选响应。上游采集时间单独统计，不把它混入纯页面渲染性能；先取得基线再定真实报告耗时目标。
+
+React PC 与 console 的构建同时核对[入口依赖、样式与按需加载](pc-refresh.md#engineering)，记录各入口 JS/CSS 和懒加载模块体积、固定数据下的交互基线；不只以构建成功判断隔离。检查缓存期限与身份变化清理、聚焦/重连恢复、离线操作不自动补交，以及图表渲染或路由模块加载失败后的恢复。PC2 完整链路先验收，再按 PC0 的旧路由/业务状态对应表扩展页面；实际证据与未通过项继续写入质量记录。
 
 现有工程已经使用 Vitest、Vue Test Utils、Playwright。2026-10-04 用户在新增后台需求中明确要求测试：后台、截图反馈、用户/表管理、统计及直接受影响的回归，允许并要求新增或修改必要自动化测试，具体见[后台测试计划](console.md#tests)；React 组件补 Testing Library，现有工具按需扩展。设备自动入口的实施与测试随 H5 重构推迟。此次 PC 迁移与精简只新增计划，不产生新的测试代码授权；运行既有检查，需求失配如实记录，以人工操作补充验证。此前授权不扩展到无关旧功能，其他工作继续遵循未明确要求则不新增或修改测试的全局规则。按阶段运行适用测试、类型检查、lint、构建和浏览器实际操作；后台接入后根检查覆盖三个入口。结果统一记录在 [quality-log.md](../quality-log.md)。
 

@@ -50,7 +50,7 @@ yuewen/
   netlify.toml
 ```
 
-采用一个根包与明确的开发/构建脚本，在同一个 Netlify 项目部署静态前端和 Functions。已使用 PostgreSQL + Drizzle 管理模型与迁移，认证采用 [Better Auth 的 Hono 接入](https://better-auth.com/docs/integrations/hono)、[Drizzle 适配](https://better-auth.com/docs/adapters/drizzle)和邮箱验证码方案。复用同一数据库存放有期限的任务进度与分段报告，不依赖函数进程内存跨请求保存状态。暂不引入微服务、Redis 或单独队列服务。PC 目标采用 TanStack Query、Zustand、React Hook Form 与 ahooks，职责及迁移边界统一见[PC 技术选型](pc-refresh.md#stack)；H5 保留现有 Vue composables，后台请求状态按其专题使用 ahooks。
+采用一个根包与明确的开发/构建脚本，在同一个 Netlify 项目部署静态前端和 Functions。已使用 PostgreSQL + Drizzle 管理模型与迁移，认证采用 [Better Auth 的 Hono 接入](https://better-auth.com/docs/integrations/hono)、[Drizzle 适配](https://better-auth.com/docs/adapters/drizzle)和邮箱验证码方案。复用同一数据库存放有期限的任务进度与分段报告，不依赖函数进程内存跨请求保存状态。暂不引入微服务、Redis 或单独队列服务。PC 与 console 统一 React Router、TanStack Query、必要的 Zustand、React Hook Form/Zod 和交互用途的 ahooks，职责见[共用技术栈](pc-refresh.md#stack)，缓存和提交规则见[共用数据流](pc-refresh.md#data-flow)。两端认证实例与运行时缓存独立；H5 保留现有 Vue composables。
 
 阅读业务的数据库长期保存范围为认证库需要的用户、登录身份、会话与验证记录，以及用户明确保存到账号的微信读书凭证。每个本站用户最多一份凭证，记录密文、加密密钥版本、凭证版本、配置状态、更新时间、最近验证时间及必要失效原因。另用临时表保存匿名会话、加密游客 Key、采集游标、任务版本、执行租约和报告分段，按[临时报告与访问隔离](#sessions)到期拒绝访问并定期删除；游客不自动创建长期账号。临时表用于适配无状态函数，不等于向用户提供长期报告存档；下载文件不上传服务器。游客链路仍依赖数据库与加密配置，但不依赖邮箱或登录服务已配置。新增后台认证、反馈与管理审计按[后台计划](console.md)独立设定权限和保留期。用户主动提交的截图文件存私有 Cloudflare R2，数据库只存附件元信息，服务器不落盘；不把附件混入临时阅读报告或下载文件。
 
@@ -60,7 +60,7 @@ yuewen/
 
 原 Vitesse/Vue 模板裁剪已实施，来源记录保留在[模板与组件来源](../third-party-notices.md)。后续 PC 采用 React + Vite，不再按 Vue 模板追加页面或迁移 shadcn/vue 控件；具体依赖、代码落点、状态与工具分工、分阶段验收统一见[PC 精简与 React 迁移](pc-refresh.md)。AIHOT 只作为 PC 布局与必要源码参考，不替换本站后端、采集与部署架构。
 
-保持单仓库、一个根包与明确的入口构建；PC 迁移后继续保留 H5 所需的 Vue/Vant 和共享 composables。未迁移的文件仍由原工具检查，PC 使用 Biome 与 TypeScript 检查；不因为 PC 切换删除 H5 依赖或对整个仓库强制格式迁移。简体中文、上海时区、数字口径、字体与 ECharts 按需加载沿用现行约定。
+保持单仓库、一个根包与明确的入口构建；PC 迁移后继续保留 H5 所需的 Vue/Vant 和共享 composables。PC 与 console 统一使用 Biome 和 TypeScript 检查，未迁移文件继续使用原工具；路径归属、依赖隔离、样式与异常恢复见[共用工程规则](pc-refresh.md#engineering)。不因 React 迁移删除 H5 依赖或对全仓强制格式迁移。简体中文、上海时区、数字口径、字体与 ECharts 按需加载沿用现行约定。
 
 后端选型参考用户提供的 [pomodoro-technique API 包](https://github.com/sunpm/pomodoro-technique/blob/main/apps/api/package.json)，于 2026-10-03 核对远程 `main`：
 

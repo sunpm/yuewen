@@ -33,7 +33,7 @@
 | 数据展示基线 | 完整覆盖 yao-weread-skill 的 27 个图表模块与 3 个画像内容模块，并在真实数据支持时增加分析维度                                                                 |
 | 体验参考     | PC layout 以 AIHOT 为当前参考；Booko Board 保留为既有接入、封面墙和笔记体验参考                                                                               |
 | 品质目标     | 以 Awwwards、Webby Awards、FWA 级作品为设计追求，持续自查和修订                                                                                               |
-| 后台管理     | 独立 React + ahooks + antd + Tailwind CSS；当前网页默认截图并存 Cloudflare R2，新增用户列表与受限表管理，详见[后台计划](console.md)                           |
+| 后台管理     | 与 PC 共用 React 工程、请求、状态和表单技术栈，UI 采用 antd/ProComponents；截图存 Cloudflare R2，新增用户列表与受限表管理，详见[后台计划](console.md)         |
 | 设备入口     | 保持 `/` 与 `/m/` 既有行为；设备自动分流和新增切换推迟至 H5 重构，见[设备入口](design.md#device-entry)                                                        |
 | 访问统计     | 默认评估接入 Cloudflare 基础统计，转化事件按需单选百度/GA4；与反馈排障数据分开，见[统计决策](console.md#analytics)                                            |
 | 当前阶段交付 | 优先交付 React PC 与后台；H5 按[冻结规则](pc-refresh.md#h5-freeze)保留，历史未验收项不记为通过                                                                |

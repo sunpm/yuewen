@@ -14,7 +14,7 @@
 
 现有非浏览器检查为单元 24/24、类型、lint 与双端构建通过；E2E 各轮运行范围不同，历史失败不能被后续选定用例通过覆盖，详见质量记录。先前某轮“不调用浏览器”是当轮执行边界，不作为后续验收的永久限制。
 
-后续未特别注明的前端需求默认只面向 PC；H5 冻结并保留既有入口，未来单独重构，详见[PC 专题](docs/plans/pc-refresh.md)。PC 选择 React + Vite，用户指定的 UI、状态、表单、校验和 Biome 分工已写入专题；设计采用 [AIHOT 布局与信息精简规则](docs/plans/design.md#pc-layout)。[后台专题](docs/plans/console.md)既有测试授权保留，PC 迁移本身不扩大测试授权，见[验证规则](docs/plans/release.md#validation)。2026-10-08 已复核并修订计划冲突，未实施新增功能；审查与检查结果见[质量记录](docs/quality-log.md)。
+后续未特别注明的前端需求默认只面向 PC；H5 冻结并保留既有入口，未来单独重构。PC 与 console 统一 React/Vite/TypeScript、React Router、TanStack Query、必要的 Zustand、React Hook Form/Zod、ahooks 与 Biome；UI 分别采用 shadcn/ui/Radix 和 antd/ProComponents，共用技术栈及数据流的唯一详细入口为 [PC 专题](docs/plans/pc-refresh.md#stack)。设计采用 [AIHOT 布局与信息精简规则](docs/plans/design.md#pc-layout)。[后台专题](docs/plans/console.md)既有测试授权保留，PC 迁移本身不扩大测试授权，见[验证规则](docs/plans/release.md#validation)。2026-10-08 已完成计划一致性修订与两端技术栈对齐，未实施新增功能；审查与检查结果见[质量记录](docs/quality-log.md)。
 
 | 工作          | 当前状态与证据                                                                                                                                                                                |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -26,8 +26,8 @@
 | 主题与反馈    | 自动主题及旧邮件入口已实施；PC 主反馈将默认截图当前网页并存 R2，附用户/环境信息，待开发；邮件保留兜底。见[反馈计划](docs/plans/console.md#feedback)。                                         |
 | P4 品质验收   | 已有单元 24/24、类型检查、lint、双端构建通过记录；历史全量 E2E 曾为 18/30，后续选定用例有 18/18 通过记录；本次计划修订未重跑，尚未完成完整品质与性能验收。见[质量记录](docs/quality-log.md)。 |
 | P5 上线       | 生产迁移与自动发布接入已完成，完整上线验收尚未完成；目标、命名及完成判据见[上线验收计划](docs/plans/release.md)。                                                                             |
-| P6 后台与运营 | React 后台、超管、反馈、用户列表、表管理与统计方案已写入[专题](docs/plans/console.md)，尚未实施。                                                                                             |
-| PC 重构       | React + Vite 及指定技术栈、AIHOT layout、文案/卡片精简已列入[PC0–PC4](docs/plans/pc-refresh.md#delivery)，尚未实施。                                                                          |
+| P6 后台与运营 | 与 PC 对齐的 React 后台、独立超管、反馈、用户列表、表管理与统计已写入[专题](docs/plans/console.md)，尚未实施。                                                                                |
+| PC 重构       | 共用 React 技术栈、AIHOT layout、缓存/恢复规则和完整链路优先的迁移步骤已列入[PC0–PC4](docs/plans/pc-refresh.md#delivery)，尚未实施。                                                          |
 | H5 与设备入口 | H5 停止更新、未来单独重构；原自动选择、手动覆盖和新增映射推迟，见[冻结规则](docs/plans/pc-refresh.md#h5-freeze)。                                                                             |
 
 ## 下一步与执行顺序
@@ -35,8 +35,8 @@
 用户要求继续开发且未指定主题时，建议按以下顺序推进；用户指定的任务优先。这里只记录顺序，各专题的验收清单是完成依据。
 
 1. **先补原闭环的隔离验收**：在隔离开发环境继续可选密码、不同 Key、跨会话并发、响应丢失及迟到批次。真实验证码与无冲突保存已有证据，不重复当作未配置；按[游客计划](docs/plans/guest-access.md)和[报告体验](docs/plans/report-experience.md)推进，发现缺陷先修正。
-2. **PC 布局精简与 React 迁移**：按[PC0–PC4](docs/plans/pc-refresh.md#delivery)盘点重复信息、建立 AIHOT 风格布局外壳，接入 React/Vite 与指定技术栈，再迁移账号、报告、书架、笔记和下载。迁移分支通过 PC4 后才合入自动发布的主分支；复用后端与纯 TS 逻辑，核验冻结 H5 的入口/构建兼容，不在旧 Vue PC 继续堆叠新增界面。
-3. **后台基础与路径**：按[后台 C0–C1](docs/plans/console.md#delivery)接入超管初始化、独立认证和 `/console` 子路径，与 PC 复用 React 工程能力。验证 PC、冻结 H5、后台产物共存、路由和身份隔离；设备自动切换暂停。
+2. **PC 布局精简与 React 迁移**：按[PC0–PC4](docs/plans/pc-refresh.md#delivery)盘点信息与旧路由/业务状态，建立 AIHOT 布局外壳和共用技术栈。PC2 先打通游客接入、采集、查看/下载、登录保存、刷新恢复和退出，再铺开报告、书架与笔记页面。迁移分支通过 PC4 后才合入自动发布的主分支；核验缓存期限、异常恢复、按需加载与 H5 兼容，不在旧 Vue PC 继续堆叠新增界面。
+3. **后台基础与路径**：按[后台 C0–C1](docs/plans/console.md#delivery)接入超管初始化、独立认证和 `/console` 子路径，复用 PC 的路由、Query、RHF/Zod 与 Biome 约定，使用 antd UI。验证三入口产物、依赖/样式、路由和身份隔离；设备自动切换暂停。
 4. **PC 反馈与数据管理**：按 C2–C3 完成 PC 当前网页截图反馈、R2 私有存储、用户列表和逐表管理动作，按此前授权补必要测试；H5 不同步截图反馈。
 5. **PC 统计与联合品质验收**：按 C4 做受限的 PC 公开页面基础统计；业务转化另按选型条件推进。将原[报告体验](docs/plans/report-experience.md)、[首版清单](docs/plans/product.md#first-release-gaps)、[主题](docs/plans/design.md#theme-and-feedback)与迁移一并核验，补 PC 视觉、真实边界、下载、缩放、打印和性能证据。H5 全面品质迭代推迟至重构。
 6. **发布与线上验收**：按 C5 及[上线计划](docs/plans/release.md)验证迁移、备份恢复、资源预算、入口共存与线上闭环。公开预览只验模拟与隔离，真实个人/后台流程在受控环境验证；按实际授权使用生产凭据，不以健康响应或构建成功代替完整上线验收。
