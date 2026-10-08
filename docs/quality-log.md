@@ -31,6 +31,8 @@
 
 最终代码的 `pnpm typecheck`、`pnpm lint`、`pnpm test` 通过，现有测试为 3 文件、24/24；`CHOKIDAR_USEPOLLING=true pnpm build` 双端通过，保留已有 ECharts 676.41 kB 分包提示。改动文件 Prettier 与 `git diff --check` 通过。未运行 E2E；现有登录用例仍断言未登录强制跳转和未配置邮箱，与当前游客及本次已配置环境不符，未改写或弱化它们。
 
+PR #19 的首轮 Netlify 预览构建、Header rules 和 Redirect rules 检查通过；Pages changed 由平台标记为 skipping。公开预览 `/notes` 与 `/m/notes` 返回 200，健康返回 `preview: true / auth: false / guest: false`，连接查询只返回两个空连接。个人报告读取首次遇到客户端 HTTP/2 framing 错误（未取得 HTTP 响应），以 HTTP/1.1 重查返回 `503 PREVIEW_ONLY`，隔离与当前函数配置一致。以上是公开预览只读证据，不替代生产个人闭环。
+
 真实数据下完整 PC 导航、筛选、下载及迟到笔记分页、不同真实有效 Key、默认期限自然到期、平台调度、跨函数实例、密码邮件与设置页面仍待验收；历史偶发取消 503 本轮未诊断。此次人工合成响应故障不等同于真实网络或生产验收，游客复合清单、React 迁移及原 P4/P5 缺项继续保留。
 
 <a id="cleanup-renewal-2026-10-08"></a>
