@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
+import type { ErrorHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { and, eq, gt, lt, or, sql, isNull, exists } from 'drizzle-orm'
 import { z } from 'zod'
@@ -655,7 +656,7 @@ app.notFound((c) =>
     404,
   ),
 )
-app.onError((error, c) => {
+export const handleError: ErrorHandler<AppEnv> = (error, c) => {
   if (error instanceof z.ZodError || error instanceof SyntaxError)
     return c.json(
       {
@@ -667,6 +668,26 @@ app.onError((error, c) => {
       400,
     )
   const known = error instanceof AppError
+  if (!known) {
+    const causes = []
+    let cause: unknown = error
+    for (let depth = 0; cause instanceof Error && depth < 3; depth++) {
+      const code = 'code' in cause ? cause.code : undefined
+      causes.push({
+        type: cause.constructor.name,
+        code: typeof code === 'string' && /^[A-Z0-9_]{2,40}$/.test(code) ? code : undefined,
+        frames: cause.stack?.match(/(?:server|shared|client)\/[\w./-]+:\d+:\d+/g)?.slice(0, 3),
+      })
+      cause = cause.cause
+    }
+    // Error messages and database parameters can contain credentials or reading content.
+    console.error('yuewen.request_failed', {
+      requestId: c.get('requestId'),
+      method: c.req.method,
+      route: c.req.routePath,
+      causes,
+    })
+  }
   if (known && error.retryAfter) c.header('Retry-After', String(error.retryAfter))
   return c.json(
     {
@@ -678,4 +699,5 @@ app.onError((error, c) => {
     },
     (known ? error.status : 503) as 400,
   )
-})
+}
+app.onError(handleError)

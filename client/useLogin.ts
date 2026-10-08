@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { authClient } from '@client/auth'
 import { api } from '@client/api'
@@ -19,6 +19,17 @@ export function useLogin() {
   if (route.query.mode === 'reset') mode.value = 'reset'
   const { clear } = useReport()
   let timer: ReturnType<typeof setInterval> | undefined
+  let generation = 0
+  watch(
+    () => route.fullPath,
+    () => {
+      generation++
+      busy.value = false
+      password.value = ''
+      otp.value = ''
+    },
+    { flush: 'sync' },
+  )
   onMounted(async () => {
     try {
       configured.value = (await api<{ auth: boolean }>('/health')).auth
@@ -26,7 +37,12 @@ export function useLogin() {
       configured.value = false
     }
   })
-  onUnmounted(() => clearInterval(timer))
+  onUnmounted(() => {
+    generation++
+    clearInterval(timer)
+    password.value = ''
+    otp.value = ''
+  })
   function startCooldown() {
     cooldown.value = 60
     clearInterval(timer)
@@ -36,6 +52,8 @@ export function useLogin() {
     }, 1000)
   }
   async function send() {
+    if (busy.value) return
+    const run = generation
     busy.value = true
     error.value = ''
     try {
@@ -43,6 +61,7 @@ export function useLogin() {
         email: email.value,
         type: mode.value === 'reset' ? 'forget-password' : 'sign-in',
       })
+      if (run !== generation) return
       if (result.error) {
         error.value = '验证码暂未发送，请检查邮箱地址或稍后重试。'
         return
@@ -50,13 +69,15 @@ export function useLogin() {
       sent.value = true
       startCooldown()
     } catch {
-      error.value = '服务暂时无法连接，请稍后重试。'
+      if (run === generation) error.value = '服务暂时无法连接，请稍后重试。'
     } finally {
-      busy.value = false
+      if (run === generation) busy.value = false
     }
   }
   async function submit() {
+    if (busy.value) return
     if (mode.value !== 'password' && !sent.value) return send()
+    const run = generation
     busy.value = true
     error.value = ''
     try {
@@ -70,6 +91,7 @@ export function useLogin() {
                 password: password.value,
               })
             : await authClient.signIn.emailOtp({ email: email.value, otp: otp.value })
+      if (run !== generation) return
       if (result.error) {
         error.value =
           mode.value === 'password'
@@ -88,12 +110,14 @@ export function useLogin() {
       }
       await router.replace(safeReturn(route.query.next))
     } catch {
-      error.value = '服务暂时无法连接，请稍后重试。'
+      if (run === generation) error.value = '服务暂时无法连接，请稍后重试。'
     } finally {
-      busy.value = false
+      if (run === generation) busy.value = false
     }
   }
   function changeMode(value: 'otp' | 'password' | 'reset') {
+    generation++
+    busy.value = false
     mode.value = value
     sent.value = false
     error.value = ''
