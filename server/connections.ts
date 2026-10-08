@@ -247,7 +247,10 @@ connections.post('/guest/save', async (c) => {
             gt(report.idleExpiresAt, new Date()),
           ),
         )
-      if (!current)
+      if (
+        !current ||
+        Math.min(current.expiresAt.getTime(), current.idleExpiresAt.getTime()) <= Date.now()
+      )
         throw new AppError(
           'SAVE_RESULT_EXPIRED',
           '连接已保存，但当时的临时报告已过期或变化。请使用账号连接。',
@@ -372,6 +375,13 @@ connections.post('/guest/save', async (c) => {
       expiresAt,
     })
     await tx.delete(guest).where(eq(guest.id, anonymous.id))
+    // Lock waits can outlast the deadlines checked when the transaction began.
+    // Throw before commit so credentials, reports and the receipt roll back together.
+    const now = Date.now()
+    if (Math.min(anonymous.expiresAt.getTime(), anonymous.idleExpiresAt.getTime()) <= now)
+      throw new AppError('GUEST_EXPIRED', '临时连接已到期，未执行保存。', 401)
+    if (Math.min(incoming.expiresAt.getTime(), incoming.idleExpiresAt.getTime()) <= now)
+      throw new AppError('REPORT_EXPIRED', '临时报告已到期，未执行保存。', 409)
     return { reportId: incoming.id, range: incoming.state.range.key }
   })
   deleteCookie(c, cookie, { path: '/' })
