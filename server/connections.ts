@@ -45,6 +45,7 @@ export async function lockOwner(tx: Transaction, access: Access) {
   if (access.kind === 'guest') {
     const [row] = await tx.select().from(guest).where(liveGuest(access.ownerId)).for('update')
     if (!row) throw new AppError('GUEST_EXPIRED', '临时连接已到期或清除，请重新配置 API Key。', 401)
+    return row
   } else {
     await tx.select().from(user).where(eq(user.id, access.ownerId)).for('update')
   }

@@ -34,7 +34,7 @@ import {
   invalidateConnection,
   liveGuest,
 } from './connections'
-import type { Access, AppEnv } from './connections'
+import type { Access, AppEnv, Transaction } from './connections'
 type Row = typeof report.$inferSelect
 export const app = new Hono<AppEnv>()
 app.use('/api/*', async (c, next) => {
@@ -130,10 +130,14 @@ const active = (id: string, session: Access) =>
     gt(report.expiresAt, new Date()),
     gt(report.idleExpiresAt, new Date()),
   )
-async function readTask(id: string, session: Access) {
-  const [row] = await getDb().select().from(report).where(active(id, session))
+async function readTask(
+  id: string,
+  session: Access,
+  db: Transaction | ReturnType<typeof getDb> = getDb(),
+) {
+  const [row] = await db.select().from(report).where(active(id, session))
   if (!row) {
-    const [replaced] = await getDb()
+    const [replaced] = await db
       .select({ id: reportReplacement.id })
       .from(reportReplacement)
       .where(
@@ -148,13 +152,49 @@ async function readTask(id: string, session: Access) {
       throw new AppError('REPORT_REPLACED', '该临时报告已被替换。已停止读取，可主动重新生成。', 409)
     throw new AppError('REPORT_EXPIRED', '临时报告已清除或过期，请重新生成。', 404)
   }
-  const key = await readCredential(session)
+  const key = await readCredential(session, db)
   if (!key || key.version !== row.keyVersion)
     throw new AppError('KEY_CHANGED', '微信读书连接已更新，请重新生成报告。', 409)
   return row
 }
-async function getKey(session: Access) {
-  const key = await readCredential(session)
+async function changeTask<T>(
+  id: string,
+  session: Access,
+  change: (tx: Transaction, row: Row) => Promise<T>,
+  leaseId?: string,
+) {
+  return getDb().transaction(async (tx) => {
+    // Match creation/save lock order; never hold a report lock while waiting for its owner.
+    const owner = await lockOwner(tx, session)
+    await tx
+      .select({ id: report.id })
+      .from(report)
+      .where(and(eq(report.id, id), sessionReports(session)))
+      .for('update')
+    const row = await readTask(id, session, tx)
+    const result = await change(tx, row)
+    const [login] =
+      session.kind === 'account'
+        ? await tx
+            .select({ expiresAt: authSession.expiresAt })
+            .from(authSession)
+            .where(eq(authSession.id, session.sessionId))
+        : []
+    // Check the original deadlines too: touch must not revive a connection or report.
+    const now = Date.now()
+    if (session.kind === 'account' && (!login || login.expiresAt.getTime() <= now))
+      throw new AppError('AUTH_REQUIRED', '账号登录已过期，请重新登录。', 401)
+    if (owner && Math.min(owner.expiresAt.getTime(), owner.idleExpiresAt.getTime()) <= now)
+      throw new AppError('GUEST_EXPIRED', '临时连接已到期，请重新配置 API Key。', 401)
+    if (Math.min(row.expiresAt.getTime(), row.idleExpiresAt.getTime()) <= now)
+      throw new AppError('REPORT_EXPIRED', '临时报告已过期，请重新生成。', 404)
+    if (leaseId && (row.leaseId !== leaseId || !row.leaseUntil || row.leaseUntil.getTime() <= now))
+      throw new AppError('REPORT_CHANGED', '采集租约已失效，旧结果未写入。', 409)
+    return result
+  })
+}
+async function getKey(session: Access, db: Transaction | ReturnType<typeof getDb> = getDb()) {
+  const key = await readCredential(session, db)
   if (!key) throw new AppError('WEREAD_KEY_REQUIRED', '请先连接你的微信读书。', 409)
   if (key.status === 'invalid')
     throw new AppError('WEREAD_KEY_INVALID', '微信读书 API Key 已失效，请重新配置。', 409)
@@ -398,66 +438,57 @@ app.get('/api/reports/:id/notes', async (c) => {
   })
 })
 app.post('/api/reports/:id/touch', async (c) => {
-  const session = c.get('access'),
-    row = await readTask(c.req.param('id'), session)
-  const [updated] = await getDb()
-    .update(report)
-    .set({ idleExpiresAt: new Date(Math.min(Date.now() + 1800000, row.expiresAt.getTime())) })
-    .where(active(row.id, session))
-    .returning({ id: report.id })
-  if (!updated) await readTask(row.id, session)
-  if (session.kind === 'guest')
-    await getDb()
-      .update(guest)
-      .set({ idleExpiresAt: new Date(Math.min(Date.now() + 1800000, row.expiresAt.getTime())) })
-      .where(liveGuest(session.ownerId))
+  const session = c.get('access')
+  await changeTask(c.req.param('id'), session, async (tx, row) => {
+    const idleExpiresAt = new Date(Math.min(Date.now() + 1800000, row.expiresAt.getTime()))
+    await tx.update(report).set({ idleExpiresAt }).where(eq(report.id, row.id))
+    if (session.kind === 'guest')
+      await tx.update(guest).set({ idleExpiresAt }).where(eq(guest.id, session.ownerId))
+  })
   return c.body(null, 204)
 })
 app.post('/api/reports/:id/cancel', async (c) => {
-  const session = c.get('access'),
-    row = await readTask(c.req.param('id'), session)
-  const [updated] = await getDb()
-    .update(report)
-    .set({
-      status: 'cancelled',
-      leaseId: null,
-      leaseUntil: null,
-      version: sql`${report.version} + 1`,
-    })
-    .where(active(row.id, session))
-    .returning()
-  if (!updated) await readTask(row.id, session)
-  if (!updated) throw new AppError('REPORT_CHANGED', '报告状态已更新，请重新读取。', 409)
+  const updated = await changeTask(c.req.param('id'), c.get('access'), async (tx, row) => {
+    const [updated] = await tx
+      .update(report)
+      .set({
+        status: 'cancelled',
+        leaseId: null,
+        leaseUntil: null,
+        version: row.version + 1,
+      })
+      .where(eq(report.id, row.id))
+      .returning()
+    return updated
+  })
   return c.json(publicTask(updated))
 })
 app.post('/api/reports/:id/retry', async (c) => {
-  const session = c.get('access'),
-    row = await readTask(c.req.param('id'), session)
-  await getKey(session)
-  if (!['partial', 'cancelled', 'failed'].includes(row.status)) return c.json(publicTask(row))
-  if (row.state.retryAt && row.state.retryAt > Date.now())
-    throw new AppError('UPSTREAM_RATE_LIMIT', '请稍后再继续读取。', 429, true)
-  if (row.state.budgetReached || row.state.requests >= 600)
-    throw new AppError('COLLECTION_BUDGET', '本次采集已达到请求预算，请下载已有结果。', 409)
-  row.state.queue.push(...row.state.failed)
-  row.state.failed = []
-  row.state.issues = []
-  row.state.issueCode = undefined
-  const [updated] = await getDb()
-    .update(report)
-    .set({
-      state: row.state,
-      status: 'queued',
-      version: row.version + 1,
-      leaseId: null,
-      leaseUntil: null,
-    })
-    .where(and(active(row.id, session), eq(report.version, row.version)))
-    .returning()
-  if (!updated) {
-    await readTask(row.id, session)
-    throw new AppError('REPORT_CHANGED', '报告状态已更新，请刷新后重试。', 409, true)
-  }
+  const session = c.get('access')
+  const updated = await changeTask(c.req.param('id'), session, async (tx, row) => {
+    await getKey(session, tx)
+    if (!['partial', 'cancelled', 'failed'].includes(row.status)) return row
+    if (row.state.retryAt && row.state.retryAt > Date.now())
+      throw new AppError('UPSTREAM_RATE_LIMIT', '请稍后再继续读取。', 429, true)
+    if (row.state.budgetReached || row.state.requests >= 600)
+      throw new AppError('COLLECTION_BUDGET', '本次采集已达到请求预算，请下载已有结果。', 409)
+    row.state.queue.push(...row.state.failed)
+    row.state.failed = []
+    row.state.issues = []
+    row.state.issueCode = undefined
+    const [updated] = await tx
+      .update(report)
+      .set({
+        state: row.state,
+        status: 'queued',
+        version: row.version + 1,
+        leaseId: null,
+        leaseUntil: null,
+      })
+      .where(eq(report.id, row.id))
+      .returning()
+    return updated
+  })
   return c.json(publicTask(updated))
 })
 app.post('/api/reports/:id/advance', async (c) => {
@@ -465,13 +496,12 @@ app.post('/api/reports/:id/advance', async (c) => {
     .object({ version: z.number().int().min(0), requestId: z.string().uuid() })
     .parse(await c.req.json())
   const session = c.get('access'),
-    db = getDb(),
     row = await readTask(c.req.param('id'), session)
   if (row.version !== body.version || !['queued', 'running'].includes(row.status))
     return c.json(publicTask(row))
   const key = await getKey(session),
     leaseId = randomUUID()
-  const leased = await db.transaction(async (tx) => {
+  const leased = await changeTask(row.id, session, async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(7263104)`)
     const [{ count }] = await tx
       .select({ count: sql<number>`count(*)::int` })
@@ -505,15 +535,22 @@ app.post('/api/reports/:id/advance', async (c) => {
   try {
     await advanceCollector(leased.state, decryptConnection(key), async (...args) => {
       // Reserve the request before calling upstream; cancellation must not refund the budget.
-      const [reserved] = await db
-        .update(report)
-        .set({
-          state: sql`jsonb_set(${report.state}, '{requests}', to_jsonb(${leased.state.requests}::int))`,
-        })
-        .where(currentLease())
-        .returning({ id: report.id })
-      if (!reserved)
-        throw new AppError('REPORT_CHANGED', '采集已停止或连接已更新，请重新读取。', 409)
+      await changeTask(
+        row.id,
+        session,
+        async (tx) => {
+          const [reserved] = await tx
+            .update(report)
+            .set({
+              state: sql`jsonb_set(${report.state}, '{requests}', to_jsonb(${leased.state.requests}::int))`,
+            })
+            .where(currentLease())
+            .returning({ id: report.id })
+          if (!reserved)
+            throw new AppError('REPORT_CHANGED', '采集已停止或连接已更新，请重新读取。', 409)
+        },
+        leaseId,
+      )
       return weread(...args)
     })
   } catch (error) {
@@ -543,22 +580,28 @@ app.post('/api/reports/:id/advance', async (c) => {
       : leased.state.queue.length
         ? 'running'
         : 'completed'
-  const [updated] = await db
-    .update(report)
-    .set({
-      state: leased.state,
-      status,
-      version: row.version + 1,
-      leaseId: null,
-      leaseUntil: null,
-      updatedAt: new Date(),
-    })
-    .where(currentLease())
-    .returning()
-  if (!updated) {
-    await readTask(row.id, session)
-    throw new AppError('REPORT_CHANGED', '采集已停止或连接已更新，旧结果未写入。', 409)
-  }
+  const updated = await changeTask(
+    row.id,
+    session,
+    async (tx) => {
+      const [updated] = await tx
+        .update(report)
+        .set({
+          state: leased.state,
+          status,
+          version: row.version + 1,
+          leaseId: null,
+          leaseUntil: null,
+          updatedAt: new Date(),
+        })
+        .where(currentLease())
+        .returning()
+      if (!updated)
+        throw new AppError('REPORT_CHANGED', '采集已停止或连接已更新，旧结果未写入。', 409)
+      return updated
+    },
+    leaseId,
+  )
   if (issue?.code === 'WEREAD_KEY_INVALID') await invalidateConnection(session, key.version)
   return c.json(publicTask(updated))
 })
