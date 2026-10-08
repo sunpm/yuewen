@@ -334,7 +334,7 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
     setDownloadError('')
     try {
       await downloading.run(async () => {
-        const current = await reading.completeReport()
+        const current = await reading.completeReport(includeNotes)
         const { download, exportData, makeHtml } = await import('@client/export')
         const content =
           type === 'html'
@@ -342,7 +342,7 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
             : JSON.stringify(exportData(current.report, includeNotes), null, 2)
         if (!mounted.current || run !== flow.generation) return
         if (!reading.sample) {
-          const checked = await reading.completeReport()
+          const checked = await reading.completeReport(false)
           if (
             checked.id !== current.id ||
             checked.keyVersion !== current.keyVersion ||
@@ -353,7 +353,7 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
         if (mounted.current && run === flow.generation) download(content, type, reading.sample)
       })
     } catch (error) {
-      if (mounted.current) setDownloadError(message(error))
+      if (mounted.current && run === flow.generation) setDownloadError(message(error))
     }
   }
   async function copyNote(text: string) {
@@ -574,7 +574,11 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
                 JSON
               </Button>
             </div>
-            {downloading.isPending && <p role="status">正在补齐已采集分页并生成下载文件…</p>}
+            {downloading.isPending && (
+              <p role="status">
+                {includeNotes ? '正在补齐已采集分页并生成下载文件…' : '正在生成下载文件…'}
+              </p>
+            )}
             {downloadError && <p role="alert">{downloadError}</p>}
           </div>
         </details>

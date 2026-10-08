@@ -112,11 +112,34 @@ export function useReading() {
   }, [candidate, sample, development, connections.data, selection, params, setParams])
 
   function publish(value: ReportTask, run: number) {
-    if (run !== flow.generation) return
-    const cached = cacheTask(value)
-    if (!Number.isFinite(cached.deadline) || cached.deadline <= performance.now())
-      throw new ApiError('REPORT_EXPIRED', '临时报告已到期，请重新生成。')
+    if (run !== flow.generation) throw new DOMException('读取已取消', 'AbortError')
+    const current = queries.getQueryData<CachedTask>(currentKey.current)
+    if (
+      currentKey.current[1] === scope &&
+      current?.id === value.id &&
+      current.keyVersion === value.keyVersion &&
+      current.version > value.version
+    )
+      throw new ApiError('REPORT_CHANGED', '报告已更新，请重新读取。')
     const key = taskKey(scope, value)
+    const previous = queries.getQueryData<CachedTask>(key)
+    const cached = cacheTask(value)
+    if (previous) {
+      // Same-version reads can finish out of order with renewal or note pagination.
+      // Keep only progress already confirmed for this exact owner/task/version.
+      if (previous.deadline > cached.deadline) {
+        cached.deadline = previous.deadline
+        cached.idleExpiresAt = previous.idleExpiresAt
+      }
+      if (previous.report.notes.length > cached.report.notes.length)
+        cached.report = { ...cached.report, notes: previous.report.notes }
+      cached.notesComplete ||= previous.notesComplete
+    }
+    if (!Number.isFinite(cached.deadline) || cached.deadline <= performance.now()) {
+      const error = new ApiError('REPORT_EXPIRED', '临时报告已到期，请重新生成。')
+      showError(error, run)
+      throw error
+    }
     queries.setQueryData(key, cached)
     currentKey.current = key
     setPointer(key)
@@ -125,6 +148,7 @@ export function useReading() {
       queryKey: ['private', scope, 'report'],
       predicate: (query) => JSON.stringify(query.queryKey) !== JSON.stringify(key),
     })
+    return cached
   }
   function showError(value: unknown, run: number) {
     if (run !== flow.generation) return
@@ -135,19 +159,26 @@ export function useReading() {
     }
   }
   async function read<T>(path: string, key: readonly unknown[], run: number) {
-    const result = await queries.fetchQuery({
-      queryKey: ['private', scope, ...key],
-      gcTime: 0,
-      queryFn: ({ signal }) => {
-        online()
-        return request<T>(access, path, { signal })
-      },
-    })
     if (run !== flow.generation) throw new DOMException('读取已取消', 'AbortError')
-    return result
+    try {
+      const result = await queries.fetchQuery({
+        queryKey: ['private', scope, ...key],
+        gcTime: 0,
+        queryFn: ({ signal }) => {
+          online()
+          return request<T>(access, path, { signal })
+        },
+      })
+      if (run !== flow.generation) throw new DOMException('读取已取消', 'AbortError')
+      return result
+    } catch (error) {
+      // Details and downloads must invalidate the report too, not just their local panel.
+      if (gone(error)) showError(error, run)
+      throw error
+    }
   }
   async function hydrate(value: ReportTask, run: number) {
-    let next = value
+    let next = publish(value, run)
     while (!next.notesComplete) {
       const cursor = next.report.notes.length
       const page = await read<{
@@ -161,12 +192,14 @@ export function useReading() {
       )
       if (page.version !== next.version || (page.nextCursor !== null && page.nextCursor <= cursor))
         throw new ApiError('REPORT_CHANGED', '报告已更新，请重新读取笔记。')
-      next = {
-        ...next,
-        report: { ...next.report, notes: [...next.report.notes, ...page.notes] },
-        notesComplete: page.nextCursor === null,
-      }
-      publish(next, run)
+      next = publish(
+        {
+          ...next,
+          report: { ...next.report, notes: [...next.report.notes, ...page.notes] },
+          notesComplete: page.nextCursor === null,
+        },
+        run,
+      )
     }
     return next
   }
@@ -319,7 +352,10 @@ export function useReading() {
             if (run !== flow.generation) return
             publish(next, run)
           }
-          if (next && run === flow.generation) await hydrate(next, run)
+          if (next && run === flow.generation) {
+            if (!next.notesComplete) setPhase('notes')
+            await hydrate(next, run)
+          }
         } catch (e) {
           if (run !== flow.generation) return
           if (
@@ -406,7 +442,7 @@ export function useReading() {
       showError(e, run)
     }
   }
-  async function completeReport() {
+  async function completeReport(includeNotes: boolean) {
     if (local) return { report: local, id: 'sample', version: 0, keyVersion: 0 }
     if (!task || !valid || saving || action.isPending)
       throw new Error('请等待报告恢复或采集结束后再下载。')
@@ -416,13 +452,7 @@ export function useReading() {
       ['download', task.id, task.keyVersion, task.version],
       run,
     )
-    const cached = queries.getQueryData<CachedTask>(currentKey.current)
-    const full = await hydrate(
-      cached?.id === latest.id && cached.version === latest.version && cached.notesComplete
-        ? { ...latest, report: cached.report, notesComplete: true }
-        : latest,
-      run,
-    )
+    const full = includeNotes ? await hydrate(latest, run) : publish(latest, run)
     // Recheck ownership/version after pagination, without touching or recollecting upstream data.
     const checked = await read<ReportTask>(`/reports/${task.id}`, ['download-check', task.id], run)
     if (checked.version !== full.version) throw new Error('报告已更新，请重新下载。')
@@ -457,13 +487,7 @@ export function useReading() {
         return request(connection, `/reports/${task.id}/touch`, { method: 'POST' })
       })
       const next = await read<ReportTask>(`/reports/${task.id}`, ['touch', task.id], run)
-      const cached = queries.getQueryData<CachedTask>(currentKey.current)
-      publish(
-        cached?.version === next.version && cached.notesComplete
-          ? { ...next, report: cached.report, notesComplete: true }
-          : next,
-        run,
-      )
+      publish(next, run)
     } catch (e) {
       showError(e, run)
     }
