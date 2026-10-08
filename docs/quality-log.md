@@ -23,6 +23,8 @@
 - 本地 `pnpm dev` 的 HTTP 检查：`/`、`/m/`、`/console`、`/console/`、`/console/login`、`/console/users` 均返回 200 HTML；后台模块返回 JavaScript，根字体返回 WOFF2，健康与管理会话路由返回 JSON。`/console/users` 仅验证 SPA 深链接回退，用户管理尚未实现。首次 `/console` 无尾斜杠返回 404，已在开发代理归一为 `/console/`，包含 query 的入口复核通过；Netlify 保留精确入口重写。
 - Rollup 输出的实际模块目录核对：后台含 antd/cssinjs，不含 Vue/Vant、ECharts、词云或报告导出；React PC 含按需 ECharts/词云/导出，不含 antd/ProComponents/Vue/Vant。后台入口 JS 652.66 kB（gzip 216.47 kB），CSS 5.74 kB（gzip 1.94 kB）；登录懒加载包 144.92 kB（gzip 46.74 kB），概览 102.52 kB（gzip 32.47 kB）。Vue PC、H5 与 React PC 入口体积沿用上轮。保留后台入口和 ECharts 的大分包警告、Zod 注释提示；体积不代表性能达标。
 
+PR #26 的代码提交 `5819f9c` 已通过 Netlify Deploy Preview、Header rules 与 Redirect rules；Pages changed 为平台中性/跳过结果。对平台预览做 HTTP 只读核验：`/`、`/m/`、`/console`、`/console/`、`/console/login`、`/console/users` 返回 HTML 200；后台入口脚本为 JavaScript 200、根字体为 WOFF2 200、健康接口为 JSON 200；管理概览返回 JSON 503 `PREVIEW_ONLY`。没有使用浏览器，也没有在公开预览提交账号或凭据。这组证据确认构建发布与路径回退，不代表管理登录或页面视觉验收。
+
 ### 本轮失败及修正
 
 初次隔离数据库检查发现 PostgreSQL 启动参数中的 `search_path` 未生效，在首条建表时因同名表已存在失败；未执行后续业务写入。改用 Neon direct endpoint 仍未使该启动参数生效，新增写入前 schema 断言阻止继续；最终采用官方支持的 URL `options=-c search_path=...`，实际 schema 核验通过后执行迁移。断言保留，测试不会静默回退到 public。首次完整运行 9/10 通过，限流场景的六次远程请求超过 20 秒；仅将集成等待上限调整为 60 秒，原断言全部保留，重跑 10/10 通过。该限流用例实际约 27 秒，不作为线上性能证据。
