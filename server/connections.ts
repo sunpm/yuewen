@@ -13,6 +13,7 @@ import {
   reportReplacement,
   connectionSave,
   requestLimit,
+  session as authSession,
 } from './db/schema'
 import { authConfigured, getAuth } from './auth'
 import { decryptKey, encryptKey, keyring } from './crypto'
@@ -41,13 +42,24 @@ export const sessionReports = (access: Access) =>
     ownerReports(access),
     access.kind === 'account' ? eq(report.sessionId, access.sessionId) : undefined,
   )
+export async function checkAccountSession(tx: Transaction, access: Access) {
+  if (access.kind !== 'account') return
+  const [login] = await tx
+    .select({ expiresAt: authSession.expiresAt })
+    .from(authSession)
+    .where(and(eq(authSession.id, access.sessionId), eq(authSession.userId, access.ownerId)))
+  if (!login || login.expiresAt.getTime() <= Date.now())
+    throw new AppError('AUTH_REQUIRED', '账号登录已过期，请重新登录。', 401)
+}
 export async function lockOwner(tx: Transaction, access: Access) {
   if (access.kind === 'guest') {
     const [row] = await tx.select().from(guest).where(liveGuest(access.ownerId)).for('update')
-    if (!row) throw new AppError('GUEST_EXPIRED', '临时连接已到期或清除，请重新配置 API Key。', 401)
+    if (!row || Math.min(row.expiresAt.getTime(), row.idleExpiresAt.getTime()) <= Date.now())
+      throw new AppError('GUEST_EXPIRED', '临时连接已到期或清除，请重新配置 API Key。', 401)
     return row
   } else {
     await tx.select().from(user).where(eq(user.id, access.ownerId)).for('update')
+    await checkAccountSession(tx, access)
   }
 }
 export async function readCredential(
@@ -220,8 +232,13 @@ connections.post('/guest/save', async (c) => {
   const account = await accountSession(c)
   if (!account) throw new AppError('AUTH_REQUIRED', '请登录后保存连接，临时报告仍可继续查看。', 401)
   await limit(`save:${account.user.id}`, 10, 60)
+  const access: Access = {
+    kind: 'account',
+    ownerId: account.user.id,
+    sessionId: account.session.id,
+  }
   const result = await getDb().transaction(async (tx) => {
-    await tx.select().from(user).where(eq(user.id, account.user.id)).for('update')
+    await lockOwner(tx, access)
     const [receipt] = await tx
       .select()
       .from(connectionSave)
@@ -248,6 +265,7 @@ connections.post('/guest/save', async (c) => {
             gt(report.idleExpiresAt, new Date()),
           ),
         )
+      await checkAccountSession(tx, access)
       if (
         !current ||
         Math.min(current.expiresAt.getTime(), current.idleExpiresAt.getTime()) <= Date.now()
@@ -376,6 +394,7 @@ connections.post('/guest/save', async (c) => {
       expiresAt,
     })
     await tx.delete(guest).where(eq(guest.id, anonymous.id))
+    await checkAccountSession(tx, access)
     // Lock waits can outlast the deadlines checked when the transaction began.
     // Throw before commit so credentials, reports and the receipt roll back together.
     const now = Date.now()

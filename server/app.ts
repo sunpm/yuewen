@@ -29,6 +29,7 @@ import {
   ownerReports,
   sessionReports,
   lockOwner,
+  checkAccountSession,
   readCredential,
   decryptConnection,
   invalidateConnection,
@@ -173,17 +174,9 @@ async function changeTask<T>(
       .for('update')
     const row = await readTask(id, session, tx)
     const result = await change(tx, row)
-    const [login] =
-      session.kind === 'account'
-        ? await tx
-            .select({ expiresAt: authSession.expiresAt })
-            .from(authSession)
-            .where(eq(authSession.id, session.sessionId))
-        : []
+    await checkAccountSession(tx, session)
     // Check the original deadlines too: touch must not revive a connection or report.
     const now = Date.now()
-    if (session.kind === 'account' && (!login || login.expiresAt.getTime() <= now))
-      throw new AppError('AUTH_REQUIRED', '账号登录已过期，请重新登录。', 401)
     if (owner && Math.min(owner.expiresAt.getTime(), owner.idleExpiresAt.getTime()) <= now)
       throw new AppError('GUEST_EXPIRED', '临时连接已到期，请重新配置 API Key。', 401)
     if (Math.min(row.expiresAt.getTime(), row.idleExpiresAt.getTime()) <= now)
@@ -229,7 +222,7 @@ app.put('/api/account/weread-key', async (c) => {
   const ring = keyring()
   await weread(apiKey, '/shelf/sync')
   await db.transaction(async (tx) => {
-    await tx.select().from(user).where(eq(user.id, userId)).for('update')
+    await lockOwner(tx, c.get('access'))
     const [current] = await tx.select().from(credential).where(eq(credential.userId, userId))
     if (current?.version !== before?.version)
       throw new AppError('KEY_CHANGED', '连接已在另一处更新，请重新提交。', 409)
@@ -254,15 +247,17 @@ app.put('/api/account/weread-key', async (c) => {
         },
       })
     await tx.delete(report).where(eq(report.userId, userId))
+    await checkAccountSession(tx, c.get('access'))
   })
   return c.json({ status: 'valid', updatedAt: new Date().toISOString() })
 })
 app.delete('/api/account/weread-key', async (c) => {
   const id = c.get('access').ownerId
   await getDb().transaction(async (tx) => {
-    await tx.select().from(user).where(eq(user.id, id)).for('update')
+    await lockOwner(tx, c.get('access'))
     await tx.delete(report).where(eq(report.userId, id))
     await tx.delete(credential).where(eq(credential.userId, id))
+    await checkAccountSession(tx, c.get('access'))
   })
   return c.body(null, 204)
 })
@@ -342,7 +337,10 @@ app.post('/api/reports', async (c) => {
           gt(report.idleExpiresAt, new Date()),
         ),
       )
-    if (existing) return existing
+    if (existing) {
+      await checkAccountSession(tx, session)
+      return existing
+    }
     const [receipt] = await tx
       .select()
       .from(reportReplacement)
@@ -406,6 +404,12 @@ app.post('/api/reports', async (c) => {
         ),
       })
       .returning()
+    await checkAccountSession(tx, session)
+    if (
+      'expiresAt' in current &&
+      Math.min(current.expiresAt.getTime(), current.idleExpiresAt.getTime()) <= Date.now()
+    )
+      throw new AppError('GUEST_EXPIRED', '临时连接已到期，请重新配置 API Key。', 401)
     return created
   })
   return c.json(publicTask(row), 202)
