@@ -99,6 +99,9 @@ function publicTask(row: Row) {
     id: row.id,
     version: row.version,
     keyVersion: row.keyVersion,
+    expiresAt: row.expiresAt,
+    idleExpiresAt: row.idleExpiresAt,
+    serverTime: new Date().toISOString(),
     status: row.status,
     stage: row.state.queue.length
       ? `正在读取${row.state.queue[0].api.includes('readdata') ? '阅读统计' : row.state.queue[0].api.includes('shelf') ? '当前书架' : '划线与想法'} · 笔记已读取 ${data.coverage.loaded}/${data.coverage.expected ?? '未知'} 本`

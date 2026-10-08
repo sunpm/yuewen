@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-const children = ['dev:api', 'dev:web', 'dev:mobile', 'dev:react'].map((script) =>
+const children = ['dev:api', 'dev:api:react', 'dev:web', 'dev:mobile', 'dev:react'].map((script) =>
   spawn('pnpm', [script], {
     stdio: 'inherit',
     env: { ...process.env, NODE_ENV: 'development' },

@@ -162,14 +162,22 @@ connections.get('/connections', async (c) => {
       })
     : undefined
   return c.json({
+    serverTime: new Date().toISOString(),
     guest: anonymous
       ? {
           status: anonymous.status,
+          context: hash(`guest:${anonymous.id}:${anonymous.version}`),
           expiresAt: anonymous.expiresAt,
           idleExpiresAt: anonymous.idleExpiresAt,
         }
       : null,
-    account: account ? { status: saved?.status ?? 'missing' } : null,
+    account: account
+      ? {
+          status: saved?.status ?? 'missing',
+          context: hash(`account:${account.user.id}:${account.session.id}:${saved?.version ?? 0}`),
+          expiresAt: account.session.expiresAt,
+        }
+      : null,
   })
 })
 connections.put('/guest/connection', async (c) => {

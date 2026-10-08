@@ -80,6 +80,9 @@ local.post('/api/dev/report', async (c) => {
     }
     entry.version++
   }
+  return c.json(publicLocalTask(entry))
+})
+function publicLocalTask(entry: NonNullable<ReturnType<typeof reports.get>>) {
   const report = buildReport(entry.state)
   report.meta.source = 'development'
   const status =
@@ -88,10 +91,13 @@ local.post('/api/dev/report', async (c) => {
       : entry.state.queue.length
         ? 'running'
         : 'completed'
-  return c.json({
+  return {
     id: entry.id,
     version: entry.version,
     keyVersion: 0,
+    expiresAt: new Date(entry.expires).toISOString(),
+    idleExpiresAt: new Date(entry.expires).toISOString(),
+    serverTime: new Date().toISOString(),
     status,
     report,
     notesComplete: true,
@@ -107,7 +113,13 @@ local.post('/api/dev/report', async (c) => {
         : status === 'completed'
           ? '采集完成'
           : '已有结果已保留',
-  })
+  }
+}
+local.get('/api/dev/session/reports', (c) => c.json([...reports.values()].map(publicLocalTask)))
+local.get('/api/dev/reports/:id', (c) => {
+  const entry = [...reports.values()].find((value) => value.id === c.req.param('id'))
+  if (!entry) throw new AppError('REPORT_EXPIRED', '开发报告已到期，请重新采集。', 404)
+  return c.json(publicLocalTask(entry))
 })
 local.get('/api/dev/books/:id', async (c) => {
   const id = c.req.param('id')

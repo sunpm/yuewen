@@ -114,13 +114,9 @@ export default function App() {
         <div className="workspace">
           <header className="page-header">
             <h1>{title}</h1>
-            <span className="preview-badge">布局预览</span>
+            <span className="preview-badge">React 迁移预览</span>
           </header>
           <main id="main" ref={main} tabIndex={-1} className="page-content">
-            <p className="preview-note">
-              <span aria-hidden="true" />
-              模拟阅读记录 · 原创演示文本，非书中原文；此预览不连接个人账号。
-            </p>
             <ErrorBoundary key={location.key}>
               <Suspense
                 fallback={
