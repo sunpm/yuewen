@@ -4,7 +4,9 @@
 
 ## 工程约定
 
-PC0–PC2 已在 `web/react/` 接入 React 页面和业务状态迁移，正式 PC 仍使用下述 Vue 实现。React 支持游客验证并采集、查看及 HTML/JSON 下载、按需登录保存、回执恢复、取消/重试和连接自助管理；27 模块仍为数据摘要，完整图表与明细在 PC3 实施。`pnpm dev:react` 在 5174 启动页面，配套 `pnpm dev:api:react` 在 8788 启动 API，并将 `APP_URL` 设为 5174，避免跨开发入口的来源校验失配；`pnpm dev` 同时启动这些服务。默认 `/demo` 使用模拟数据，只有开发构建中显式选择 `source=development` 才连接本地来源。`pnpm build:react` 输出 `dist-react/`，`pnpm preview:react` 在 4174 仅供静态产物检查；业务核验使用带同源 API 的 5174 入口。Netlify 仍只发布 `dist/`，PC4 验收后再切换正式入口，见[迁移边界](plans/pc-refresh.md#migration)。
+PC0–PC2 已在 `web/react/` 接入 React 页面和业务状态迁移，正式 PC 仍使用下述 Vue 实现。React 支持游客验证并采集、查看及 HTML/JSON 下载、按需登录保存、回执恢复、取消/重试和连接自助管理；PC3 已接入 27 模块的完整图表、数据明细及月份联动。`pnpm dev:react` 在 5174 启动页面，配套 `pnpm dev:api:react` 在 8788 启动 API，并将 `APP_URL` 设为 5174，避免跨开发入口的来源校验失配；`pnpm dev` 同时启动这些服务。默认 `/demo` 使用模拟数据，只有开发构建中显式选择 `source=development` 才连接本地来源。`pnpm build:react` 输出 `dist-react/`，`pnpm preview:react` 在 4174 仅供静态产物检查；业务核验使用带同源 API 的 5174 入口。Netlify 仍只发布 `dist/`，PC4 验收后再切换正式入口，见[迁移边界](plans/pc-refresh.md#migration)。
+
+React PC3 的图表与数据明细位于 `web/react/src/components/report-module.tsx`、`report-visual.tsx` 和 `report-insights.tsx`，复用共享图表、词云及导出逻辑。ECharts 与词云布局按需加载；原生折叠区展示全量明细，月份图表与表格链接转到同月笔记/书榜。图表实例、尺寸/主题监听及词云任务在卸载时清理；模块展开状态与滚动只保存在既有内存导航记录中。共享 `layoutWords` 新增可选 `AbortSignal`，旧 Vue/H5 与导出调用无需修改；HTML 固定保留画像依据、原文回顾和精选，勾选全部笔记后追加完整正文。
 
 根 `typecheck` 分别运行 `vue-tsc` 和 React `tsc`；根 `lint` 分别运行 ESLint 和 Biome。`web/react/`、`vite.react.config.ts`、`tsconfig.react.json` 与 `biome.json` 由 Biome 负责，Vue/共享/服务端保留 ESLint，Markdown 保留 Prettier；同一源码不重复格式化。两个 PC 的 Tailwind 扫描范围显式分开，React 共用根字体和品牌资源；H5 构建与已有 Vitest 用例发现范围保持不变。
 

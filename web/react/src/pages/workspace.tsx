@@ -3,13 +3,14 @@ import {
   duration,
   preferenceScope,
   type ReadingReport,
-  type ReportModule,
   shanghaiDate,
 } from '@shared/report'
 import { Download, Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router'
 import { ConnectionNotice } from '@/components/connection-notice'
+import { MonthDetail, NoteDensity, TimeInsights } from '@/components/report-insights'
+import { ReportModule } from '@/components/report-module'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -49,62 +50,6 @@ function Choice({
         ))}
       </SelectContent>
     </Select>
-  )
-}
-
-function ModulePreview({ module, scope }: { module: ReportModule; scope: string }) {
-  return (
-    <article className="data-panel">
-      <div className="panel-heading">
-        <h3>{module.title}</h3>
-        <span>{module.unit}</span>
-      </div>
-      {module.scope !== scope && <p className="scope-note">{module.scope}</p>}
-      {module.status === 'partial' && (
-        <p className="scope-note">部分数据 · {module.coverage.reason}</p>
-      )}
-      {module.periods?.length ? (
-        <div className="data-rows">
-          {module.periods.slice(0, 5).map((period) => (
-            <div key={period.label}>
-              <p>{period.label}</p>
-              <span>
-                {duration(period.seconds)} · {period.readDays ?? '—'} 天
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      <div className="data-rows">
-        {module.data.slice(0, 5).map((row) => (
-          <div key={row.label}>
-            <p>{row.label}</p>
-            {module.unit !== '日期' && (
-              <span>
-                {row.value.toLocaleString('zh-CN', { maximumFractionDigits: 1 })}
-                {row.unit ? ` ${row.unit}` : ''}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-      {!module.data.length && !module.periods?.length && (
-        <p className="muted-copy">
-          {module.coverage.reason ||
-            module.description ||
-            (module.status === 'unavailable' ? '未取得这项数据。' : '当前没有记录。')}
-        </p>
-      )}
-      <details className="method-details">
-        <summary>口径与覆盖说明</summary>
-        <p>{module.description}</p>
-        <p>{module.scope}</p>
-        <p>
-          {module.coverage.reason ||
-            `已取得 ${module.coverage.loaded} 项${module.coverage.expected == null ? '，总数未知' : ` / 预期 ${module.coverage.expected} 项`}。`}
-        </p>
-      </details>
-    </article>
   )
 }
 
@@ -354,7 +299,11 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
     return views.get(viewKey)
   })
   const [memoryVersion] = useState(viewVersion)
-  const [section, setSection] = useState<(typeof sections)[number]>(saved?.section ?? '时间')
+  const [section, setSection] = useState<(typeof sections)[number]>(
+    saved?.section ??
+      report.modules.find((module) => location.hash === `#module-${module.id}`)?.section ??
+      '时间',
+  )
   const [search, setSearch] = useState(saved?.search ?? '')
   const [category, setCategory] = useState(saved?.category ?? '全部')
   const [sort, setSort] = useState(saved?.sort ?? 'recent')
@@ -362,10 +311,17 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
   const [noteType, setNoteType] = useState(saved?.noteType ?? '全部')
   const [noteLimit, setNoteLimit] = useState(saved?.noteLimit ?? 24)
   const [includeNotes, setIncludeNotes] = useState(saved?.includeNotes ?? false)
+  const [expandedModules, setExpandedModules] = useState(saved?.expandedModules ?? [])
+  function expandModule(id: number, expanded: boolean) {
+    setExpandedModules((current) =>
+      expanded ? [...new Set([...current, id])] : current.filter((item) => item !== id),
+    )
+  }
   const [downloadError, setDownloadError] = useState('')
   const [copyMessage, setCopyMessage] = useState('')
   const downloading = useAction()
   const mounted = useRef(true)
+  const content = useRef<HTMLElement>(null)
   useEffect(() => {
     mounted.current = true
     return () => {
@@ -417,6 +373,7 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
     noteType,
     noteLimit,
     includeNotes,
+    expandedModules,
     scroll: 0,
   })
   useEffect(() => {
@@ -429,28 +386,70 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
       noteType,
       noteLimit,
       includeNotes,
+      expandedModules,
       scroll: window.scrollY,
     }
-  }, [section, search, category, sort, list, noteType, noteLimit, includeNotes])
+  }, [section, search, category, sort, list, noteType, noteLimit, includeNotes, expandedModules])
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      if (saved) window.scrollTo(0, saved.scroll)
-      else if (location.hash)
-        document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView()
-    })
+    let frame = 0
+    let restoring = !!saved || !!location.hash
+    const stopRestoring = () => {
+      restoring = false
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+    const restore = () => {
+      if (!restoring || content.current?.querySelector('[data-visual-pending]')) return
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        if (saved) window.scrollTo(0, saved.scroll)
+        else if (location.hash) {
+          try {
+            document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView()
+          } catch {
+            /* Ignore malformed URL fragments. */
+          }
+        }
+        stopRestoring()
+      })
+    }
+    const observer = new MutationObserver(restore)
+    if (restoring && content.current) {
+      observer.observe(content.current, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['data-visual-pending'],
+      })
+      restore()
+    }
     const remember = () => {
       snapshot.current.scroll = window.scrollY
     }
     window.addEventListener('scroll', remember, { passive: true })
+    window.addEventListener('wheel', stopRestoring, { passive: true, once: true })
+    window.addEventListener('pointerdown', stopRestoring, { once: true })
+    window.addEventListener('keydown', stopRestoring, { once: true })
     return () => {
-      cancelAnimationFrame(frame)
+      stopRestoring()
       window.removeEventListener('scroll', remember)
+      window.removeEventListener('wheel', stopRestoring)
+      window.removeEventListener('pointerdown', stopRestoring)
+      window.removeEventListener('keydown', stopRestoring)
       saveView(viewKey, snapshot.current, memoryVersion)
     }
   }, [viewKey, saved, location.hash, memoryVersion])
+  const monthlyModule = report.modules.find((module) => module.id === 2)
   const month = params.get('month') ?? ''
   const bookId = params.get('book') ?? '全部'
   const pathFor = (target: string) => readingPath(location.pathname, location.search, target)
+  const monthPath = (month: string) => {
+    const target = pathFor('notes')
+    const next = new URLSearchParams(target.search)
+    next.set('month', month)
+    next.delete('book')
+    return { ...target, search: `?${next}` }
+  }
   const notesFor = (id: string) => {
     const target = pathFor('notes')
     const next = new URLSearchParams(target.search)
@@ -528,6 +527,7 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
 
   return (
     <section
+      ref={content}
       aria-label="报告内容"
       onPointerDown={() => void reading.touch()}
       onKeyDown={() => void reading.touch()}
@@ -596,33 +596,21 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
             ))}
           </section>
           <div className="overview-grid">
-            <section className="data-panel">
-              <div className="panel-heading">
-                <h2>月度阅读时长</h2>
-                <span>小时</span>
-              </div>
-              <p className="muted-copy">
-                最近 {Math.min(6, report.modules[1].data.length)} 项
-                {reading.sample && ' · 模拟数据'}
-              </p>
-              <div className="time-bars">
-                {report.modules[1].data.slice(-6).map((row) => (
-                  <div key={row.label}>
-                    <span>{row.label}</span>
-                    <meter
-                      min="0"
-                      max={Math.max(1, ...report.modules[1].data.map((item) => item.value))}
-                      value={row.value}
-                      aria-label={`${row.label} 阅读小时`}
-                    />
-                    <strong>{row.value.toFixed(1)}</strong>
-                  </div>
-                ))}
-              </div>
+            <div>
+              {monthlyModule && (
+                <ReportModule
+                  module={monthlyModule}
+                  expanded={expandedModules.includes(monthlyModule.id)}
+                  onExpanded={(expanded) => expandModule(monthlyModule.id, expanded)}
+                  scope={`${report.range.start} — ${report.range.end}`}
+                  generatedAt={report.meta.generatedAt}
+                  monthPath={monthPath}
+                />
+              )}
               <Link className="text-link" to={pathFor('report')}>
                 查看深度报告 →
               </Link>
-            </section>
+            </div>
             <section className="portrait-panel">
               <p className="eyebrow">阅读画像</p>
               <h2>{report.portrait.title}</h2>
@@ -651,7 +639,14 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
               </span>
               <blockquote>{report.portrait.quote.text}</blockquote>
               <p>
-                《{report.portrait.quote.title}》 · {report.portrait.quote.date}
+                {[
+                  `《${report.portrait.quote.title}》`,
+                  report.portrait.quote.author,
+                  report.portrait.quote.chapter,
+                  report.portrait.quote.date,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </p>
               <Link className="text-link" to={pathFor('notes')}>
                 翻看笔记 →
@@ -676,33 +671,59 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
             ))}
           </fieldset>
           {section !== '时间' && <p className="scope-note">{scope}</p>}
-          <p className="muted-copy">图表位置以数据摘要预览，每项最多展示 5 行。</p>
-          {section === '时间' && report.insights && (
-            <details className="method-details data-panel">
-              <summary>阅读节律与变化</summary>
-              <div className="data-rows">
-                {report.insights.metrics.map((metric) => (
-                  <div key={metric.label}>
-                    <p>{metric.label}</p>
-                    <span>
-                      {metric.value == null
-                        ? '—'
-                        : metric.value.toLocaleString('zh-CN', { maximumFractionDigits: 1 })}{' '}
-                      {metric.unit}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p>自然日均包含未阅读日；阅读日均只计算有效阅读日。未知值不记为零。</p>
-            </details>
-          )}
+          {section === '时间' && report.insights && <TimeInsights insights={report.insights} />}
           <div className="module-grid">
             {report.modules
               .filter((module) => module.section === section)
               .map((module) => (
-                <ModulePreview key={module.id} module={module} scope={scope} />
+                <ReportModule
+                  key={module.id}
+                  module={module}
+                  expanded={expandedModules.includes(module.id)}
+                  onExpanded={(expanded) => expandModule(module.id, expanded)}
+                  scope={scope}
+                  generatedAt={report.meta.generatedAt}
+                  monthPath={monthPath}
+                />
               ))}
           </div>
+          {section === '笔记' && (
+            <>
+              {report.insights && <NoteDensity insights={report.insights} />}
+              <section className="selection-section" aria-label="划线精选">
+                <h2>划线精选</h2>
+                <p className="scope-note">最多 20 条，保留正文、出处和日期。</p>
+                {report.portrait.selections.slice(0, 20).map((note) => (
+                  <article className="note-item" key={note.id}>
+                    <p className="note-meta">
+                      {note.type === 'thought' ? '想法' : '划线'}
+                      {note.demoText && ' · 演示文本'}
+                    </p>
+                    <blockquote className={note.type === 'highlight' ? 'highlight-text' : ''}>
+                      {note.text}
+                    </blockquote>
+                    {note.abstract && (
+                      <div className="note-abstract">
+                        <span>关联划线{note.demoText && ' · 演示文本'}</span>
+                        <p>{note.abstract}</p>
+                      </div>
+                    )}
+                    <p className="note-source">
+                      {[`《${note.title}》`, note.author, note.chapter, note.date]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                    <Link className="text-link" to={notesFor(note.bookId)}>
+                      查看这本书的笔记 →
+                    </Link>
+                  </article>
+                ))}
+                {!report.portrait.selections.length && (
+                  <p className="muted-copy">尚未取得可展示的精选正文。</p>
+                )}
+              </section>
+            </>
+          )}
         </>
       )}
       {(view === 'shelf' || view === 'notes') && (
@@ -796,6 +817,7 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
       )}
       {view === 'notes' && (
         <>
+          {month && <MonthDetail report={report} month={month} />}
           <p className="result-count" role="status">
             已读取笔记 · {notes.length} 条
           </p>

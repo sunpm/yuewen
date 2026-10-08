@@ -8,6 +8,7 @@ export interface ViewSnapshot {
   noteType: string
   noteLimit: number
   includeNotes: boolean
+  expandedModules: number[]
   scroll: number
 }
 export const views = new Map<string, ViewSnapshot>()
