@@ -27,6 +27,8 @@
 - 在本地生产预览临时移走尚未加载的栏目分包，点击报告后出现“页面暂时无法打开”，保留侧栏与刷新按钮；放回原文件并点击刷新，报告占位页恢复。预期分包失败没有触发无限刷新。仅操作忽略的构建产物，未改源码或测试。
 - 旧 PC 模拟概览、书架及书籍详情弹层可用；H5 模拟报告与字体/资源保持可用，未捕获 H5 页面错误。首次 H5 预览因桌面 Vite 代理的 5180 服务未启动而失败，启动 H5 预览后恢复；未改正式路由处理本地环境问题。此次不代替真实账号、H5 全面品质或完整业务迁移验收。
 
+[PR #21](https://github.com/sunpm/yuewen/pull/21) 的业务提交 `e66bb86` 已通过 Netlify 预览构建、Header rules 与 Redirect rules，Pages changed 被平台标记为 skipping。公开预览只读健康响应为 `status:ok / preview:true / auth:false / guest:false`；PC `/overview` 和 H5 `/m/overview` 均可读取 HTML，分别引用原 Vue PC 与 H5 构建脚本，React 外壳未进入发布目录。本次本地服务与临时浏览器页已关闭，临时组件下载文件已删除。
+
 截图：[React 浅色外壳](screenshots/pc-react-shell-light.jpg)、[React 深色外壳](screenshots/pc-react-shell-dark.jpg)。PC0 完成，下一步 PC1 逐页盘点旧路由、业务状态和信息层级；PC2–PC4、后台、截图反馈、正式切换及历史品质缺项仍待实施或验收。
 
 ## 2026-10-08：调整 PC 迁移前两阶段顺序
