@@ -50,6 +50,11 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
+      '/console': {
+        target: 'http://127.0.0.1:5181',
+        ws: true,
+        rewrite: (path) => path.replace(/^\/console(?=\?|$)/, '/console/'),
+      },
       '/m': { target: 'http://127.0.0.1:5180', ws: true },
       '/api': 'http://127.0.0.1:8787',
     },

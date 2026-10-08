@@ -5,6 +5,7 @@ import { bodyLimit } from 'hono/body-limit'
 import { and, eq, gt, lt, or, sql, isNull, exists } from 'drizzle-orm'
 import { z } from 'zod'
 import { authConfigured, getAuth } from './auth'
+import { consoleRoutes } from './console/routes'
 import { getDb } from './db'
 import {
   credential,
@@ -75,6 +76,7 @@ app.on(['GET', 'POST'], '/api/auth/*', (c) => {
     throw new AppError('AUTH_UNAVAILABLE', '邮箱登录服务暂不可用，你仍可临时连接和下载报告。', 503)
   return getAuth().handler(c.req.raw)
 })
+app.route('/api/console', consoleRoutes)
 app.route('/api', connections)
 app.use('/api/*', async (c, next) => {
   if (c.req.path.startsWith('/api/account')) {

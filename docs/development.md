@@ -10,11 +10,30 @@ React PC3 的图表与数据明细位于 `web/react/src/components/report-module
 
 PC4 代码核查后，React 的报告读取统一处理归属/期限失效并清理私有缓存；同一上下文与版本保留已确认的期限和分页进度，旧版本不能回写。采集后的笔记补齐可单独停止；下载仅在勾选全部笔记时补齐分页，生成前后仍核验报告归属和版本。实际检查及动态验收缺项见[质量记录](quality-log.md#pc4-code-quality-2026-10-09)。
 
-根 `typecheck` 分别运行 `vue-tsc` 和 React `tsc`；根 `lint` 分别运行 ESLint 和 Biome。`web/react/`、`vite.react.config.ts`、`tsconfig.react.json` 与 `biome.json` 由 Biome 负责，Vue/共享/服务端保留 ESLint，Markdown 保留 Prettier；同一源码不重复格式化。两个 PC 的 Tailwind 扫描范围显式分开，React 共用根字体和品牌资源；H5 构建与已有 Vitest 用例发现范围保持不变。
+根 `typecheck` 分别运行 `vue-tsc`、React PC `tsc` 和后台 `tsc`；根 `lint` 分别运行 ESLint 和 Biome。`web/react/`、`console/`、各自的 Vite/tsconfig、后台 TSX 测试与 `biome.json` 由 Biome 负责，Vue/共享/服务端保留 ESLint，Markdown 保留 Prettier；同一源码不重复格式化。两个 PC 的 Tailwind 扫描范围显式分开，React 共用根字体和品牌资源；H5 构建与已有 Vitest 用例发现范围保持不变。
 
 两个 Vue SPA 与 Hono 同仓库。桌面端 `web/`，独立 Vant 移动端 `web-mobile/`，共用 `client/` 交互逻辑与 `shared/` 数据契约。Vitesse 的文件路由、自动导入、布局目录和 TypeScript 能力保留；去除 I18n、UnoCSS、Iconify、SSG、PWA、示例 store 和 Cypress。原布局插件的 peer 版本不支持当前组合，因此使用一个 Vue 布局组件。基础按钮采用 shadcn/vue 的 Primitive + CVA 方式，Select、Dialog、Table 使用 shadcn/vue 官方组件源码，底层由 Reka UI 管理焦点和键盘操作。
 
-`pnpm dev` 同时启动旧桌面、移动及 React Vite，并启动旧入口和 React 各自的本地 Hono；桌面 Vite 将 `/m/` 代理到移动 Vite、`/api` 代理到 Hono。旧 PC/H5 从 5173 端口访问，保持同源认证；React 使用 5174 → 8788 的独立开发入口；5180 是内部移动构建服务。`PORT=8788 pnpm exec tsx --env-file=.env server/dev.ts` 可单独启动另一端口的 API，默认仍为 8787。两个 Vite 使用独立依赖缓存，并预构建 `d3-cloud`。词云的浏览器与 Node HTML 导出共用布局；仅 Node 导出加载 `@napi-rs/canvas` 和本地阅读字体，两端 Vite 明确排除该原生模块的浏览器预构建，生产浏览器包不包含原生绘图依赖。正式入口使用标准 Request/Response 的 Netlify Node.js Function。迁移文件由 Drizzle 生成，并纳入版本管理。
+`pnpm dev` 同时启动旧桌面、移动、React PC 及后台 Vite，并启动旧入口和 React 各自的本地 Hono；桌面 Vite 将 `/m/` 代理到移动 Vite、`/api` 代理到 Hono。旧 PC/H5 从 5173 端口访问，保持同源认证；React 使用 5174 → 8788 的独立开发入口；5180 是内部移动构建服务。`PORT=8788 pnpm exec tsx --env-file=.env server/dev.ts` 可单独启动另一端口的 API，默认仍为 8787。两个 Vite 使用独立依赖缓存，并预构建 `d3-cloud`。词云的浏览器与 Node HTML 导出共用布局；仅 Node 导出加载 `@napi-rs/canvas` 和本地阅读字体，两端 Vite 明确排除该原生模块的浏览器预构建，生产浏览器包不包含原生绘图依赖。正式入口使用标准 Request/Response 的 Netlify Node.js Function。迁移文件由 Drizzle 生成，并纳入版本管理。
+
+## 后台开发与初始化
+
+`console/` 使用 React、antd、React Router、TanStack Query 与 RHF/Zod，独立的 Vite、Biome 和类型检查范围。`pnpm dev` 同时启动后台 Vite（5181），从 `http://127.0.0.1:5173/console/` 访问；PC Vite 将 `/console` 代理至后台，API 沿用 5173 的同源代理。直接访问内部端口不作为登录入口。`pnpm build:console` 写入 `dist/console/`，共用根目录字体/品牌资源，不重复复制；根构建先写 Vue PC，再写 H5、独立 React 预览和后台。
+
+在开发环境 `.env` 配置 `CONSOLE_AUTH_SECRET`（至少 32 字符，且不同于 `BETTER_AUTH_SECRET`）、`CONSOLE_ADMIN_USERNAME`（3–30 位字母、数字、点、下划线或连字符）和 `CONSOLE_ADMIN_PASSWORD`（20–128 字符随机强密码）。只在对应环境显式执行：
+
+```sh
+pnpm db:migrate
+pnpm console:admin:init
+# 需要重置时，先更新该环境的密码配置，再显式运行：
+pnpm console:admin:reset
+```
+
+`init` 重复运行不覆盖已有账号或密码；`reset` 要求用户名匹配，并在同一事务中更新认证库密码哈希、撤销全部旧管理会话。初始化/重置与登录串行，避免旧密码校验在重置后创建迟到会话。HTTP 服务不开放注册或密码重置，不在启动、构建或每次请求时初始化；内部保留邮箱不发信，管理登录不依赖 Resend。前台用户表与管理认证五张表分别存储，数据库唯一索引保证首期只有一名管理员。
+
+管理 Cookie 独立命名、host-only、HttpOnly、HTTPS Secure、SameSite Strict，Path 为 `/api/console`，8 小时到期且不自动续期；服务端逐次读库核验，禁止 Cookie 会话缓存。公开服务仅挂载用户名登录、读取会话、退出和受保护的概览，其他认证/管理接口拒绝访问。后台未配置独立密钥时返回 `CONSOLE_UNAVAILABLE`，不会访问管理表，原 PC/H5 API 继续运行；公开部署预览始终拒绝管理 API。生产必须先迁移再配置管理密钥，并用独立随机密码初始化，不能把开发 `.env` 当作生产配置。根 npm 初始化命令固定读取开发 `.env`；生产运维显式使用对应环境，例如 `pnpm exec tsx --env-file=.env.production scripts/console-admin.ts init`，重置同理替换末尾参数。
+
+`pnpm test` 包含原有 Vue/服务端测试和后台 React Testing Library 用例。`pnpm test:console` 读取本地 `.env`，可用 `CONSOLE_TEST_DATABASE_URL` 覆盖开发连接；仅在生成的独立 `console_test_*` schema 中执行提交的迁移和管理 API 集成检查，测试结束删除该 schema。Neon 使用 direct endpoint 及 `options=-c search_path=...`，迁移前校验实际 schema；显式外键的 schema 仅在测试副本中替换。该命令不应指向生产库，测试账号/密码随机生成且不输出。当前 60 秒的单用例上限容纳远程数据库往返，不代表接口性能门槛。
 
 ## 登录与数据库联调顺序
 
@@ -41,7 +60,7 @@ PC4 代码核查后，React 的报告读取统一处理归属/期限失效并清
 
 ## Netlify 准备
 
-构建命令 `pnpm build` 顺序构建 Vue 桌面、移动与 React 预览入口，产物分别为 `dist`、`dist/m` 与 `dist-react`；只发布前两个入口，Functions 位于 `netlify/functions`。`api.ts` 服务 `/api/*`，移动路由 `/m/*` 回退到 `/m/index.html`，桌面路由最后回退到 `/index.html`。`cleanup.ts` 每 15 分钟分批删除过期游客连接及其凭据、报告、保存回执、替换回执、认证会话、验证码与业务限流计数。每张表每轮最多选取 500 条过期记录，先用 `FOR UPDATE SKIP LOCKED` 锁定候选行，再在同一语句中删除；正在被续期或其他事务操作的候选行留待下一轮，避免等待续期提交后仍按旧期限误删。外键级联删除不受该候选条数限制；请求到期仍立即拒绝，不等待清理调度。
+构建命令 `pnpm build` 顺序构建 Vue 桌面、移动、React 预览与后台入口，产物分别为 `dist`、`dist/m`、`dist-react` 与 `dist/console`；React PC 预览不发布，Functions 位于 `netlify/functions`。`api.ts` 服务 `/api/*`，`/console` 与 `/console/*` 回退到 `/console/index.html`，移动路由 `/m/*` 回退到 `/m/index.html`，桌面路由最后回退到 `/index.html`。`cleanup.ts` 每 15 分钟分批删除过期游客连接及其凭据、报告、保存回执、替换回执、认证会话、验证码与业务限流计数。启用管理认证后同轮清理过期管理会话、验证码与一天以前的管理限流记录。每张表每轮最多选取 500 条过期记录，先用 `FOR UPDATE SKIP LOCKED` 锁定候选行，再在同一语句中删除；正在被续期或其他事务操作的候选行留待下一轮，避免等待续期提交后仍按旧期限误删。外键级联删除不受该候选条数限制；请求到期仍立即拒绝，不等待清理调度。
 
 API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.netlify/functions/api` 地址，不再声明函数 `config.path`。Netlify 设置自定义路径后会关闭默认函数地址，两者同时使用会使重写目标失效，产生平台 404。`GET /api/health` 返回的 `auth` 只检查登录环境变量是否非空，不验证数据库连接、邮件投递或加密密钥。
 
@@ -68,7 +87,7 @@ API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.ne
 
 ## 本地真实数据与模拟回归
 
-旧 Vue 入口在 `pnpm dev` 下的 `/demo` 与 `/m/demo` 默认读取服务端 `WEREAD_API_KEY`。启动器为五个开发服务固定设置 `NODE_ENV=development`，避免继承外部的生产环境变量后隐藏开发数据入口。`server/dev.ts` 才挂载 `/api/dev/*`，服务仅绑定回环地址；请求必须携带本地页面发出的专用请求头，写请求核对来源。缺失或失效 Key 显示错误，可手动切换模拟示例，不静默回退。开发数据仅在进程内存存活两小时，每范围复用缓存；刷新才重采，沿用 600 请求、1.5 MB、10,000 条正文预算。
+旧 Vue 入口在 `pnpm dev` 下的 `/demo` 与 `/m/demo` 默认读取服务端 `WEREAD_API_KEY`。启动器为六个开发服务固定设置 `NODE_ENV=development`，避免继承外部的生产环境变量后隐藏开发数据入口。`server/dev.ts` 才挂载 `/api/dev/*`，服务仅绑定回环地址；请求必须携带本地页面发出的专用请求头，写请求核对来源。缺失或失效 Key 显示错误，可手动切换模拟示例，不静默回退。开发数据仅在进程内存存活两小时，每范围复用缓存；刷新才重采，沿用 600 请求、1.5 MB、10,000 条正文预算。
 
 显式模拟入口为 `?source=mock`，包含 12 本公开书目与一本原创导入示例。`pnpm probe --shelf` 只读取书架及各一本普通/无分类书籍的详情与进度，最多 5 次请求，观察分类字符串与字段类型，不输出书名、正文或凭据；任一请求失败返回非零退出码。
 

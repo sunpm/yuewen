@@ -32,5 +32,13 @@
     "web-mobile/**/*.ts",
     "web-mobile/**/*.vue"
   ],
-  "exclude": ["web/react", "vite.react.config.ts", "dist", "dist-react", "node_modules"]
+  "exclude": [
+    "web/react",
+    "vite.react.config.ts",
+    "dist",
+    "dist-react",
+    "node_modules",
+    "console",
+    "vite.console.config.ts"
+  ]
 }

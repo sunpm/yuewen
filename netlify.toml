@@ -12,6 +12,14 @@
   status = 200
   force = true
 [[redirects]]
+  from = "/console"
+  to = "/console/index.html"
+  status = 200
+[[redirects]]
+  from = "/console/*"
+  to = "/console/index.html"
+  status = 200
+[[redirects]]
   from = "/m/*"
   to = "/m/index.html"
   status = 200
