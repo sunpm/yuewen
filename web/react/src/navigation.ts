@@ -21,9 +21,32 @@ export const accountNavigation = [
   { path: '/login', title: '登录', icon: UserRound },
 ] as const
 
-export function pageTitle(pathname: string) {
+export const reportViews = ['overview', 'report', 'shelf', 'notes'] as const
+
+export function reportView(pathname: string, search: string) {
+  const path = pathname.replace(/\/+$/, '')
+  const view = path === '/demo' ? new URLSearchParams(search).get('view') : path.slice(1)
+  return reportViews.find((item) => item === view) ?? 'overview'
+}
+
+export function readingPath(pathname: string, search: string, view: string) {
+  const params = new URLSearchParams(search)
+  const demo = pathname.replace(/\/+$/, '') === '/demo'
+  if (demo) params.set('view', view)
+  else params.delete('view')
+  if (view !== 'notes') {
+    params.delete('book')
+    params.delete('month')
+  }
+  return { pathname: demo ? '/demo' : `/${view}`, search: `?${params}` }
+}
+
+export function pageTitle(pathname: string, search = '') {
   const path = pathname.replace(/\/+$/, '') || '/'
-  if (path === '/demo') return '探索示例'
+  if (path === '/demo')
+    return (
+      navigation.find((item) => item.path === `/${reportView(path, search)}`)?.title ?? '阅读概览'
+    )
   return (
     [...navigation, ...accountNavigation].find((item) => item.path === path)?.title ?? '页面未找到'
   )
