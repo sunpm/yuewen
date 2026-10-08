@@ -8,6 +8,8 @@ PC0–PC2 已在 `web/react/` 接入 React 页面和业务状态迁移，正式 
 
 React PC3 的图表与数据明细位于 `web/react/src/components/report-module.tsx`、`report-visual.tsx` 和 `report-insights.tsx`，复用共享图表、词云及导出逻辑。ECharts 与词云布局按需加载；原生折叠区展示全量明细，月份图表与表格链接转到同月笔记/书榜。图表实例、尺寸/主题监听及词云任务在卸载时清理；模块展开状态与滚动只保存在既有内存导航记录中。共享 `layoutWords` 新增可选 `AbortSignal`，旧 Vue/H5 与导出调用无需修改；HTML 固定保留画像依据、原文回顾和精选，勾选全部笔记后追加完整正文。
 
+PC4 代码核查后，React 的报告读取统一处理归属/期限失效并清理私有缓存；同一上下文与版本保留已确认的期限和分页进度，旧版本不能回写。采集后的笔记补齐可单独停止；下载仅在勾选全部笔记时补齐分页，生成前后仍核验报告归属和版本。实际检查及动态验收缺项见[质量记录](quality-log.md#pc4-code-quality-2026-10-09)。
+
 根 `typecheck` 分别运行 `vue-tsc` 和 React `tsc`；根 `lint` 分别运行 ESLint 和 Biome。`web/react/`、`vite.react.config.ts`、`tsconfig.react.json` 与 `biome.json` 由 Biome 负责，Vue/共享/服务端保留 ESLint，Markdown 保留 Prettier；同一源码不重复格式化。两个 PC 的 Tailwind 扫描范围显式分开，React 共用根字体和品牌资源；H5 构建与已有 Vitest 用例发现范围保持不变。
 
 两个 Vue SPA 与 Hono 同仓库。桌面端 `web/`，独立 Vant 移动端 `web-mobile/`，共用 `client/` 交互逻辑与 `shared/` 数据契约。Vitesse 的文件路由、自动导入、布局目录和 TypeScript 能力保留；去除 I18n、UnoCSS、Iconify、SSG、PWA、示例 store 和 Cypress。原布局插件的 peer 版本不支持当前组合，因此使用一个 Vue 布局组件。基础按钮采用 shadcn/vue 的 Primitive + CVA 方式，Select、Dialog、Table 使用 shadcn/vue 官方组件源码，底层由 Reka UI 管理焦点和键盘操作。
