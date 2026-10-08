@@ -1,5 +1,7 @@
 # 模板与组件来源
 
+后台 C0–C1（2026-10-09）采用 [Ant Design](https://github.com/ant-design/ant-design) 6.6.5 和 [@ant-design/cssinjs](https://github.com/ant-design/cssinjs) 2.1.2，均为 MIT；React 组件行为检查使用 [Testing Library](https://github.com/testing-library/react-testing-library) 16.3.3 与 DOM 10.4.1（MIT）。未复制完整后台模板，暂未引入 ProComponents。认证沿用 Better Auth 1.7.7 的 [Username 插件](https://better-auth.com/docs/plugins/username)，支持项目已有账号的连字符；Tailwind 与 antd 层序按[官方 CSS 兼容说明](https://ant.design/docs/react/compatible-style/)配置。
+
 React 外壳的 Button、Select 根据 [shadcn/ui 官方 new-york-v4 registry](https://ui.shadcn.com/r/styles/new-york-v4/button.json) 和同目录的 `select.json` 适配（2026-10-08），只保留当前使用的变体与组件，采用 Radix 独立包与阅纹主题；MIT 许可原文保留在 [React 组件 LICENSE](../web/react/src/components/ui/LICENSE)。
 
 PC 布局核对了 [AIHOT](https://github.com/KKKKhazix/AIHOT) 提交 `c547b669acc7f64720cd82024e502446ee1ef88d` 的 `apps/web/app/components/shell/Sidebar.tsx`、`Chrome.tsx` 与 `NOTICE`：仅参考左侧导航、底部主题与右侧内容的布局关系，未复制源码或品牌资产，使用阅纹现有名称、Logo、字体与配色。

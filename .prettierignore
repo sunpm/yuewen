@@ -14,3 +14,7 @@ web/react
 vite.react.config.ts
 tsconfig.react.json
 biome.json
+/console
+vite.console.config.ts
+tsconfig.console.json
+tests/console/*.tsx

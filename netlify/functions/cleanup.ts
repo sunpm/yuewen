@@ -1,9 +1,21 @@
 import { sql } from 'drizzle-orm'
 import { getDb } from '../../server/db'
+import { consoleConfigured } from '../../server/console/auth'
 export default async (_request: Request, context?: { deploy: { context: string } }) => {
   if (context?.deploy.context !== 'production') return new Response(null, { status: 204 })
   if (!process.env.DATABASE_URL) return new Response(null, { status: 204 })
   const db = getDb()
+  if (consoleConfigured()) {
+    await db.execute(
+      sql`delete from console_auth_session where id in (select id from console_auth_session where expires_at < now() limit 500 for update skip locked)`,
+    )
+    await db.execute(
+      sql`delete from console_auth_verification where id in (select id from console_auth_verification where expires_at < now() limit 500 for update skip locked)`,
+    )
+    await db.execute(
+      sql`delete from console_auth_rate_limit where id in (select id from console_auth_rate_limit where last_request < extract(epoch from now()) * 1000 - 86400000 limit 500 for update skip locked)`,
+    )
+  }
   // Lock candidates before deletion; leave concurrent renewals for the next cleanup run.
   await db.execute(
     sql`delete from connection_save where (user_id, request_id) in (select user_id, request_id from connection_save where expires_at < now() limit 500 for update skip locked)`,

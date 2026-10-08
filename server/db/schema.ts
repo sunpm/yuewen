@@ -12,6 +12,13 @@ import {
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type { CollectorState } from '../collector'
+export {
+  consoleUser,
+  consoleSession,
+  consoleAccount,
+  consoleVerification,
+  consoleRateLimit,
+} from '../console/schema'
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -1,8 +1,8 @@
 # 后台管理、截图反馈与访问统计
 
-更新日期：2026-10-08（Asia/Shanghai）
+更新日期：2026-10-09（Asia/Shanghai）
 
-状态：需求与实施方案已纳入计划，前端除 UI 外与 PC 对齐，尚未开发或部署。用户已明确截图默认取当前网页、图片使用 Cloudflare R2；此前明确的测试授权保留于本专题及直接受影响流程；PC 新增计划不扩大此授权，设备入口切换因 H5 冻结暂停。
+状态：C0–C1 的后台工程、独立认证、初始化/重置与部署路径已实现，非浏览器检查见[本轮质量记录](../quality-log.md#console-foundation-2026-10-09)。开发库迁移与初始化已接入；生产后台尚未启用，浏览器与平台登录验收待完成。C2–C4 尚未实施。用户已明确截图默认取当前网页、图片使用 Cloudflare R2；此前明确的测试授权保留于本专题及直接受影响流程；PC 新增计划不扩大此授权，设备入口切换因 H5 冻结暂停。
 
 [返回总计划](../../PLAN.md) · [部署与命名](release.md#console-deployment) · [设备入口](design.md#device-entry) · [现行数据契约](../data-contract.md)
 
@@ -10,7 +10,7 @@
 
 新增后台，用于处理带截图与环境信息的反馈、查询用户、执行明确范围的数据库管理。PC 按[迁移专题](pc-refresh.md)改为 React，独立 Vant H5 冻结；后台新增 React 应用，共用现有 Hono、PostgreSQL 与 Drizzle 迁移。截图文件统一存 Cloudflare R2，数据库只存反馈及附件元信息，服务器不落盘。后台地址、备用域名与存储资源命名由上线计划统一维护。
 
-已核对 `package.json`、`netlify.toml`、双端入口、`client/components/FeedbackLink.vue`、`server/auth.ts`、`server/app.ts` 和 `server/db/schema.ts`：目前只有邮件反馈与复制邮箱，没有 React 后台、管理员权限、反馈接口、截图存储或访问统计。现有表以认证、凭证和临时采集数据为主，并非都适合通用增删改查。`.env` 已被 Git 忽略且未跟踪；预设登录信息不代表管理员已经创建。
+2026-10-09 已接入 `console/`、`server/console/` 与迁移 `0003_swift_zuras.sql`。后台当前仅提供登录、退出、会话核验和概览，不开放注册、改密、用户删除或其他管理动作；现有前台仍使用邮件反馈。反馈接口、截图存储、用户/表管理和统计继续按 C2–C4 实施。开发初始化使用本地忽略配置，生产身份单独创建；实现不代表生产后台已启用。
 
 <a id="stack"></a>
 
@@ -33,7 +33,7 @@
 
 后台表单采用原生 `form` 与 antd 控件；`Form.Item` 如用于布局和错误展示，不配置 `name`、`rules` 或 Form store 收集同一字段。RHF 通过 Zod resolver 管理校验，显式适配 Switch/Checkbox 的 `checked` 和 Select 等控件的值；提交中防重复，服务端字段错误与 409 冲突反馈回表单。优先使用已有 schema 的纯校验部分，权限、归属和版本检查始终留在服务端。登录仍调用 Better Auth 客户端，其余业务提交使用 Query mutation。
 
-2026-10-08 核对官方 [RHF Controller 文档源码](https://github.com/react-hook-form/documentation/blob/master/src/content/docs/usecontroller/controller.mdx)及 [ProTable 文档](https://github.com/ant-design/pro-components/blob/master/site/components/table.md)：受控组件和 `dataSource` 接法可以保留 antd UI 并统一状态来源。[Ant Design Pro](https://github.com/ant-design/ant-design-pro) 完整模板使用 Umi，继续只按需复用组件和示例，不搬入第二套构建框架。截图先验证 [html-to-image](https://github.com/bubkoo/html-to-image) 在本站 PC SVG 图表、字体和目标浏览器上的效果，失败可降级为无图反馈。实际引入时锁定兼容稳定版本、核对许可证并更新第三方声明；本轮未安装依赖或复制模板。
+2026-10-08 核对官方 [RHF Controller 文档源码](https://github.com/react-hook-form/documentation/blob/master/src/content/docs/usecontroller/controller.mdx)及 [ProTable 文档](https://github.com/ant-design/pro-components/blob/master/site/components/table.md)：受控组件和 `dataSource` 接法可以保留 antd UI 并统一状态来源。[Ant Design Pro](https://github.com/ant-design/ant-design-pro) 完整模板使用 Umi，继续只按需复用组件和示例，不搬入第二套构建框架。截图先验证 [html-to-image](https://github.com/bubkoo/html-to-image) 在本站 PC SVG 图表、字体和目标浏览器上的效果，失败可降级为无图反馈。C0 已锁定 antd 6.6.5 与 @ant-design/cssinjs 2.1.2（MIT），共用现有 React 19.3.0、Query、RHF/Zod；尚无 ProComponents 的使用需求，暂未安装。没有复制完整后台模板，来源见[第三方声明](../third-party-notices.md)。
 
 <a id="admin-auth"></a>
 
@@ -150,6 +150,10 @@ C2 同步扩展已有 `DELETE /api/account`，与后台删除账号共用上述�
 <a id="delivery"></a>
 
 ## 执行顺序与代码落点
+
+C0–C1 当前落点为 `console/src/`、`vite.console.config.ts`、`server/console/`、`scripts/console-admin.ts` 与 `0003_swift_zuras.sql`。初始化只创建一次；密码重置与登录共用数据库事务锁并撤销全部管理会话。后台使用独立 QueryClient、RHF 登录表单与按需路由；聚焦/重连先核验会话，离线及退出未确认时隐藏数据，取消迟到查询。`pnpm dev` 从 5173 的 `/console` 同源代理至 5181；构建写入 `dist/console`，API/后台/H5/PC 重写顺序已接入。实际测试、依赖体积与未验证项只在[质量记录](../quality-log.md#console-foundation-2026-10-09)维护。
+
+下一步：允许浏览器验收后完成 C0–C1 的真实登录与深链接、主题、键盘及加载性能检查，再启用生产管理身份；同时按总计划处理 PC4 和后续 C2。C2 仍必须同时实现账号自助删除和附件清理。
 
 | 顺序              | 交付与主要落点                                                                                                                   | 完成依据                                                                                          |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |

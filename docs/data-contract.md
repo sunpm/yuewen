@@ -148,3 +148,16 @@ HTML 用同一报告对象生成，包含内嵌 SVG、完整数据表、范围�
 `meta.generatedAt` 是报告采集开始时间，页面明确标为“报告采集时间”，不是最近成功更新时间。新增可选 `meta.source` 区分 `sample / development / guest / account`；原有 `sampleReport` 保持兼容。12 本公开书目来自微信读书公开页面，另有一本原创导入示例；阅读记录独立模拟；演示文字标记 `demoText: true`，不作为该书真实原文署名。
 
 本地开发的 `/api/dev/*` 不属于正式接口；本地内存任务因内容预算受限可一次返回当前已读取的全部正文，正式账号任务继续使用 200 条分页。旧 Vue 双端沿用既有来源选择。React 的 `/demo` 默认模拟，只有开发构建显式选择 `source=development` 才使用本地来源；新增只读 `/api/dev/session/reports` 与 `/api/dev/reports/:id` 用于恢复本地内存任务，进入页面不会自动调用采集接口。来源或范围变化时旧响应不再写回。
+
+## 后台认证接口
+
+2026-10-09 接入 C0–C1，管理认证与前台邮箱身份完全分开，详见[后台开发与初始化](development.md#后台开发与初始化)。新增 `console_auth_user/session/account/verification/rate_limit`，只允许一名管理员，不进入前台用户列表。`0003_swift_zuras.sql` 为向前兼容新增迁移，不修改已有报告或认证表。
+
+| 接口                                      | 行为                                                                                   |
+| ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| `POST /api/console/auth/sign-in/username` | Better Auth 用户名/密码登录；失败不区分未知账号与密码错误；可信平台 IP 每分钟最多 5 次 |
+| `GET /api/console/auth/get-session`       | 返回当前管理会话或 `null`，不回退读取前台/游客 Cookie，不自动续期                      |
+| `POST /api/console/auth/sign-out`         | 撤销当前管理会话并清理独立管理 Cookie                                                  |
+| `GET /api/console/overview`               | 每次核验有效管理会话，返回 `{ status: 'ready' }`，不暴露用户数据                       |
+
+管理认证与数据响应均 `no-store`；写操作保持同源 JSON 和 16 KiB 限制。管理 Cookie 8 小时到期，HTTPS 下 Secure、HttpOnly、SameSite Strict、host-only，Path 为 `/api/console`。配置未就绪返回 503 `CONSOLE_UNAVAILABLE`；业务接口未登录返回 401 `CONSOLE_AUTH_REQUIRED`；其他管理认证路径及未实现管理接口拒绝访问。公开预览在入口层返回 `PREVIEW_ONLY`。公开注册、邮箱登录/找回、资料修改、账号删除及反馈/用户/表管理接口尚未开放；危险动作的再认证和审计随 C2–C3 实施。

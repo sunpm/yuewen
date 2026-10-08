@@ -1,0 +1,41 @@
+@layer theme, base, antd, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@source "./";
+
+@layer base {
+  body {
+    margin: 0;
+    background: #f5efe3;
+    color: #30291f;
+    font-family: var(--font-reading);
+  }
+  button,
+  input {
+    font: inherit;
+  }
+  a {
+    color: inherit;
+  }
+  :focus-visible {
+    outline: 2px solid #d98b2b;
+    outline-offset: 3px;
+  }
+  @media (prefers-color-scheme: dark) {
+    body {
+      background: #111213;
+      color: #eee4d5;
+    }
+  }
+}
+@layer utilities {
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms;
+      transition-duration: 0.01ms;
+    }
+  }
+}

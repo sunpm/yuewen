@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import Vue from '@vitejs/plugin-vue'
+import React from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
 export default defineConfig({
   resolve: {
@@ -9,6 +10,6 @@ export default defineConfig({
       '@shared': fileURLToPath(new URL('./shared', import.meta.url)),
     },
   },
-  plugins: [Vue()],
-  test: { include: ['tests/**/*.test.ts'], environment: 'node' },
+  plugins: [Vue(), React()],
+  test: { include: ['tests/**/*.test.{ts,tsx}'], environment: 'node' },
 })
