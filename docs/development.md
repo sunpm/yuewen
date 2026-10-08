@@ -33,7 +33,7 @@
 
 ## Netlify 准备
 
-构建命令 `pnpm build` 顺序构建桌面和移动入口，产物分别为 `dist` 与 `dist/m`，Functions 位于 `netlify/functions`。`api.ts` 服务 `/api/*`，移动路由 `/m/*` 回退到 `/m/index.html`，桌面路由最后回退到 `/index.html`。`cleanup.ts` 每 15 分钟分批删除过期游客连接及其凭据、报告、保存回执、替换回执、认证会话、验证码与业务限流计数。
+构建命令 `pnpm build` 顺序构建桌面和移动入口，产物分别为 `dist` 与 `dist/m`，Functions 位于 `netlify/functions`。`api.ts` 服务 `/api/*`，移动路由 `/m/*` 回退到 `/m/index.html`，桌面路由最后回退到 `/index.html`。`cleanup.ts` 每 15 分钟分批删除过期游客连接及其凭据、报告、保存回执、替换回执、认证会话、验证码与业务限流计数。每张表每轮最多选取 500 条过期记录，先用 `FOR UPDATE SKIP LOCKED` 锁定候选行，再在同一语句中删除；正在被续期或其他事务操作的候选行留待下一轮，避免等待续期提交后仍按旧期限误删。外键级联删除不受该候选条数限制；请求到期仍立即拒绝，不等待清理调度。
 
 API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.netlify/functions/api` 地址，不再声明函数 `config.path`。Netlify 设置自定义路径后会关闭默认函数地址，两者同时使用会使重写目标失效，产生平台 404。`GET /api/health` 返回的 `auth` 只检查登录环境变量是否非空，不验证数据库连接、邮件投递或加密密钥。
 
