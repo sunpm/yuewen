@@ -9,7 +9,8 @@ export interface CloudWord extends Datum {
   y?: number
 }
 
-export async function layoutWords(data: Datum[], availableWidth: number) {
+export async function layoutWords(data: Datum[], availableWidth: number, signal?: AbortSignal) {
+  signal?.throwIfAborted()
   // d3-cloud uses a 32-bit collision board; keep the layout width aligned.
   const width = Math.max(256, Math.floor(availableWidth / 32) * 32)
   let height = 280
@@ -51,8 +52,9 @@ export async function layoutWords(data: Datum[], availableWidth: number) {
   )
   let placed: CloudWord[] = []
   for (let attempt = 0; attempt < 4; attempt++) {
-    placed = await new Promise<CloudWord[]>((resolve) => {
-      cloud<CloudWord>()
+    signal?.throwIfAborted()
+    placed = await new Promise<CloudWord[]>((resolve, reject) => {
+      const layout = cloud<CloudWord>()
         .canvas(canvas)
         .size([width, height])
         .words(words.map((word) => ({ ...word })))
@@ -62,8 +64,16 @@ export async function layoutWords(data: Datum[], availableWidth: number) {
         .padding(3)
         .random(() => 0.5)
         .timeInterval(12)
-        .on('end', resolve)
-        .start()
+        .on('end', (words) => {
+          signal?.removeEventListener('abort', abort)
+          resolve(words)
+        })
+      function abort() {
+        layout.stop()
+        reject(signal?.reason)
+      }
+      signal?.addEventListener('abort', abort, { once: true })
+      layout.start()
     })
     if (placed.length === words.length || attempt === 3) break
     height = Math.round(height * 1.5)

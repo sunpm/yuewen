@@ -1,7 +1,10 @@
 import { Component, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 
-export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+export class ErrorBoundary extends Component<
+  { children: ReactNode; fallback?: ReactNode },
+  { failed: boolean }
+> {
   state = { failed: false }
 
   static getDerivedStateFromError() {
@@ -10,6 +13,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: 
 
   render() {
     if (!this.state.failed) return this.props.children
+    if (this.props.fallback) return this.props.fallback
     return (
       <section className="empty-state" role="alert" aria-label="页面加载失败">
         <h2>页面暂时无法打开</h2>
