@@ -18,7 +18,9 @@ export function useConnection() {
   const personal = useReport()
   watch(
     connection,
-    async (value) => {
+    async (value, _previous, onCleanup) => {
+      let active = true
+      onCleanup(() => (active = false))
       if (route.path === '/demo') return
       if (value) {
         personal.selectConnection(value)
@@ -27,7 +29,7 @@ export function useConnection() {
       const path = route.path
       try {
         const available = await api<Connections>('/connections')
-        if (route.path !== path || connection.value) return
+        if (!active || route.path !== path || connection.value) return
         await router.replace({
           query: {
             ...route.query,
@@ -35,7 +37,7 @@ export function useConnection() {
           },
         })
       } catch {
-        if (route.path === path && !connection.value)
+        if (active && route.path === path && !connection.value)
           await router.replace({ query: { ...route.query, connection: 'guest' } })
       }
     },

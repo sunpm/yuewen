@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '../api'
 import { useReport } from '../useReport'
@@ -9,12 +9,18 @@ const route = useRoute(),
 const busy = ref(false),
   message = ref(''),
   conflict = ref<unknown>(null)
+let generation = 0
+onScopeDispose(() => generation++)
 async function begin() {
+  if (busy.value) return
   const reportId = personal.task.value?.id
   if (!reportId) {
     message.value = '请先生成报告，再保存连接。'
     return
   }
+  const run = generation,
+    path = route.fullPath
+  busy.value = true
   const query = {
     ...route.query,
     connection: 'guest',
@@ -23,30 +29,41 @@ async function begin() {
   }
   const next = router.resolve({ path: route.path, query }).fullPath
   try {
-    const available = await api<import('../useConnection').Connections>('/connections')
-    if (available.account) {
-      await router.replace({ query })
-      return
+    let loggedIn = false
+    try {
+      const available = await api<import('../useConnection').Connections>('/connections')
+      loggedIn = !!available.account
+    } catch {
+      /* Login offers a return to the still-valid guest report. */
     }
-  } catch {
-    /* Login offers a return to the still-valid guest report. */
+    if (run !== generation || route.fullPath !== path) return
+    if (loggedIn) await router.replace({ query })
+    else await router.push({ path: '/login', query: { next } })
+  } finally {
+    if (run === generation) busy.value = false
   }
-  await router.push({ path: '/login', query: { next } })
 }
 async function save(replace = false) {
   if (busy.value) return
+  const run = generation,
+    requestId = route.query.save,
+    reportId = route.query.saveReport,
+    expected = conflict.value
   busy.value = true
   message.value = ''
+  conflict.value = null
   await personal.settle()
+  if (run !== generation) return
   try {
     const saved = await api<{ reportId: string; range: string }>('/guest/save', {
       method: 'POST',
       body: JSON.stringify({
-        requestId: route.query.save,
-        reportId: route.query.saveReport,
-        ...(replace ? { expected: conflict.value, replace } : {}),
+        requestId,
+        reportId,
+        ...(replace ? { expected, replace } : {}),
       }),
     })
+    if (run !== generation) return
     await router.replace({
       query: {
         ...route.query,
@@ -57,14 +74,18 @@ async function save(replace = false) {
       },
     })
   } catch (e) {
+    if (run !== generation) return
     if (e instanceof ApiError && e.code === 'SAVE_CONFLICT') conflict.value = e.details
     if (e instanceof ApiError && e.code === 'SAVE_RESULT_EXPIRED') {
       await router.replace({ path: '/settings', query: { connection: 'account' } })
       return
     }
-    message.value = e instanceof Error ? e.message : '保存失败，请重试确认原保存结果。'
+    message.value =
+      e instanceof ApiError && e.code !== 'SERVICE_ERROR'
+        ? e.message
+        : '保存结果尚未确认，请重试确认原保存结果。'
   } finally {
-    busy.value = false
+    if (run === generation) busy.value = false
   }
 }
 function keep() {
@@ -73,12 +94,21 @@ function keep() {
   void router.replace({ query: { ...route.query, save: undefined, saveReport: undefined } })
 }
 watch(
-  () => route.query.save,
-  (id) => {
+  [
+    () => route.path,
+    () => route.query.connection,
+    () => route.query.save,
+    () => route.query.saveReport,
+  ],
+  ([, , id]) => {
+    generation++
+    busy.value = false
+    message.value = ''
+    conflict.value = null
     if (typeof id === 'string' && /^[\da-f-]{36}$/i.test(id) && route.query.connection === 'guest')
       void save()
   },
-  { immediate: true },
+  { immediate: true, flush: 'sync' },
 )
 </script>
 <template>
