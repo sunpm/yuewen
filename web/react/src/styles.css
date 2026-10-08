@@ -782,3 +782,63 @@ meter::-webkit-meter-optimum-value {
     max-width: 150px;
   }
 }
+
+/* PC2 forms and business status reuse the existing panels and brand tokens. */
+.account-page {
+  max-width: 880px;
+  display: grid;
+  gap: 24px;
+}
+.login-panel {
+  max-width: 620px;
+}
+.account-form {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0;
+}
+.account-page input,
+.login-panel input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--background);
+  color: inherit;
+}
+.account-page input:focus-visible,
+.login-panel input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.key-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.key-field input {
+  min-width: 0;
+}
+.connection-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.connection-notice,
+.notice {
+  padding: 16px 20px;
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.connection-notice p,
+.collection-status p {
+  margin: 0 0 8px;
+}
+.download-preview input[type="checkbox"] {
+  margin-right: 8px;
+}

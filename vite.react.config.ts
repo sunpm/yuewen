@@ -15,13 +15,15 @@ export default defineConfig({
     },
   },
   plugins: [React(), Tailwind()],
+  optimizeDeps: { exclude: ['@napi-rs/canvas'] },
   server: {
     host: '127.0.0.1',
     port: 5174,
     strictPort: true,
+    proxy: { '/api': 'http://127.0.0.1:8788' },
     fs: { allow: ['.'] },
   },
   preview: { host: '127.0.0.1', port: 4174, strictPort: true },
-  // PC0 has no business API. Keep the unfinished entry outside Netlify's publish directory.
+  // Keep the migration entry outside Netlify's publish directory until PC4.
   build: { outDir: '../../dist-react', emptyOutDir: true, manifest: true },
 })

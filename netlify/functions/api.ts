@@ -8,7 +8,10 @@ export default (request: Request, context?: { deploy: { context: string }; ip: s
     if (url.pathname === '/api/health')
       return Response.json({ status: 'ok', auth: false, guest: false, preview: true }, { headers })
     if (url.pathname === '/api/connections')
-      return Response.json({ guest: null, account: null }, { headers })
+      return Response.json(
+        { guest: null, account: null, serverTime: new Date().toISOString() },
+        { headers },
+      )
     if (url.pathname !== '/api/demo' || request.method !== 'GET')
       return Response.json(
         {

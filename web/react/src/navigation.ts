@@ -1,3 +1,4 @@
+import { safeReturn } from '@client/returnPath'
 import {
   BookOpen,
   ChartNoAxesCombined,
@@ -30,7 +31,19 @@ export function reportView(pathname: string, search: string) {
 }
 
 export function readingPath(pathname: string, search: string, view: string) {
-  const params = new URLSearchParams(search)
+  let params = new URLSearchParams(search)
+  if (pathname.replace(/\/+$/, '') === '/login' && params.has('next')) {
+    params = new URLSearchParams(safeReturn(params.get('next')).split('?')[1])
+    params.delete('save')
+    params.delete('saveReport')
+  }
+  for (const key of [...params.keys()])
+    if (
+      !['range', 'view', 'source', 'connection', 'save', 'saveReport', 'book', 'month'].includes(
+        key,
+      )
+    )
+      params.delete(key)
   const demo = pathname.replace(/\/+$/, '') === '/demo'
   if (demo) params.set('view', view)
   else params.delete('view')

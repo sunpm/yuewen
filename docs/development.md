@@ -4,13 +4,13 @@
 
 ## 工程约定
 
-PC0–PC1 已在 `web/react/` 接入 React 外壳与五页布局预览，正式 PC 仍使用下述 Vue 实现。`pnpm dev:react` 在 5174 独立运行，可预览首页、概览、四章报告摘要、书架筛选/详情和笔记全文/分页；复用既有模拟数据并固定样例日期为 2026-10-09，不连接业务 API。`/demo?view=notes&range=2025` 等示例路径可直达；个人页面同样只显示明确标注的模拟预览，登录/设置不接收凭据，下载只显示说明且按钮禁用；`pnpm dev` 同时启动该入口。`pnpm build:react` 输出 `dist-react/`，`pnpm preview:react` 在 4174 预览该构建。根 `build` 构建 Vue PC、H5 和 React，但 Netlify 仍只发布 `dist/`，React 外壳不进入线上入口。正式 React 完成并验收后直接替换 Vue PC，临时目录与脚本届时合并清理，见[迁移边界](plans/pc-refresh.md#migration)。
+PC0–PC2 已在 `web/react/` 接入 React 页面和业务状态迁移，正式 PC 仍使用下述 Vue 实现。React 支持游客验证并采集、查看及 HTML/JSON 下载、按需登录保存、回执恢复、取消/重试和连接自助管理；27 模块仍为数据摘要，完整图表与明细在 PC3 实施。`pnpm dev:react` 在 5174 启动页面，配套 `pnpm dev:api:react` 在 8788 启动 API，并将 `APP_URL` 设为 5174，避免跨开发入口的来源校验失配；`pnpm dev` 同时启动这些服务。默认 `/demo` 使用模拟数据，只有开发构建中显式选择 `source=development` 才连接本地来源。`pnpm build:react` 输出 `dist-react/`，`pnpm preview:react` 在 4174 仅供静态产物检查；业务核验使用带同源 API 的 5174 入口。Netlify 仍只发布 `dist/`，PC4 验收后再切换正式入口，见[迁移边界](plans/pc-refresh.md#migration)。
 
 根 `typecheck` 分别运行 `vue-tsc` 和 React `tsc`；根 `lint` 分别运行 ESLint 和 Biome。`web/react/`、`vite.react.config.ts`、`tsconfig.react.json` 与 `biome.json` 由 Biome 负责，Vue/共享/服务端保留 ESLint，Markdown 保留 Prettier；同一源码不重复格式化。两个 PC 的 Tailwind 扫描范围显式分开，React 共用根字体和品牌资源；H5 构建与已有 Vitest 用例发现范围保持不变。
 
 两个 Vue SPA 与 Hono 同仓库。桌面端 `web/`，独立 Vant 移动端 `web-mobile/`，共用 `client/` 交互逻辑与 `shared/` 数据契约。Vitesse 的文件路由、自动导入、布局目录和 TypeScript 能力保留；去除 I18n、UnoCSS、Iconify、SSG、PWA、示例 store 和 Cypress。原布局插件的 peer 版本不支持当前组合，因此使用一个 Vue 布局组件。基础按钮采用 shadcn/vue 的 Primitive + CVA 方式，Select、Dialog、Table 使用 shadcn/vue 官方组件源码，底层由 Reka UI 管理焦点和键盘操作。
 
-`pnpm dev` 同时启动桌面 Vite、移动 Vite 与本地 Hono；桌面 Vite 将 `/m/` 代理到移动 Vite、`/api` 代理到 Hono。浏览器统一从 5173 端口访问，两端保持同源认证；5180 是内部移动构建服务。`PORT=8788 pnpm exec tsx --env-file=.env server/dev.ts` 可单独启动另一端口的 API，默认仍为 8787。两个 Vite 使用独立依赖缓存，并预构建 `d3-cloud`。词云的浏览器与 Node HTML 导出共用布局；仅 Node 导出加载 `@napi-rs/canvas` 和本地阅读字体，两端 Vite 明确排除该原生模块的浏览器预构建，生产浏览器包不包含原生绘图依赖。正式入口使用标准 Request/Response 的 Netlify Node.js Function。迁移文件由 Drizzle 生成，并纳入版本管理。
+`pnpm dev` 同时启动旧桌面、移动及 React Vite，并启动旧入口和 React 各自的本地 Hono；桌面 Vite 将 `/m/` 代理到移动 Vite、`/api` 代理到 Hono。旧 PC/H5 从 5173 端口访问，保持同源认证；React 使用 5174 → 8788 的独立开发入口；5180 是内部移动构建服务。`PORT=8788 pnpm exec tsx --env-file=.env server/dev.ts` 可单独启动另一端口的 API，默认仍为 8787。两个 Vite 使用独立依赖缓存，并预构建 `d3-cloud`。词云的浏览器与 Node HTML 导出共用布局；仅 Node 导出加载 `@napi-rs/canvas` 和本地阅读字体，两端 Vite 明确排除该原生模块的浏览器预构建，生产浏览器包不包含原生绘图依赖。正式入口使用标准 Request/Response 的 Netlify Node.js Function。迁移文件由 Drizzle 生成，并纳入版本管理。
 
 ## 登录与数据库联调顺序
 
@@ -64,7 +64,7 @@ API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.ne
 
 ## 本地真实数据与模拟回归
 
-`pnpm dev` 下 `/demo` 与 `/m/demo` 默认读取服务端 `WEREAD_API_KEY`。启动器为四个开发服务固定设置 `NODE_ENV=development`，避免继承外部的生产环境变量后隐藏开发数据入口。`server/dev.ts` 才挂载 `/api/dev/*`，服务仅绑定回环地址；请求必须携带本地页面发出的专用请求头，写请求核对来源。缺失或失效 Key 显示错误，可手动切换模拟示例，不静默回退。开发数据仅在进程内存存活两小时，每范围复用缓存；刷新才重采，沿用 600 请求、1.5 MB、10,000 条正文预算。
+旧 Vue 入口在 `pnpm dev` 下的 `/demo` 与 `/m/demo` 默认读取服务端 `WEREAD_API_KEY`。启动器为五个开发服务固定设置 `NODE_ENV=development`，避免继承外部的生产环境变量后隐藏开发数据入口。`server/dev.ts` 才挂载 `/api/dev/*`，服务仅绑定回环地址；请求必须携带本地页面发出的专用请求头，写请求核对来源。缺失或失效 Key 显示错误，可手动切换模拟示例，不静默回退。开发数据仅在进程内存存活两小时，每范围复用缓存；刷新才重采，沿用 600 请求、1.5 MB、10,000 条正文预算。
 
 显式模拟入口为 `?source=mock`，包含 12 本公开书目与一本原创导入示例。`pnpm probe --shelf` 只读取书架及各一本普通/无分类书籍的详情与进度，最多 5 次请求，观察分类字符串与字段类型，不输出书名、正文或凭据；任一请求失败返回非零退出码。
 

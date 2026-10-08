@@ -1,18 +1,8 @@
 import { ref, shallowRef } from 'vue'
 import type { RangeKey, ReadingReport, ReportTarget } from '@shared/report'
 import { api as request, ApiError } from '@client/api'
-export interface ReportTask {
-  id: string
-  version: number
-  status: 'queued' | 'running' | 'completed' | 'partial' | 'cancelled' | 'failed'
-  stage: string
-  report: ReadingReport
-  keyVersion: number
-  noteTotal: number
-  notesComplete: boolean
-  retryAllowed?: boolean
-  issueCode?: string
-}
+import type { ReportTask } from '@shared/connection'
+export type { ReportTask } from '@shared/connection'
 const task = shallowRef<ReportTask | null>(null)
 const busy = ref(false),
   error = ref(''),
