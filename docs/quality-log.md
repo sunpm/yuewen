@@ -29,6 +29,8 @@
 
 `pnpm typecheck`、`pnpm lint`、`pnpm test` 通过，现有测试为 3 文件、24/24；`CHOKIDAR_USEPOLLING=true pnpm build` 双端通过，保留已有 ECharts 676.41 kB 分包提示。改动文件 Prettier 与 `git diff --check` 通过。此次为共享后端改动，未运行浏览器或 E2E，不改写历史失败记录。
 
+[PR #20](https://github.com/sunpm/yuewen/pull/20) 的 Netlify 预览构建、Header rules 和 Redirect rules 检查通过，Pages changed 由平台标记为 skipping。公开预览健康返回 `200 / preview:true / auth:false / guest:false`，连接查询返回两个空连接，个人报告恢复返回 `503 PREVIEW_ONLY`；PC `/overview` 与冻结 H5 `/m/overview` 均返回 200。以上为无凭据的只读隔离核验，不代表生产个人流程通过。后续仅补此文档证据的提交使用 `[skip netlify]`，不改变已验证的业务代码。
+
 历史偶发取消 503 仍缺错误原因；不同真实有效 Key、真实上游及浏览器迟到分页、真实数据下完整 PC 导航/筛选/下载、默认期限自然到期、平台调度、跨函数实例、密码邮件与设置页面继续待验收。此次独立模块加载和连接池的人工操作不代替跨 Netlify 实例验证；游客复合清单、React 迁移和原 P4/P5 缺项保留。
 
 <a id="browser-save-recovery-2026-10-08"></a>
