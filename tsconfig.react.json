@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["web/react/src/*"],
+      "@client/*": ["client/*"],
+      "@shared/*": ["shared/*"]
+    }
+  },
+  "include": ["web/react/src/**/*.ts", "web/react/src/**/*.tsx", "vite.react.config.ts"],
+  "exclude": ["node_modules", "dist", "dist-react"]
+}

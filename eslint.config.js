@@ -6,6 +6,9 @@ export default ts.config(
   {
     ignores: [
       'dist/**',
+      'dist-react/**',
+      'web/react/**',
+      'vite.react.config.ts',
       'node_modules/**',
       '**/*.d.ts',
       '.netlify/**',

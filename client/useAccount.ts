@@ -1,4 +1,4 @@
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onScopeDispose } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@client/api'
 import { authClient } from '@client/auth'
@@ -24,9 +24,26 @@ export function useAccount() {
     )
   const state = ref<{ status: 'missing' | 'valid' | 'invalid'; updatedAt?: string }>()
   const confirmation = ref('')
+  let generation = 0
+  watch(
+    () => route.fullPath,
+    () => {
+      generation++
+      busy.value = false
+      key.value = ''
+      confirmation.value = ''
+    },
+    { flush: 'sync' },
+  )
+  onScopeDispose(() => {
+    generation++
+    key.value = ''
+  })
   watch(
     connection,
-    async (selected) => {
+    async (selected, _previous, onCleanup) => {
+      let active = true
+      onCleanup(() => (active = false))
       if (!selected) return
       state.value = undefined
       key.value = ''
@@ -34,17 +51,19 @@ export function useAccount() {
       if (!route.query.expired) error.value = ''
       try {
         const available = await api<Connections>('/connections')
-        if (connection.value !== selected) return
+        if (!active) return
         state.value = {
           status: (available[selected]?.status ?? 'missing') as 'missing' | 'valid' | 'invalid',
         }
       } catch (e) {
-        error.value = e instanceof Error ? e.message : '设置暂时无法加载。'
+        if (active) error.value = e instanceof Error ? e.message : '设置暂时无法加载。'
       }
     },
     { immediate: true },
   )
   async function save() {
+    if (busy.value) return
+    const run = generation
     const selected = connection.value
     if (!selected) return
     busy.value = true
@@ -58,7 +77,7 @@ export function useAccount() {
           body: JSON.stringify({ apiKey: key.value }),
         },
       )
-      if (connection.value !== selected) return
+      if (run !== generation) return
       state.value = result
       key.value = ''
       clear()
@@ -74,13 +93,17 @@ export function useAccount() {
         },
       })
     } catch (e) {
-      error.value = e instanceof Error ? e.message : '保存失败。'
+      if (run === generation) error.value = e instanceof Error ? e.message : '保存失败。'
     } finally {
-      key.value = ''
-      busy.value = false
+      if (run === generation) {
+        key.value = ''
+        busy.value = false
+      }
     }
   }
   async function action(type: 'cache' | 'key' | 'logout' | 'account') {
+    if (busy.value) return
+    const run = generation
     busy.value = true
     error.value = ''
     message.value = ''
@@ -99,6 +122,7 @@ export function useAccount() {
               : '/account',
           { method: 'DELETE', headers: { 'X-Yuewen-Connection': connection.value ?? 'guest' } },
         )
+      if (run !== generation) return
       clear()
       confirmation.value = ''
       if (type === 'account' || type === 'logout') await router.replace('/')
@@ -108,9 +132,9 @@ export function useAccount() {
           type === 'cache' ? '临时报告已清除，当前连接保留。' : '已移除 Key 和临时报告。'
       }
     } catch (e) {
-      error.value = e instanceof Error ? e.message : '操作失败，请重试。'
+      if (run === generation) error.value = e instanceof Error ? e.message : '操作失败，请重试。'
     } finally {
-      busy.value = false
+      if (run === generation) busy.value = false
     }
   }
   return { guest, connection, key, show, busy, message, error, state, confirmation, save, action }

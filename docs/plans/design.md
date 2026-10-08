@@ -1,8 +1,8 @@
 # PC 设计、布局与入口计划
 
-更新日期：2026-10-08（Asia/Shanghai）
+更新日期：2026-10-09（Asia/Shanghai）
 
-状态：现有 Vue 双端主题与旧邮件反馈已接入；PC 精简、AIHOT 布局和 React 迁移待实施，H5 冻结；设备自动入口推迟至 H5 重构。后台继续采用独立 React + antd。
+状态：现有 Vue 双端主题与旧邮件反馈已接入；PC0 React 工程与 AIHOT 基础外壳已完成，页面精简和业务迁移待实施，H5 冻结；设备自动入口推迟至 H5 重构。后台继续采用独立 React + antd。
 
 [返回总计划](../../PLAN.md) · [现行设计规范](../design-system.md) · [报告体验实施计划](report-experience.md)
 
@@ -51,7 +51,7 @@ PC 新实现采用 shadcn/ui 的 Radix 组件，按需引入到 React PC 的 `co
 
 ### AIHOT 布局与信息精简
 
-2026-10-04 已浏览 [AIHOT 桌面站](https://aihot.news/)并核对[开源仓库](https://github.com/KKKKhazix/AIHOT)首页。采用其固定左侧导航、右侧主内容、顶部紧凑标题与筛选/搜索、分组内容流的布局关系。当前仅完成参考核对，没有复制源码；具体文件与引用版本在 PC0 实施前核对。仓库代码为 [MIT](https://github.com/KKKKhazix/AIHOT/blob/main/LICENSE)，实际复用时保留声明并记录来源；[NOTICE](https://github.com/KKKKhazix/AIHOT/blob/main/NOTICE)中的品牌边界以阅纹自己的名称、Logo、配色与字体落实。
+2026-10-04 已浏览 [AIHOT 桌面站](https://aihot.news/)并核对[开源仓库](https://github.com/KKKKhazix/AIHOT)首页。采用其固定左侧导航、右侧主内容、顶部紧凑标题与筛选/搜索、分组内容流的布局关系。2026-10-08 PC0 已核对具体布局文件与引用提交，完成阅纹独立 React 基础外壳；未复制源码或品牌资产，文件与版本见[来源记录](../third-party-notices.md)。仓库代码为 [MIT](https://github.com/KKKKhazix/AIHOT/blob/main/LICENSE)，实际复用时保留声明并记录来源；[NOTICE](https://github.com/KKKKhazix/AIHOT/blob/main/NOTICE)中的品牌边界以阅纹自己的名称、Logo、配色与字体落实。
 
 - 左侧固定窄导航，上方放阅纹标识；主要导航映射概览、深度报告、书架、笔记，次要区放连接设置与意见反馈，主题/账号操作放底部。不引入参考站的资讯、模型榜或热点业务。
 - 右侧顶部保留一个页面标题、当前范围与主要操作；分类或视图切换紧凑排列，搜索按页面需要放在同一工具区。每个操作只有一个主要入口；侧栏存在时不再重复一整套顶部主导航。
@@ -66,7 +66,7 @@ PC 新实现采用 shadcn/ui 的 Radix 组件，按需引入到 React PC 的 `co
 | 连接提示、采集状态、数据问题                            | 普通状态压成一处摘要，详情按需查看；保存/替换影响、错误及可执行处理入口保留，不因精简隐藏用户需要作出的决定                       |
 | 书架、作者与笔记                                        | 同一容器内不重复书名、作者、数量与来源；保持全文/完整明细入口、笔记原文和导出内容；不把删除界面文案实现成删除数据字段             |
 
-PC0 逐页产出上述信息的保留/删除/合并/移入详情清单，PC3 实施；完成判据为正常首屏不再重复范围、标题或解释，必要单位、年度补充范围、截断/缺失原因仍清楚。验收使用相同示例、视口和主题对照迁移前后，详见[PC 阶段清单](pc-refresh.md#delivery)。
+PC0 先按上述布局方向建立 React 基础外壳；PC1 再逐页产出信息的保留/删除/合并/移入详情清单并细化页面布局，PC3 实施页面精简；完成判据为正常首屏不再重复范围、标题或解释，必要单位、年度补充范围、截断/缺失原因仍清楚。验收使用相同示例、视口和主题对照迁移前后，详见[PC 阶段清单](pc-refresh.md#delivery)。
 
 <a id="experience"></a>
 

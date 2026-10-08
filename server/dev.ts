@@ -1,14 +1,15 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
-import { app, parseRange } from './app'
+import { app, handleError, parseRange } from './app'
+import type { AppEnv } from './connections'
 import { advanceCollector, buildReport, newCollector, num, obj, str } from './collector'
 import type { CollectorState } from './collector'
 import { AppError, weread } from './weread'
 import { bookCategory } from '../shared/report'
 
 // This router is never imported by the production Functions entry.
-const local = new Hono()
+const local = new Hono<AppEnv>()
 const reports = new Map<
   string,
   { state: CollectorState; id: string; version: number; stopped: boolean; expires: number }
@@ -126,15 +127,7 @@ local.get('/api/dev/books/:id', async (c) => {
   })
 })
 local.route('/', app)
-local.onError((error, c) =>
-  c.json(
-    {
-      code: error instanceof AppError ? error.code : 'SERVICE_ERROR',
-      message: error instanceof AppError ? error.message : '本地读取失败，请重试。',
-    },
-    (error instanceof AppError ? error.status : 503) as 400,
-  ),
-)
+local.onError(handleError)
 const port = Number(process.env.PORT ?? 8787)
 serve({ fetch: local.fetch, hostname: '127.0.0.1', port }, () =>
   console.log(`阅纹 API：http://127.0.0.1:${port}`),
