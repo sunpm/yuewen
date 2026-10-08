@@ -1,4 +1,4 @@
-import { ArrowUpRight, Palette } from 'lucide-react'
+import { Palette } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router'
 import { ErrorBoundary } from '@/components/error-boundary'
@@ -10,23 +10,27 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useTheme } from '@/hooks/use-theme'
-import { accountNavigation, navigation, pageTitle } from '@/navigation'
+import { accountNavigation, navigation, pageTitle, readingPath, reportView } from '@/navigation'
 
 const Home = lazy(() => import('@/pages/home'))
 const Workspace = lazy(() => import('@/pages/workspace'))
+const Account = lazy(() => import('@/pages/account'))
 
 export default function App() {
   const location = useLocation()
   const { theme, setTheme } = useTheme()
   const main = useRef<HTMLElement>(null)
   const previousKey = useRef(location.key)
-  const title = pageTitle(location.pathname)
+  const title = pageTitle(location.pathname, location.search)
+  const currentPath = location.pathname.replace(/\/+$/, '') || '/'
+  const activePath =
+    currentPath === '/demo' ? `/${reportView(currentPath, location.search)}` : currentPath
 
   useEffect(() => {
     document.title = `${title} · 阅纹`
     if (previousKey.current !== location.key) {
       window.scrollTo(0, 0)
-      main.current?.focus()
+      main.current?.focus({ preventScroll: true })
       previousKey.current = location.key
     }
   }, [title, location.key])
@@ -58,17 +62,21 @@ export default function App() {
           <nav className="primary-nav" aria-label="主导航">
             <span className="nav-caption nav-label">阅读档案</span>
             {navigation.map(({ path, title: label, icon: Icon }) => (
-              <NavLink
+              <Link
                 key={path}
-                to={{ pathname: path, search: location.search }}
-                end
-                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                to={
+                  path === '/'
+                    ? '/'
+                    : readingPath(location.pathname, location.search, path.slice(1))
+                }
+                className={`nav-link${path === activePath ? ' active' : ''}`}
+                aria-current={path === activePath ? 'page' : undefined}
                 aria-label={label}
                 title={label}
               >
                 <Icon size={18} aria-hidden="true" />
                 <span className="nav-label">{label}</span>
-              </NavLink>
+              </Link>
             ))}
           </nav>
           <div className="sidebar-bottom">
@@ -106,14 +114,12 @@ export default function App() {
         <div className="workspace">
           <header className="page-header">
             <h1>{title}</h1>
-            <Link className="text-link" to="/demo">
-              探索示例 <ArrowUpRight size={15} aria-hidden="true" />
-            </Link>
+            <span className="preview-badge">布局预览</span>
           </header>
           <main id="main" ref={main} tabIndex={-1} className="page-content">
             <p className="preview-note">
               <span aria-hidden="true" />
-              界面预览 · 暂不连接账号或读取数据
+              模拟阅读记录 · 原创演示文本，非书中原文；此预览不连接个人账号。
             </p>
             <ErrorBoundary key={location.key}>
               <Suspense
@@ -125,11 +131,12 @@ export default function App() {
               >
                 <Routes>
                   <Route path="/" element={<Home />} />
-                  {[...navigation.slice(1), ...accountNavigation, { path: '/demo' }].map(
-                    ({ path }) => (
-                      <Route key={path} path={path} element={<Workspace />} />
-                    ),
-                  )}
+                  {[...navigation.slice(1), { path: '/demo' }].map(({ path }) => (
+                    <Route key={path} path={path} element={<Workspace />} />
+                  ))}
+                  {accountNavigation.map(({ path }) => (
+                    <Route key={path} path={path} element={<Account />} />
+                  ))}
                   <Route
                     path="*"
                     element={

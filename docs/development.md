@@ -4,7 +4,7 @@
 
 ## 工程约定
 
-PC0 已在 `web/react/` 接入 React 外壳，正式 PC 仍使用下述 Vue 实现。`pnpm dev:react` 在 5174 独立运行，当前仅预览导航、主题和页面占位，不连接业务 API；`pnpm dev` 同时启动该入口。`pnpm build:react` 输出 `dist-react/`，`pnpm preview:react` 在 4174 预览该构建。根 `build` 构建 Vue PC、H5 和 React，但 Netlify 仍只发布 `dist/`，React 外壳不进入线上入口。正式 React 完成并验收后直接替换 Vue PC，临时目录与脚本届时合并清理，见[迁移边界](plans/pc-refresh.md#migration)。
+PC0–PC1 已在 `web/react/` 接入 React 外壳与五页布局预览，正式 PC 仍使用下述 Vue 实现。`pnpm dev:react` 在 5174 独立运行，可预览首页、概览、四章报告摘要、书架筛选/详情和笔记全文/分页；复用既有模拟数据并固定样例日期为 2026-10-09，不连接业务 API。`/demo?view=notes&range=2025` 等示例路径可直达；个人页面同样只显示明确标注的模拟预览，登录/设置不接收凭据，下载只显示说明且按钮禁用；`pnpm dev` 同时启动该入口。`pnpm build:react` 输出 `dist-react/`，`pnpm preview:react` 在 4174 预览该构建。根 `build` 构建 Vue PC、H5 和 React，但 Netlify 仍只发布 `dist/`，React 外壳不进入线上入口。正式 React 完成并验收后直接替换 Vue PC，临时目录与脚本届时合并清理，见[迁移边界](plans/pc-refresh.md#migration)。
 
 根 `typecheck` 分别运行 `vue-tsc` 和 React `tsc`；根 `lint` 分别运行 ESLint 和 Biome。`web/react/`、`vite.react.config.ts`、`tsconfig.react.json` 与 `biome.json` 由 Biome 负责，Vue/共享/服务端保留 ESLint，Markdown 保留 Prettier；同一源码不重复格式化。两个 PC 的 Tailwind 扫描范围显式分开，React 共用根字体和品牌资源；H5 构建与已有 Vitest 用例发现范围保持不变。
 
