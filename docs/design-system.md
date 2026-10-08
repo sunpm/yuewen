@@ -349,4 +349,4 @@
 | 数据口径与状态               | [数据契约](data-contract.md)、[report.ts](../shared/report.ts)                                                                                                       |
 | 品牌资产                     | [品牌预览](../brand/brand-preview.png)                                                                                                                               |
 
-实施新页面时复用当前 Vue、Tailwind、Reka UI、Vant 与 ECharts 体系。本文参考 `antfu-design` 中的语义配色、双主题和克制动效原则，不引入 UnoCSS 配置。修改颜色、字号、组件状态或信息口径时，同步更新本规范对应条目；「新增约定」只有完成实际实现与验证后，才转为现状描述。
+正式 PC 与 H5 当前仍沿用 Vue、Tailwind、Reka UI、Vant 与 ECharts；新增 PC 页面在 React 工程内实施，遵循[PC 技术栈](plans/pc-refresh.md#stack)。PC0 外壳已在 `web/react/` 接入 shadcn/ui Button、Select 与 Radix，复用上述品牌色和字体；导航、主题与加载失败恢复的实际结果见[质量记录](quality-log.md#pc0-react-shell-2026-10-08)。本文参考 `antfu-design` 中的语义配色、双主题和克制动效原则，不引入 UnoCSS 配置。修改颜色、字号、组件状态或信息口径时，同步更新本规范对应条目；「新增约定」只有完成实际实现与验证后，才转为现状描述。

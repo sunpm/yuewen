@@ -8,3 +8,9 @@ web/src/*.d.ts
 server/db/migrations/meta
 test-results
 playwright-report
+
+dist-react
+web/react
+vite.react.config.ts
+tsconfig.react.json
+biome.json

@@ -1,5 +1,9 @@
 # 模板与组件来源
 
+React 外壳的 Button、Select 根据 [shadcn/ui 官方 new-york-v4 registry](https://ui.shadcn.com/r/styles/new-york-v4/button.json) 和同目录的 `select.json` 适配（2026-10-08），只保留当前使用的变体与组件，采用 Radix 独立包与阅纹主题；MIT 许可原文保留在 [React 组件 LICENSE](../web/react/src/components/ui/LICENSE)。
+
+PC 布局核对了 [AIHOT](https://github.com/KKKKhazix/AIHOT) 提交 `c547b669acc7f64720cd82024e502446ee1ef88d` 的 `apps/web/app/components/shell/Sidebar.tsx`、`Chrome.tsx` 与 `NOTICE`：仅参考左侧导航、底部主题与右侧内容的布局关系，未复制源码或品牌资产，使用阅纹现有名称、Logo、字体与配色。
+
 前端构建配置依据 [Vitesse](https://github.com/antfu-collective/vitesse) 提交 `8a01bc9283fedcd63e750af55a75496361789a81` 裁剪，保留文件路由、自动导入及 Vue 目录组织。没有复制模板的示例业务、品牌、多语言或 UnoCSS。
 
 按钮、输入和工具函数参考 [shadcn/vue 的手动集成方式](https://www.shadcn-vue.com/docs/installation/vite)，行为依赖 Reka UI，自行适配阅纹主题。第三方 npm 包的许可随各包提供。
