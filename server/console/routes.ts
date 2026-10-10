@@ -4,6 +4,7 @@ import { getDb } from '../db'
 import { AppError } from '../weread'
 import { consoleConfigured, createConsoleAuth, getConsoleAuth, lockConsoleAdmin } from './auth'
 import { feedbackConsole } from '../feedback/console'
+import { consoleData, consoleUsers } from './read'
 
 export const consoleRoutes = new Hono<AppEnv>()
 consoleRoutes.on(['GET', 'POST'], '/auth/*', async (c) => {
@@ -40,6 +41,8 @@ consoleRoutes.use('*', async (c, next) => {
 })
 consoleRoutes.get('/overview', (c) => c.json({ status: 'ready' }))
 consoleRoutes.route('/feedback', feedbackConsole)
+consoleRoutes.route('/users', consoleUsers)
+consoleRoutes.route('/data', consoleData)
 // Unknown management paths must never fall through to reading-connection authentication.
 consoleRoutes.all('*', () => {
   throw new AppError('NOT_FOUND', '管理接口不存在。', 404)
