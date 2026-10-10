@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /$
+Disallow: /api/
+Disallow: /console
+Disallow: /m/
+Disallow: /demo
+Disallow: /overview
+Disallow: /report
+Disallow: /shelf
+Disallow: /notes
+Disallow: /settings
+Disallow: /login

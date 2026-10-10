@@ -2,14 +2,17 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
     "includes": [
-      "web/react/**",
-      "vite.react.config.ts",
+      "web/src/**",
+      "!web/src/**/*.vue",
+      "!web/src/**/*.d.ts",
+      "vite.config.ts",
       "tsconfig.react.json",
       "biome.json",
       "console/**",
       "vite.console.config.ts",
       "tsconfig.console.json",
-      "tests/console/**/*.tsx"
+      "tests/console/**/*.tsx",
+      "web/components.json"
     ]
   },
   "formatter": {

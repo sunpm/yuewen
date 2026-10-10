@@ -6,9 +6,8 @@ export default ts.config(
   {
     ignores: [
       'dist/**',
-      'dist-react/**',
-      'web/react/**',
-      'vite.react.config.ts',
+      'web/src/**/*.{ts,tsx}',
+      'vite.config.ts',
       'console/**',
       'vite.console.config.ts',
       'tests/console/**/*.tsx',
@@ -39,7 +38,7 @@ export default ts.config(
     },
   },
   {
-    files: ['web/src/**/*.vue', 'web-mobile/src/**/*.vue'],
+    files: ['web-mobile/src/**/*.vue'],
     languageOptions: {
       globals: Object.fromEntries(
         [

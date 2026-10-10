@@ -13,4 +13,3 @@ web/src/route-map.d.ts
 *.tsbuildinfo
 web-mobile/src/auto-imports.d.ts
 web-mobile/src/components.d.ts
-dist-react/

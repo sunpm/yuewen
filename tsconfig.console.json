@@ -1,11 +1,13 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "jsx": "react-jsx" },
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  },
   "include": [
     "console/**/*.ts",
     "console/**/*.tsx",
     "tests/console/**/*.tsx",
     "vite.console.config.ts"
   ],
-  "exclude": ["node_modules", "dist", "dist-react"]
+  "exclude": ["node_modules", "dist"]
 }
