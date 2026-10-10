@@ -1,10 +1,10 @@
 import { Hono, type Context } from 'hono'
 import { and, desc, eq, gt, isNotNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import type { AppEnv, Transaction } from '../connections'
+import type { AppEnv } from '../connections'
 import { limit } from '../connections'
 import { getDb } from '../db'
-import { consoleSession } from '../console/schema'
+import { checkConsoleSession, maskEmail } from '../console/access'
 import { feedback, feedbackAttachment, user } from '../db/schema'
 import { AppError } from '../weread'
 import {
@@ -20,28 +20,9 @@ const live = () => and(isNotNull(feedback.submittedAt), gt(feedback.expiresAt, n
 const idOf = (c: Context<AppEnv>) => z.string().uuid().parse(c.req.param('id'))
 const status = z.enum(['pending', 'processing', 'resolved', 'closed'])
 const category = z.enum(['uncategorized', 'bug', 'suggestion', 'other'])
-async function checkAdmin(
-  c: Context<AppEnv>,
-  db: Transaction | ReturnType<typeof getDb> = getDb(),
-) {
-  const access = c.get('consoleAccess')
-  const [login] = await db
-    .select({ id: consoleSession.id })
-    .from(consoleSession)
-    .where(
-      and(
-        eq(consoleSession.id, access.sessionId),
-        eq(consoleSession.userId, access.userId),
-        gt(consoleSession.expiresAt, new Date()),
-      ),
-    )
-  if (!login) throw new AppError('CONSOLE_AUTH_REQUIRED', '管理会话已失效，请重新登录。', 401)
-}
 function missing(): never {
   throw new AppError('FEEDBACK_GONE', '反馈已删除或过期。', 404)
 }
-const maskEmail = (email: string | null) =>
-  email ? `${email.slice(0, 1)}***@${email.split('@')[1] ?? '***'}` : null
 export const feedbackConsole = new Hono<AppEnv>()
 feedbackConsole.use('*', async (c, next) => {
   if (!feedbackEnabled()) throw new AppError('FEEDBACK_UNAVAILABLE', '反馈管理尚未启用。', 503)
@@ -90,7 +71,7 @@ feedbackConsole.get('/', async (c) => {
     .select({ count: sql<number>`count(*)::int` })
     .from(feedback)
     .where(where)
-  await checkAdmin(c)
+  await checkConsoleSession(c)
   return c.json({
     items: rows.map((row) => ({ ...row, email: maskEmail(row.email) })),
     total: total.count,
@@ -126,7 +107,7 @@ feedbackConsole.get('/:id', async (c) => {
         .from(user)
         .where(eq(user.id, row.userId))
     : []
-  await checkAdmin(c)
+  await checkConsoleSession(c)
   return c.json({ ...row, owner: owner ?? null, screenshot: attachment ?? null })
 })
 feedbackConsole.get('/:id/screenshot', async (c) => {
@@ -152,7 +133,7 @@ feedbackConsole.get('/:id/screenshot', async (c) => {
     throw new AppError('SCREENSHOT_GONE', '截图不可用。', 410)
   await validateImage(bytes, row.attachment.mime)
   // Recheck revocation/expiry after R2 I/O before releasing private bytes.
-  await checkAdmin(c)
+  await checkConsoleSession(c)
   if (!(await read()).length) throw new AppError('SCREENSHOT_GONE', '截图已删除或过期。', 410)
   c.header('Content-Type', row.attachment.mime)
   c.header('Content-Disposition', 'inline; filename="screenshot"')
@@ -180,7 +161,7 @@ feedbackConsole.patch('/:id', async (c) => {
     .parse(await c.req.json())
   const result = await getDb().transaction(async (tx) => {
     await lockFeedback(tx)
-    await checkAdmin(c, tx)
+    await checkConsoleSession(c, tx)
     const [existing] = await tx
       .select({ version: feedback.version })
       .from(feedback)
@@ -200,7 +181,7 @@ feedbackConsole.patch('/:id', async (c) => {
       .where(eq(feedback.id, id))
       .returning({ id: feedback.id, version: feedback.version })
     await audit(tx, c.get('consoleAccess').userId, 'feedback.update', id)
-    await checkAdmin(c, tx)
+    await checkConsoleSession(c, tx)
     return updated
   })
   return c.json(result)
@@ -210,7 +191,7 @@ feedbackConsole.delete('/:id', async (c) => {
   const version = z.coerce.number().int().min(0).parse(c.req.query('version'))
   await getDb().transaction(async (tx) => {
     await lockFeedback(tx)
-    await checkAdmin(c, tx)
+    await checkConsoleSession(c, tx)
     const [existing] = await tx
       .select()
       .from(feedback)
@@ -220,7 +201,7 @@ feedbackConsole.delete('/:id', async (c) => {
       throw new AppError('FEEDBACK_CHANGED', '反馈已被修改，请刷新后重试。', 409)
     await removeFeedback(tx, eq(feedback.id, id))
     await audit(tx, c.get('consoleAccess').userId, 'feedback.delete', id)
-    await checkAdmin(c, tx)
+    await checkConsoleSession(c, tx)
   })
   await tryObjectDeletion()
   return c.body(null, 204)

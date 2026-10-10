@@ -162,7 +162,7 @@ HTML 用同一报告对象生成，包含内嵌 SVG、完整数据表、范围�
 | `POST /api/console/auth/sign-out`         | 撤销当前管理会话并清理独立管理 Cookie                                                  |
 | `GET /api/console/overview`               | 每次核验有效管理会话，返回 `{ status: 'ready' }`，不暴露用户数据                       |
 
-管理认证与数据响应均 `no-store`；写操作保持同源 JSON 和 16 KiB 限制。管理 Cookie 8 小时到期，HTTPS 下 Secure、HttpOnly、SameSite Strict、host-only，Path 为 `/api/console`。配置未就绪返回 503 `CONSOLE_UNAVAILABLE`；业务接口未登录返回 401 `CONSOLE_AUTH_REQUIRED`；其他管理认证路径及未实现管理接口拒绝访问。公开预览在入口层返回 `PREVIEW_ONLY`。公开注册、邮箱登录/找回、资料修改、账号删除及反馈/用户/表管理接口尚未开放；危险动作的再认证和审计随 C2–C3 实施。
+管理认证与数据响应均 `no-store`；写操作保持同源 JSON 和 16 KiB 限制。管理 Cookie 8 小时到期，HTTPS 下 Secure、HttpOnly、SameSite Strict、host-only，Path 为 `/api/console`。配置未就绪返回 503 `CONSOLE_UNAVAILABLE`；业务接口未登录返回 401 `CONSOLE_AUTH_REQUIRED`；其他管理认证路径及未实现管理接口拒绝访问。公开预览在入口层返回 `PREVIEW_ONLY`。公开注册、邮箱登录/找回、资料修改和后台账号删除尚未开放。C2 反馈管理及 C3 用户/数据只读接口见下文，均由各自开关控制；危险动作的再认证仍随 C3 后续写操作实施。
 
 <a id="feedback-api"></a>
 
@@ -193,3 +193,26 @@ HTML 用同一报告对象生成，包含内嵌 SVG、完整数据表、范围�
 共享 PostgreSQL 限流为每 IP 每 10 分钟 5 次提交（上下文另有同等限流）、每有效属主每小时 10 个新请求、全站 UTC 日 200 个新请求，超限返回 429 和 `Retry-After`。每日/属主额度在预留事务中扣减，失败后待重试的预留也占用该窗口，合法重试不重复扣减。1 GiB 附件容量包含待上传、有效附件和未完成删除对象；容量与幂等使用同一事务锁。管理 API 每分钟 120 次，图片读取另限每分钟 30 次。
 
 R2 写入不跨数据库事务：先预留，再上传同一 key，再以租约及身份检查发布；失败不返回成功，半成品不对后台可见。上传租约 60 秒，R2 PUT 最长 10 秒、单次 SDK 尝试；删除与迟到上传交错时延迟清理，最终写入失败由回执重试、删除任务和孤儿对账回收。正文/诊断与审计保留 180 天，截图 30 天，未完成上传 24 小时回收；读取即时检查期限。R2 的 30 天生命周期仍需在实际 bucket 单独配置。
+
+<a id="console-read-api"></a>
+
+## C3 用户与数据只读 API（2026-10-10）
+
+已实现，默认由服务端 `CONSOLE_DATA_ENABLED=false` 关闭；要求 0000–0004 迁移、有效独立管理会话，不依赖 R2 或反馈提交开关。未启用/缺少 C2 表返回 503 `CONSOLE_DATA_UNAVAILABLE`，未登录返回 401 `CONSOLE_AUTH_REQUIRED`。读取后再次核验管理会话，响应 `no-store`，每管理员每分钟最多 120 次；公开预览继续拒绝管理 API。
+
+所有分页返回 `{ items, total, page, pageSize }`，`page` 默认 1、最大 10,000，`pageSize` 默认 20、最大 100。固定按创建时间及 ID 降序，凭据按更新时间及用户 ID 降序；拒绝未登记的查询字段和任意排序。ID 筛选精确匹配，邮箱/ID 搜索为不区分大小写的字面子串，`%`、`_` 等不作为通配符。
+
+| 接口                                  | 查询参数与字段范围                                                                                                                                                                                                                                                             |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/console/users`              | 分页及 `search / verified / connection / from / to`；验证状态为 `true/false`，连接状态为 `unconfigured/valid/invalid`；注册起止时间为 UTC ISO datetime，含边界且起始不能晚于结束。返回 ID、昵称、脱敏邮箱、验证状态、创建/更新时间、连接状态、最近有效会话创建时间和自有反馈数 |
+| `GET /api/console/users/:id`          | 必要账号字段与列表相同，邮箱完整；无查询参数；不存在返回 404 `USER_NOT_FOUND`                                                                                                                                                                                                  |
+| `GET /api/console/data/credentials`   | 分页及可选 `userId`；仅用户 ID、状态、版本、验证/创建/更新时间，不返回密文及加密密钥版本                                                                                                                                                                                       |
+| `GET /api/console/data/guests`        | 分页及可选 `guestId`；仅 ID、状态、版本、闲置/绝对期限和创建/更新时间，不返回 token 哈希或密文                                                                                                                                                                                 |
+| `GET /api/console/data/reports`       | 分页及可选 `userId / guestId`；仅 ID、属主 ID、状态、任务/凭据版本、`rangeKey/rangeStart/rangeEnd`、请求/笔记/笔记本/待处理/失败数量及期限/时间；不返回正文、书目、队列参数、游标、租约或完整 `state`                                                                          |
+| `GET /api/console/data/sessions`      | 分页及可选 `userId`；仅会话 ID、用户 ID、创建/更新时间和期限，不返回 token、IP 或 User-Agent                                                                                                                                                                                   |
+| `GET /api/console/data/audit`         | 分页；只返回未过期审计的 ID、操作者、动作、目标 ID、结果和创建/到期时间                                                                                                                                                                                                        |
+| `GET /api/console/data/cleanup-stats` | 无查询参数；返回 `{ items: [{ resource, total, expired }] }`，固定汇总 `auth_rate_limit / request_limit / connection_save / report_replacement`，不返回原始键、计数明细或回执                                                                                                  |
+
+`latestSessionCreatedAt` 只取当前未过期会话的最大创建时间，没有则为 `null`，不是登录历史。`feedbackCount` 只计 `feedback.user_id` 匹配、已提交且未过期记录；游客反馈的 `associated_user_id` 不计入账号名下。元信息列表可显示尚未被清理的过期连接/报告/会话，期限字段用于判断失效；不会借此开放正文。清理统计中认证限流的 `expired` 表示最后请求距今超过 24 小时，其他三表按期限统计；查询本身不执行清理。
+
+未提供 `auth_account`、`auth_verification`、管理认证表或任意 SQL/表名/列名读取，也未开放新增用户、改邮箱、昵称修改、删除账号、撤销连接/会话或报告写操作。管理 UI 与后续专用动作仍按[后台计划](plans/console.md#users-and-data)推进。

@@ -29,7 +29,7 @@ pnpm console:admin:reset
 
 `init` 重复运行不覆盖已有账号或密码；`reset` 要求用户名匹配，并在同一事务中更新认证库密码哈希、撤销全部旧管理会话。初始化/重置与登录串行，避免旧密码校验在重置后创建迟到会话。HTTP 服务不开放注册或密码重置，不在启动、构建或每次请求时初始化；内部保留邮箱不发信，管理登录不依赖 Resend。前台用户表与管理认证五张表分别存储，数据库唯一索引保证首期只有一名管理员。
 
-管理 Cookie 独立命名、host-only、HttpOnly、HTTPS Secure、SameSite Strict，Path 为 `/api/console`，8 小时到期且不自动续期；服务端逐次读库核验，禁止 Cookie 会话缓存。公开管理认证仅挂载用户名登录、读取会话和退出，业务提供受保护的概览；C2 反馈管理另由 `FEEDBACK_ENABLED` 开关控制，其他认证/管理接口拒绝访问。后台未配置独立密钥时返回 `CONSOLE_UNAVAILABLE`，不会访问管理表，原 PC/H5 API 继续运行；公开部署预览始终拒绝管理 API。生产必须先迁移再配置管理密钥，并用独立随机密码初始化，不能把开发 `.env` 当作生产配置。根 npm 初始化命令固定读取开发 `.env`；生产运维显式使用对应环境，例如 `pnpm exec tsx --env-file=.env.production scripts/console-admin.ts init`，重置同理替换末尾参数。
+管理 Cookie 独立命名、host-only、HttpOnly、HTTPS Secure、SameSite Strict，Path 为 `/api/console`，8 小时到期且不自动续期；服务端逐次读库核验，禁止 Cookie 会话缓存。公开管理认证仅挂载用户名登录、读取会话和退出，业务提供受保护的概览；C2 反馈管理另由 `FEEDBACK_ENABLED` 开关控制，C3 只读用户/数据接口由独立 `CONSOLE_DATA_ENABLED` 控制；其他认证/管理接口拒绝访问。后台未配置独立密钥时返回 `CONSOLE_UNAVAILABLE`，不会访问管理表，原 PC/H5 API 继续运行；公开部署预览始终拒绝管理 API。生产必须先迁移再配置管理密钥，并用独立随机密码初始化，不能把开发 `.env` 当作生产配置。根 npm 初始化命令固定读取开发 `.env`；生产运维显式使用对应环境，例如 `pnpm exec tsx --env-file=.env.production scripts/console-admin.ts init`，重置同理替换末尾参数。
 
 `pnpm test` 包含原有 Vue/服务端测试和后台 React Testing Library 用例。`pnpm test:console` 读取本地 `.env`，可用 `CONSOLE_TEST_DATABASE_URL` 覆盖开发连接；仅在生成的独立 `console_test_*` schema 中执行提交的迁移和管理 API 集成检查，测试结束删除该 schema。Neon 使用 direct endpoint 及 `options=-c search_path=...`，迁移前校验实际 schema；显式外键的 schema 仅在测试副本中替换。该命令不应指向生产库，测试账号/密码随机生成且不输出。当前 60 秒的单用例上限容纳远程数据库往返，不代表接口性能门槛。
 
@@ -110,3 +110,9 @@ R2 采用 AWS S3 SDK，region 为 `auto`，endpoint 按账号构造；不配置�
 每轮数据库过期反馈/附件各最多 100 条、上下文/回执/审计各最多 500 条；R2 阶段按 20 秒总预算、最多 20 个对象/20 MiB 和每次最多 5 秒约束。删除失败按指数退避、最多间隔一天继续保留任务，不能静默丢弃；容量直到对象删除成功才释放。删除接口提交事务后最多尝试一个到期对象，剩余由定时任务处理。正在上传的对象等到租约结束后至少一分钟再删，迟到完成会再次确保删除任务存在。
 
 孤儿回收每轮列出 `feedback/` 下最多 100 个对象，持久化分页游标，只处理 24 小时以上且无附件关联的对象，不会一直扫描同一批有效图片。业务删除先持久化独立 outbox，再删除反馈和账号，外键禁止绕过此顺序；双会话的游客反馈只解除辅助账号关联。回滚前关闭反馈入口；一旦存在反馈数据，回滚版本仍须保留 C2 账号删除与清理能力，旧版直接删除账号会被保护性外键拒绝。不要回滚删表或恢复旧数据库后直接开放附件，恢复要求见[上线计划](plans/release.md)。
+
+## C3 只读管理查询
+
+`server/console/read.ts` 提供 `/api/console/users`、用户详情以及 `/api/console/data/*` 固定资源查询，见[数据契约](data-contract.md#console-read-api)。先应用 0000–0004 迁移并初始化对应环境的管理身份，再显式设置 `CONSOLE_DATA_ENABLED=true`；默认关闭，缺少 C2 表时返回 `CONSOLE_DATA_UNAVAILABLE`。该开关不依赖 `FEEDBACK_ENABLED` 或 R2 凭据，关闭反馈提交后仍可查看有效自有反馈的数量。生产开关本批未启用，不新增迁移。
+
+查询使用独立管理 Cookie、每管理员每分钟 120 次的共享限流、`no-store` 和返回前会话复核。前台/游客 Cookie 不替代管理身份。列表只选择声明字段，报告只在 SQL 中提取范围及数量，不读取完整采集状态到应用；认证账号、验证码与管理认证表不提供通用查询。管理页面、昵称修改和删除/撤销等写操作仍待后续实现。本批 API 手动验证及已有检查见[C3 质量记录](quality-log.md#c3-read-api-2026-10-10)。
