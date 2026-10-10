@@ -3,6 +3,7 @@ import type { AppEnv } from '../connections'
 import { getDb } from '../db'
 import { AppError } from '../weread'
 import { consoleConfigured, createConsoleAuth, getConsoleAuth, lockConsoleAdmin } from './auth'
+import { feedbackConsole } from '../feedback/console'
 
 export const consoleRoutes = new Hono<AppEnv>()
 consoleRoutes.on(['GET', 'POST'], '/auth/*', async (c) => {
@@ -34,9 +35,11 @@ consoleRoutes.use('*', async (c, next) => {
     throw new AppError('CONSOLE_UNAVAILABLE', '后台尚未启用，请联系维护者。', 503)
   const session = await getConsoleAuth().api.getSession({ headers: c.req.raw.headers })
   if (!session) throw new AppError('CONSOLE_AUTH_REQUIRED', '请先登录管理后台。', 401)
+  c.set('consoleAccess', { userId: session.user.id, sessionId: session.session.id })
   await next()
 })
 consoleRoutes.get('/overview', (c) => c.json({ status: 'ready' }))
+consoleRoutes.route('/feedback', feedbackConsole)
 // Unknown management paths must never fall through to reading-connection authentication.
 consoleRoutes.all('*', () => {
   throw new AppError('NOT_FOUND', '管理接口不存在。', 404)

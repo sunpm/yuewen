@@ -57,6 +57,8 @@
 
 公开接口为 `GET /api/health`、`GET /api/demo` 和认证库需要的 `/api/auth/*`。`GET /api/connections` 只返回本机两种连接的状态，`PUT /api/guest/connection` 验证 Key 后建立匿名连接。个人报告接口接受有效游客或账号会话，账号设置与删除、保存转换要求登录。
 
+C2 已扩展 `DELETE /api/account`：事务内锁定账号并复核会话及 10 分钟再认证期限，撤销自有反馈/附件访问，将 R2 删除任务持久化后删除账号；双 Cookie 游客反馈只解除辅助账号关联。未应用 C2 迁移时仍支持原账号删除，迁移后不依赖反馈开关来执行清理。
+
 | 接口                                     | 行为                                                                     |
 | ---------------------------------------- | ------------------------------------------------------------------------ |
 | `GET/PUT/DELETE /api/account/weread-key` | 查询状态、先验证再加密替换、移除；不回显 Key                             |
@@ -161,3 +163,33 @@ HTML 用同一报告对象生成，包含内嵌 SVG、完整数据表、范围�
 | `GET /api/console/overview`               | 每次核验有效管理会话，返回 `{ status: 'ready' }`，不暴露用户数据                       |
 
 管理认证与数据响应均 `no-store`；写操作保持同源 JSON 和 16 KiB 限制。管理 Cookie 8 小时到期，HTTPS 下 Secure、HttpOnly、SameSite Strict、host-only，Path 为 `/api/console`。配置未就绪返回 503 `CONSOLE_UNAVAILABLE`；业务接口未登录返回 401 `CONSOLE_AUTH_REQUIRED`；其他管理认证路径及未实现管理接口拒绝访问。公开预览在入口层返回 `PREVIEW_ONLY`。公开注册、邮箱登录/找回、资料修改、账号删除及反馈/用户/表管理接口尚未开放；危险动作的再认证和审计随 C2–C3 实施。
+
+<a id="feedback-api"></a>
+
+## C2 反馈 API（2026-10-10）
+
+已实现，默认关闭；需应用 `0004_c2_feedback.sql` 并设置服务端 `FEEDBACK_ENABLED=true`。公开 Deploy Preview 仍在进入数据库前拒绝。PC 截图组件与后台反馈页面尚未接入，生产及真实 R2 验收状态见[质量记录](quality-log.md#c2-backend-2026-10-10)。
+
+| 接口                                         | 已实现的载荷与结果                                                                                                                                                                                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/feedback/context`                 | JSON `{ allowUnverified?: boolean }`；返回 `contextId / expiresAt / identity / unverifiedReason? / screenshotAvailable`。所有身份先取得上下文，访客另收到仅限 `/api/feedback`、最长 24 小时的 HttpOnly/SameSite Strict Cookie；HTTPS 使用 Secure |
+| `POST /api/feedback`                         | multipart 字段 `contextId`、`requestId`（UUID）、`payload`（JSON 字符串）及可选 `screenshot`；首次保存 `201 { id }`，有效重试 `200 { id }`，不返回正文或附件                                                                                     |
+| `GET /api/console/feedback`                  | 管理会话；`page / pageSize`（默认 20、最大 100）、`status / source / from / to` 白名单筛选，按创建时间及 ID 降序；返回 `items / total / page / pageSize`。列表不加载正文、环境 JSON 或图片，邮箱脱敏                                             |
+| `GET /api/console/feedback/:id`              | 管理详情含原文、处理字段、属主及必要账号信息、附件 MIME/大小/尺寸/期限；不返回 object key 或令牌                                                                                                                                                 |
+| `GET /api/console/feedback/:id/screenshot`   | 管理鉴权、期限和摘要检查后返回私有图片流；返回前再次核验会话与附件有效性，缺图/到期返回 410，禁止缓存并设置 `nosniff`                                                                                                                            |
+| `PATCH /api/console/feedback/:id`            | JSON `{ version, status, category, internalNote }`，返回 `{ id, version }`；状态为 `pending / processing / resolved / closed`，分类为 `uncategorized / bug / suggestion / other`，备注最多 4,000 字；旧版本返回 409                              |
+| `DELETE /api/console/feedback/:id?version=N` | 撤销访问、保存对象删除任务、保留短期无正文墓碑并写审计；成功返回 204，旧版本返回 409                                                                                                                                                             |
+
+`payload` 为 `{ description, steps?, contact?, environment }`：描述 1–4,000 字，步骤最多 4,000 字，联系方式最多 200 字；未知字段拒绝。JSON 字符串最多 32 KiB，环境信息最多 16 KiB。仅反馈 multipart 的实际请求流可到 2 MiB，其他接口保持原 16 KiB/JSON 限制。
+
+`environment` 必填 `entry: "pc"`、`path`（`/`、`/demo`、`/overview`、`/report`、`/shelf`、`/notes`、`/settings`、`/login`）、`source`（`mock / guest / account / none`）、`theme`（`light / dark / unknown`）、`viewport: { width, height }` 和 `dpr`。可选 `range` 沿用报告范围、`view` 为 `overview / bookshelf / notes / insights`，以及受限的 `language / timezone / browser / browserVersion / os / clientVersion / clientTime / error`；具体枚举与校验以 `server/feedback/input.ts` 为准。不接收任意 URL、查询词、referrer、User-Agent 原文、DOM、网络响应或控制台内容。服务端单独记录部署、构建、接收时间、请求关联 ID 和未验证原因。
+
+账号和游客沿用 `X-Yuewen-Connection` 与真实 Cookie 鉴权；两种有效 Cookie 同时存在时必须选择。所选会话过期时，调用上下文接口须显式 `allowUnverified: true` 重新确认，不能把旧请求自动转给访客；访客来源使用 `none` 或 `mock`。属主与辅助登录账号分列，游客保存为账号后不迁移旧反馈。客户端不能提交属主字段。
+
+重试必须保留原 `contextId / requestId / payload / screenshot`。摘要包含规范化文本、全部诊断字段及图片字节 SHA-256；使用同一标识改变载荷、丢失 Cookie、换会话或上下文过期返回 409，删除后旧请求返回 410。上下文最长 24 小时，墓碑保存到其期限；期限结束后即使回执已清理，旧上下文也不能再提交。修改内容或移除截图需生成新请求标识。
+
+截图只接受真实可完整解码的单帧 PNG/JPEG/WebP，最多 1 张、1 MiB、400 万像素。`sharp` 核验声明类型、真实格式、像素数并执行有界解码；文件名不进入存储 key。R2 对象使用服务端随机 `feedback/UUID`，元信息存真实 MIME、字节数、尺寸、摘要、状态和到期时间，不存二进制。缺少配置、容量已满或图片不合法时明确失败，客户端可由用户确认后改为文字反馈，不静默丢图。
+
+共享 PostgreSQL 限流为每 IP 每 10 分钟 5 次提交（上下文另有同等限流）、每有效属主每小时 10 个新请求、全站 UTC 日 200 个新请求，超限返回 429 和 `Retry-After`。每日/属主额度在预留事务中扣减，失败后待重试的预留也占用该窗口，合法重试不重复扣减。1 GiB 附件容量包含待上传、有效附件和未完成删除对象；容量与幂等使用同一事务锁。管理 API 每分钟 120 次，图片读取另限每分钟 30 次。
+
+R2 写入不跨数据库事务：先预留，再上传同一 key，再以租约及身份检查发布；失败不返回成功，半成品不对后台可见。上传租约 60 秒，R2 PUT 最长 10 秒、单次 SDK 尝试；删除与迟到上传交错时延迟清理，最终写入失败由回执重试、删除任务和孤儿对账回收。正文/诊断与审计保留 180 天，截图 30 天，未完成上传 24 小时回收；读取即时检查期限。R2 的 30 天生命周期仍需在实际 bucket 单独配置。

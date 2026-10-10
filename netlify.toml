@@ -6,6 +6,7 @@
   NODE_VERSION = "22"
 [functions]
   node_bundler = "esbuild"
+  external_node_modules = ["sharp"]
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/api/:splat"
