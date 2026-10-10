@@ -22,7 +22,11 @@ import { AppError, weread } from './weread'
 export type Access = { kind: 'guest' | 'account'; ownerId: string; sessionId: string }
 export type AppEnv = {
   Bindings: { clientIp?: string }
-  Variables: { access: Access; requestId: string }
+  Variables: {
+    access: Access
+    requestId: string
+    consoleAccess: { userId: string; sessionId: string }
+  }
 }
 export type Transaction = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0]
 const cookie = 'yuewen-guest'
@@ -95,9 +99,14 @@ export async function invalidateConnection(access: Access, version: number) {
       .set({ status: 'invalid' })
       .where(and(eq(credential.userId, access.ownerId), eq(credential.version, version)))
 }
-export async function limit(key: string, maximum: number, windowSeconds: number) {
+export async function limit(
+  key: string,
+  maximum: number,
+  windowSeconds: number,
+  db: Transaction | ReturnType<typeof getDb> = getDb(),
+) {
   const expiresAt = new Date(Date.now() + windowSeconds * 1000)
-  const [row] = await getDb()
+  const [row] = await db
     .insert(requestLimit)
     .values({ key, count: 1, expiresAt })
     .onConflictDoUpdate({
@@ -108,7 +117,14 @@ export async function limit(key: string, maximum: number, windowSeconds: number)
       },
     })
     .returning()
-  if (row.count > maximum) throw new AppError('RATE_LIMIT', '操作过于频繁，请稍后重试。', 429, true)
+  if (row.count > maximum)
+    throw new AppError(
+      'RATE_LIMIT',
+      '操作过于频繁，请稍后重试。',
+      429,
+      true,
+      Math.max(1, Math.ceil((row.expiresAt.getTime() - Date.now()) / 1000)),
+    )
 }
 export async function limitSource(c: Context<AppEnv>, action: string, maximum: number) {
   // Only the platform Context supplies IP metadata; client headers are not trusted.

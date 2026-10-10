@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { getDb } from '../../server/db'
 import { consoleConfigured } from '../../server/console/auth'
+import { cleanupFeedback } from '../../server/feedback/lifecycle'
 export default async (_request: Request, context?: { deploy: { context: string } }) => {
   if (context?.deploy.context !== 'production') return new Response(null, { status: 204 })
   if (!process.env.DATABASE_URL) return new Response(null, { status: 204 })
@@ -38,6 +39,9 @@ export default async (_request: Request, context?: { deploy: { context: string }
   await db.execute(
     sql`delete from request_limit where key in (select key from request_limit where expires_at < now() limit 500 for update skip locked)`,
   )
+  // Reading/authentication cleanup completes first, independently of R2 availability.
+  const feedback = await cleanupFeedback()
+  if (feedback.storageFailed) console.warn('yuewen.feedback_storage_cleanup_deferred')
   return new Response(null, { status: 204 })
 }
 export const config = { schedule: '*/15 * * * *' }

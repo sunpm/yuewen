@@ -6,15 +6,10 @@ import { and, eq, gt, lt, or, sql, isNull, exists } from 'drizzle-orm'
 import { z } from 'zod'
 import { authConfigured, getAuth } from './auth'
 import { consoleRoutes } from './console/routes'
+import { feedbackRoutes } from './feedback/routes'
+import { deleteAccount } from './feedback/lifecycle'
 import { getDb } from './db'
-import {
-  credential,
-  guest,
-  report,
-  reportReplacement,
-  user,
-  session as authSession,
-} from './db/schema'
+import { credential, guest, report, reportReplacement, session as authSession } from './db/schema'
 import { encryptKey, keyring } from './crypto'
 import { AppError, weread } from './weread'
 import { advanceCollector, buildReport, newCollector, num, obj, str } from './collector'
@@ -48,15 +43,24 @@ app.use('/api/*', async (c, next) => {
     const origin = c.req.header('origin')
     if (!origin || origin !== (process.env.APP_URL ?? 'http://127.0.0.1:5173'))
       throw new AppError('UNTRUSTED_ORIGIN', '请求来源不受支持，请回到本站操作。', 403)
-    if (c.req.method !== 'DELETE' && !c.req.header('content-type')?.startsWith('application/json'))
+    const type =
+      c.req.method === 'POST' && c.req.path === '/api/feedback'
+        ? 'multipart/form-data'
+        : 'application/json'
+    if (c.req.method !== 'DELETE' && !c.req.header('content-type')?.startsWith(type))
       throw new AppError('INVALID_INPUT', '请求格式不正确。', 415)
   }
   await next()
 })
-app.use(
-  '/api/*',
-  bodyLimit({
-    maxSize: 16384,
+app.use('/api/*', (c, next) => {
+  if (c.req.method === 'POST' && c.req.path === '/api/feedback') {
+    // Count the actual multipart stream even if a client supplies a smaller Content-Length.
+    const headers = new Headers(c.req.raw.headers)
+    headers.delete('content-length')
+    c.req.raw = new Request(c.req.raw, { headers })
+  }
+  return bodyLimit({
+    maxSize: c.req.method === 'POST' && c.req.path === '/api/feedback' ? 2 * 1024 * 1024 : 16384,
     onError: (c) =>
       c.json(
         {
@@ -67,8 +71,8 @@ app.use(
         },
         413,
       ),
-  }),
-)
+  })(c, next)
+})
 app.get('/api/health', (c) => c.json({ status: 'ok', auth: authConfigured() }))
 app.get('/api/demo', (c) => c.json(createDemo(parseRange(c.req.query('range') ?? 'recent'))))
 app.on(['GET', 'POST'], '/api/auth/*', (c) => {
@@ -77,6 +81,7 @@ app.on(['GET', 'POST'], '/api/auth/*', (c) => {
   return getAuth().handler(c.req.raw)
 })
 app.route('/api/console', consoleRoutes)
+app.route('/api/feedback', feedbackRoutes)
 app.route('/api', connections)
 app.use('/api/*', async (c, next) => {
   if (c.req.path.startsWith('/api/account')) {
@@ -268,12 +273,8 @@ app.delete('/api/account/weread-key', async (c) => {
   return c.body(null, 204)
 })
 app.delete('/api/account', async (c) => {
-  const session = c.get('access')
-  const login = await accountSession(c)
-  if (!login || Date.now() - login.session.createdAt.getTime() > 600000)
-    throw new AppError('REAUTH_REQUIRED', '删除账号前，请先退出并重新登录。', 403)
+  await deleteAccount(c.get('access'))
   const response = await getAuth().api.signOut({ headers: c.req.raw.headers, asResponse: true })
-  await getDb().delete(user).where(eq(user.id, session.ownerId))
   return response
 })
 app.get('/api/session/reports', async (c) => {

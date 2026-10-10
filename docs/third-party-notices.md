@@ -1,5 +1,7 @@
 # 模板与组件来源
 
+C2 后端（2026-10-10）新增 [AWS SDK for JavaScript S3 Client](https://github.com/aws/aws-sdk-js-v3) 3.1149.0 与 [sharp](https://github.com/lovell/sharp) 0.35.5，均为 Apache-2.0。R2 客户端依据 [Cloudflare S3 v3 示例](https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/)配置，图片限制依据 [sharp constructor 文档](https://sharp.pixelplumbing.com/api-constructor/)设置；使用依赖 API，未复制完整示例工程。原生 libvips 与平台依赖的许可证随各 npm 包分发。
+
 后台 C0–C1（2026-10-09）采用 [Ant Design](https://github.com/ant-design/ant-design) 6.6.5 和 [@ant-design/cssinjs](https://github.com/ant-design/cssinjs) 2.1.2，均为 MIT；React 组件行为检查使用 [Testing Library](https://github.com/testing-library/react-testing-library) 16.3.3 与 DOM 10.4.1（MIT）。未复制完整后台模板，暂未引入 ProComponents。认证沿用 Better Auth 1.7.7 的 [Username 插件](https://better-auth.com/docs/plugins/username)，支持项目已有账号的连字符；Tailwind 与 antd 层序按[官方 CSS 兼容说明](https://ant.design/docs/react/compatible-style/)配置。
 
 React 外壳的 Button、Select 根据 [shadcn/ui 官方 new-york-v4 registry](https://ui.shadcn.com/r/styles/new-york-v4/button.json) 和同目录的 `select.json` 适配（2026-10-08），只保留当前使用的变体与组件，采用 Radix 独立包与阅纹主题；MIT 许可原文保留在 [React 组件 LICENSE](../web/src/components/ui/LICENSE)。

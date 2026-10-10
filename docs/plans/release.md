@@ -56,7 +56,7 @@
 
 费用核算按[Netlify credits 规则](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/)记录生产部署、报告生成函数耗时、响应体积和页面访问。不能把 300 credits 全部当作部署额度，也不能把其他服务的免费额度混为一项。先以真实账号的一次完整报告测出消耗，再估算可承受的访问量。
 
-当前已部署方案为 Netlify + PostgreSQL（Neon）+ Resend，Cloudflare 管理 DNS。新增截图存储按用户要求使用 Cloudflare R2，尚未创建或接入；数据库只存反馈与附件元信息，函数不落盘。按[反馈存储](console.md#feedback)分别核算数据库元信息、R2 存储/读写与函数上传/读取成本；不引入单独的容器服务器或外部任务队列。
+当前已部署方案为 Netlify + PostgreSQL（Neon）+ Resend，Cloudflare 管理 DNS。新增截图存储按用户要求使用 Cloudflare R2，服务端适配已实现，bucket 尚未创建，真实联调与生产启用待完成；数据库只存反馈与附件元信息，函数不落盘。按[反馈存储](console.md#feedback)分别核算数据库元信息、R2 存储/读写与函数上传/读取成本；不引入单独的容器服务器或外部任务队列。
 
 <a id="naming"></a>
 
@@ -106,7 +106,7 @@ Neon 的两个分支使用独立连接串。公开预览使用模拟示例或脱
 
 截图使用私有 Standard bucket，生产命名 `sunpm-read-feedback-production`，开发命名 `sunpm-read-feedback-development`；命名为计划值，本轮未创建。两环境使用独立 bucket 和限制到对应 bucket 的最小读写凭据，公开预览不配置 R2 写权限。不启用公共 `r2.dev` 地址，不将附件作为静态网站资源发布。
 
-实现时在本地忽略配置与 Netlify Functions 配置 `R2_ACCOUNT_ID`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY`、`R2_BUCKET`；S3 endpoint 根据账号构造，不注入 `VITE_*`。`.env.example` 只写变量名/空占位，凭据留在私有环境。R2 接入不要求另建 Worker，不改变现有网站 DNS 或后台地址。
+已提供服务端配置项；启用时在本地忽略配置与 Netlify Functions 配置 `R2_ACCOUNT_ID`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY`、`R2_BUCKET`；S3 endpoint 根据账号构造，不注入 `VITE_*`。`.env.example` 只写变量名/空占位，凭据留在私有环境。R2 接入不要求另建 Worker，不改变现有网站 DNS 或后台地址。C2 后端批次默认 `FEEDBACK_ENABLED=false`；先迁移、配置私有 bucket 与 30 天生命周期并完成对应验收，再显式开启。关闭反馈开关不会停掉已迁移数据的清理与账号删除适配。
 
 配置 30 天对象生命周期；应用自行即时拒绝过期读取，并持续重试删除任务和回收未完成上传。上线验私有对象不可匿名读取、开发/生产隔离、真实上传与读取、R2 故障、数据库最终写入失败、上传中删除账号、到期清理、孤儿回收及恢复后缺图。服务端内存/请求体和管理读取流量单独测量，不把“图片存 R2”解释为函数零资源消耗。
 

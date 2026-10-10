@@ -175,3 +175,124 @@ export const connectionSave = pgTable(
   },
   (t) => [uniqueIndex('connection_save_request_idx').on(t.userId, t.requestId)],
 )
+
+// Submission contexts expire even when an authenticated session lives longer.
+export const feedbackContext = pgTable(
+  'feedback_context',
+  {
+    id: text('id').primaryKey(),
+    identityHash: text('identity_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index('feedback_context_expiry_idx').on(t.expiresAt),
+    index('feedback_context_identity_idx').on(t.identityHash, t.expiresAt),
+  ],
+)
+export const feedbackSubmission = pgTable(
+  'feedback_submission',
+  {
+    requestId: text('request_id').primaryKey(),
+    contextId: text('context_id')
+      .notNull()
+      .references(() => feedbackContext.id),
+    digest: text('digest').notNull(),
+    feedbackId: text('feedback_id').notNull(),
+    state: text('state', { enum: ['pending', 'complete', 'deleted'] }).notNull(),
+    leaseId: text('lease_id'),
+    leaseUntil: timestamp('lease_until', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index('feedback_submission_expiry_idx').on(t.expiresAt),
+    uniqueIndex('feedback_submission_feedback_idx').on(t.feedbackId),
+  ],
+)
+export const feedback = pgTable(
+  'feedback',
+  {
+    id: text('id').primaryKey(),
+    ownerType: text('owner_type', { enum: ['account', 'guest', 'visitor'] }).notNull(),
+    // Account deletion must enqueue objects before deleting feedback; never cascade this FK.
+    userId: text('user_id').references(() => user.id, { onDelete: 'restrict' }),
+    guestId: text('guest_id').references(() => guest.id, { onDelete: 'set null' }),
+    associatedUserId: text('associated_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    source: text('source', { enum: ['account', 'guest', 'mock', 'none'] }).notNull(),
+    description: text('description').notNull(),
+    steps: text('steps').notNull(),
+    contact: text('contact').notNull(),
+    environment: jsonb('environment').$type<Record<string, unknown>>().notNull(),
+    serverEnvironment: jsonb('server_environment').$type<Record<string, unknown>>().notNull(),
+    status: text('status', { enum: ['pending', 'processing', 'resolved', 'closed'] })
+      .notNull()
+      .default('pending'),
+    category: text('category', { enum: ['uncategorized', 'bug', 'suggestion', 'other'] })
+      .notNull()
+      .default('uncategorized'),
+    internalNote: text('internal_note').notNull().default(''),
+    version: integer('version').notNull().default(0),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    index('feedback_created_idx').on(t.createdAt),
+    index('feedback_owner_idx').on(t.userId),
+    index('feedback_guest_idx').on(t.guestId),
+    index('feedback_associated_user_idx').on(t.associatedUserId),
+    index('feedback_expiry_idx').on(t.expiresAt),
+    check(
+      'feedback_owner_check',
+      sql`(${t.ownerType} = 'account' and ${t.userId} is not null and ${t.guestId} is null) or (${t.ownerType} = 'guest' and ${t.userId} is null) or (${t.ownerType} = 'visitor' and ${t.userId} is null and ${t.guestId} is null)`,
+    ),
+  ],
+)
+export const feedbackAttachment = pgTable(
+  'feedback_attachment',
+  {
+    feedbackId: text('feedback_id')
+      .primaryKey()
+      .references(() => feedback.id, { onDelete: 'restrict' }),
+    objectKey: text('object_key').notNull().unique(),
+    mime: text('mime').notNull(),
+    bytes: integer('bytes').notNull(),
+    digest: text('digest').notNull(),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    state: text('state', { enum: ['pending', 'uploaded'] }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [index('feedback_attachment_expiry_idx').on(t.expiresAt)],
+)
+// Durable outbox: deliberately has no FK to a user, feedback or attachment.
+export const feedbackObjectDelete = pgTable(
+  'feedback_object_delete',
+  {
+    objectKey: text('object_key').primaryKey(),
+    bytes: integer('bytes').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    revision: integer('revision').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('feedback_delete_due_idx').on(t.nextAttemptAt)],
+)
+export const feedbackStorageScan = pgTable('feedback_storage_scan', {
+  id: integer('id').primaryKey(),
+  cursor: text('cursor'),
+  nextScanAt: timestamp('next_scan_at', { withTimezone: true }).notNull().defaultNow(),
+})
+export const consoleAudit = pgTable(
+  'console_audit',
+  {
+    id: text('id').primaryKey(),
+    actorId: text('actor_id'),
+    action: text('action').notNull(),
+    targetId: text('target_id').notNull(),
+    result: text('result').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [index('console_audit_expiry_idx').on(t.expiresAt)],
+)
