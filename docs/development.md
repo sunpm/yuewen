@@ -10,6 +10,8 @@ React PC3 的图表与数据明细位于 `web/react/src/components/report-module
 
 PC4 代码核查后，React 的报告读取统一处理归属/期限失效并清理私有缓存；同一上下文与版本保留已确认的期限和分页进度，旧版本不能回写。采集后的笔记补齐可单独停止；下载仅在勾选全部笔记时补齐分页，生成前后仍核验报告归属和版本。实际检查及动态验收缺项见[质量记录](quality-log.md#pc4-code-quality-2026-10-09)。
 
+React 报告 Query 使用 `skipToken` 仅订阅由读取流程写入的缓存。全局侧栏已有邮件反馈兜底，使用原生 `dialog` 处理焦点与 Escape，支持复制邮箱；`client/feedback.ts` 与旧 Vue/H5 共用邮件配置，正文不附带页面地址或阅读数据。截图反馈仍按 C2 实施，当前入口不上传图片、不调用反馈 API。
+
 根 `typecheck` 分别运行 `vue-tsc`、React PC `tsc` 和后台 `tsc`；根 `lint` 分别运行 ESLint 和 Biome。`web/react/`、`console/`、各自的 Vite/tsconfig、后台 TSX 测试与 `biome.json` 由 Biome 负责，Vue/共享/服务端保留 ESLint，Markdown 保留 Prettier；同一源码不重复格式化。两个 PC 的 Tailwind 扫描范围显式分开，React 共用根字体和品牌资源；H5 构建与已有 Vitest 用例发现范围保持不变。
 
 两个 Vue SPA 与 Hono 同仓库。桌面端 `web/`，独立 Vant 移动端 `web-mobile/`，共用 `client/` 交互逻辑与 `shared/` 数据契约。Vitesse 的文件路由、自动导入、布局目录和 TypeScript 能力保留；去除 I18n、UnoCSS、Iconify、SSG、PWA、示例 store 和 Cypress。原布局插件的 peer 版本不支持当前组合，因此使用一个 Vue 布局组件。基础按钮采用 shadcn/vue 的 Primitive + CVA 方式，Select、Dialog、Table 使用 shadcn/vue 官方组件源码，底层由 Reka UI 管理焦点和键盘操作。

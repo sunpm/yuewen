@@ -8,7 +8,7 @@ import {
   type ReadingReport,
   type ReportTarget,
 } from '@shared/report'
-import { useQuery } from '@tanstack/react-query'
+import { skipToken, useQuery } from '@tanstack/react-query'
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router'
 import {
@@ -64,7 +64,7 @@ export function useReading() {
   const saving = !!params.get('save')
   const scope = `${access}:${owner?.context ?? 'none'}:${range}`
   const [pointer, setPointer] = useState<ReturnType<typeof taskKey>>(() => taskKey('pending'))
-  const taskQuery = useQuery<CachedTask>({ queryKey: pointer, enabled: false })
+  const taskQuery = useQuery<CachedTask>({ queryKey: pointer, queryFn: skipToken })
   const currentKey = useRef(pointer)
   const currentRun = useRef(0)
   const [phase, setPhase] = useState<'collect' | 'notes'>('collect')
