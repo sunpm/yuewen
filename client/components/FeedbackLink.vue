@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-const email = 'isunpm@outlook.com'
+import { feedbackEmail as email, feedbackMailto as mailto } from '../feedback'
 const message = ref('')
-const mailto = `mailto:${email}?subject=${encodeURIComponent('阅纹意见反馈')}&body=${encodeURIComponent('问题或建议：\n\n复现步骤：\n\n请勿填写 API Key、验证码或私人阅读内容。')}`
 async function copy() {
   try {
     await navigator.clipboard.writeText(email)

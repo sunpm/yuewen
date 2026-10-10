@@ -2,6 +2,7 @@ import { Palette } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { Feedback } from '@/components/feedback'
 import {
   Select,
   SelectContent,
@@ -93,6 +94,7 @@ export default function App() {
                   <span className="nav-label">{label}</span>
                 </NavLink>
               ))}
+              <Feedback />
             </nav>
             <Select value={theme} onValueChange={setTheme}>
               <SelectTrigger aria-label="选择主题" className="theme-trigger">
