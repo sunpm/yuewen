@@ -29,12 +29,15 @@ export default function App() {
 
   useEffect(() => {
     document.title = `${title} · 阅纹`
+    document
+      .querySelector('meta[name="robots"]')
+      ?.setAttribute('content', currentPath === '/' ? 'index, follow' : 'noindex, nofollow')
     if (previousKey.current !== location.key) {
       window.scrollTo(0, 0)
       main.current?.focus({ preventScroll: true })
       previousKey.current = location.key
     }
-  }, [title, location.key])
+  }, [title, location.key, currentPath])
 
   return (
     <>
@@ -116,7 +119,6 @@ export default function App() {
         <div className="workspace">
           <header className="page-header">
             <h1>{title}</h1>
-            <span className="preview-badge">React 迁移预览</span>
           </header>
           <main id="main" ref={main} tabIndex={-1} className="page-content">
             <ErrorBoundary key={location.key}>

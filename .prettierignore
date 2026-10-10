@@ -9,9 +9,9 @@ server/db/migrations/meta
 test-results
 playwright-report
 
-dist-react
-web/react
-vite.react.config.ts
+web/src
+web/components.json
+vite.config.ts
 tsconfig.react.json
 biome.json
 /console

@@ -3,11 +3,11 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["web/react/src/*"],
+      "@/*": ["web/src/*"],
       "@client/*": ["client/*"],
       "@shared/*": ["shared/*"]
     }
   },
-  "include": ["web/react/src/**/*.ts", "web/react/src/**/*.tsx", "vite.react.config.ts"],
-  "exclude": ["node_modules", "dist", "dist-react"]
+  "include": ["web/src/**/*.ts", "web/src/**/*.tsx", "vite.config.ts"],
+  "exclude": ["node_modules", "dist"]
 }

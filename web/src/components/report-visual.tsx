@@ -46,6 +46,12 @@ export function ReportChart({
               width: chart.getWidth(),
               height: chart.getHeight(),
             }),
+            aria: {
+              enabled: true,
+              label: {
+                description: `${module.title}，${module.scope}，单位${module.unit}。完整数据与统计口径见下方明细。`,
+              },
+            },
             animation: !reduced.matches,
           },
           true,

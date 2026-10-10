@@ -10,7 +10,7 @@
 
 游客临时接入、按需登录保存连接、报告冲突确认与保存回执已实现。支持扩展阅读指标、月度联动、完整报告下载及邮件反馈入口。Hono API、Better Auth 邮箱验证码和可选密码、PostgreSQL 数据模型、Key 加密、分批采集与过期清理共用一套实现。该功能版本已合并并发布，首版完整验收仍待完成，不能以健康检查或已有构建代替生产闭环验收。
 
-PC 的 React + Vite 工程与基础外壳已接入，支持独立预览、侧栏导航、主题和加载失败恢复；首页、概览、深度报告、书架和笔记已接入模拟与个人业务，支持游客采集、下载、登录保存及刷新恢复；27 个报告模块的完整图表与明细、画像精选、扩展指标和月份联动已接入，已有非浏览器检查通过，运行与品质验收待完成。当前线上继续使用 Vue PC；React 正式入口完成并验收后直接替换。后台 C0–C1 已接入独立管理员登录、初始化/重置与 `/console` 工程入口，生产启用和浏览器验收待完成；截图反馈、用户/表管理和基础访问统计仍处于计划阶段。H5 保留现有入口与构建，暂停功能和视觉迭代，未来单独重构；设备自动切换随之推迟。执行顺序见[总计划](PLAN.md)。
+PC 已切换为 React + Vite 正式入口，包含游客采集、登录保存、恢复、27 个完整图表与明细、月份联动及 HTML/JSON 下载。PC4 按关键流程与已有工程检查验收，首屏字体加载及图表读屏描述已优化。后台 C0–C1 已接入独立管理员登录与 `/console`，生产启用仍待对应验收；截图反馈、用户/表管理和统计继续按计划实施。H5 保留既有入口，暂停更新，设备自动切换随未来重构推进。执行顺序见[总计划](PLAN.md)。
 
 ## 本地开发
 
@@ -22,7 +22,7 @@ test -f .env || cp .env.example .env
 pnpm dev
 ```
 
-访问 `http://127.0.0.1:5173`。桌面端示例为 `/demo`，独立 Vant 移动端为 `/m/`，示例为 `/m/demo`；两端无需数据库即可体验。默认从服务端开发 Key 读取真实数据；使用 `/demo?source=mock` 或 `/m/demo?source=mock` 可浏览模拟示例，公开构建始终使用模拟示例。邮箱服务未配置时，登录页明确提示并停用发送按钮。
+访问 `http://127.0.0.1:5173`。桌面端示例为 `/demo`，独立 Vant 移动端为 `/m/`，示例为 `/m/demo`；两端无需数据库即可体验。PC 示例默认使用模拟数据，可显式选择本地开发来源；H5 沿用默认开发来源，`/m/demo?source=mock` 为模拟示例，公开构建始终使用模拟示例。邮箱服务未配置时，登录页明确提示并停用发送按钮。
 
 ```sh
 pnpm test
@@ -36,7 +36,7 @@ pnpm test:e2e
 
 实际验证结果与限制见 [质量记录](docs/quality-log.md)。
 
-React 外壳可用 `pnpm dev:react` 单独启动，访问 `http://127.0.0.1:5174`。业务联调需同时运行 `pnpm dev:api:react`；默认示例使用模拟数据，个人页面支持游客与账号连接。`pnpm build:react` 输出独立的 `dist-react/`，不会替换当前正式入口。
+PC 正式产物为 `dist/`，`pnpm preview` 可预览生产构建。旧 PC 页面和迁移专用入口已移除。
 
 后台本地入口为 `http://127.0.0.1:5173/console/`。配置与初始化见[开发说明](docs/development.md#后台开发与初始化)，独立集成检查为 `pnpm test:console`；生产管理身份需单独配置。
 
@@ -52,8 +52,7 @@ React 外壳可用 `pnpm dev:react` 单独启动，访问 `http://127.0.0.1:5174
 
 ## 技术与目录
 
-- 前端：从 Vitesse 配置裁剪的 Vue 3、文件路由、自动导入、Vite、TypeScript；shadcn/vue 官方基础组件、Reka UI、Tailwind CSS。
-- 迁移中的 PC：`web/react/` 使用 React、React Router、shadcn/ui、Radix、Tailwind CSS 与 Biome；已接入业务流程、TanStack Query、React Hook Form/Zod 与 Better Auth React 适配。
+- PC：`web/` 使用 React、React Router、shadcn/ui、Radix、Tailwind CSS、Biome、TanStack Query、React Hook Form/Zod 与 Better Auth React。
 - 后台：`console/` 使用 React、antd、独立 Router/QueryClient、RHF/Zod 和 Better Auth Username。
 - 移动端：Vant 4，独立路由、底部导航与弹层；不使用桌面响应式布局。
 - 图表：ECharts 按需注册，SVG 渲染，提供数据表和离线图表。

@@ -19,8 +19,6 @@
     }
   },
   "include": [
-    "web/**/*.ts",
-    "web/**/*.vue",
     "shared/**/*.ts",
     "server/**/*.ts",
     "scripts/**/*.ts",
@@ -30,15 +28,15 @@
     "client/**/*.ts",
     "client/**/*.vue",
     "web-mobile/**/*.ts",
-    "web-mobile/**/*.vue"
+    "web-mobile/**/*.vue",
+    "web/src/components/ui/input/Input.vue"
   ],
   "exclude": [
-    "web/react",
-    "vite.react.config.ts",
     "dist",
-    "dist-react",
     "node_modules",
     "console",
-    "vite.console.config.ts"
+    "vite.console.config.ts",
+    "web/src/**/*.tsx",
+    "vite.config.ts"
   ]
 }

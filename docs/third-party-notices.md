@@ -2,13 +2,13 @@
 
 后台 C0–C1（2026-10-09）采用 [Ant Design](https://github.com/ant-design/ant-design) 6.6.5 和 [@ant-design/cssinjs](https://github.com/ant-design/cssinjs) 2.1.2，均为 MIT；React 组件行为检查使用 [Testing Library](https://github.com/testing-library/react-testing-library) 16.3.3 与 DOM 10.4.1（MIT）。未复制完整后台模板，暂未引入 ProComponents。认证沿用 Better Auth 1.7.7 的 [Username 插件](https://better-auth.com/docs/plugins/username)，支持项目已有账号的连字符；Tailwind 与 antd 层序按[官方 CSS 兼容说明](https://ant.design/docs/react/compatible-style/)配置。
 
-React 外壳的 Button、Select 根据 [shadcn/ui 官方 new-york-v4 registry](https://ui.shadcn.com/r/styles/new-york-v4/button.json) 和同目录的 `select.json` 适配（2026-10-08），只保留当前使用的变体与组件，采用 Radix 独立包与阅纹主题；MIT 许可原文保留在 [React 组件 LICENSE](../web/react/src/components/ui/LICENSE)。
+React 外壳的 Button、Select 根据 [shadcn/ui 官方 new-york-v4 registry](https://ui.shadcn.com/r/styles/new-york-v4/button.json) 和同目录的 `select.json` 适配（2026-10-08），只保留当前使用的变体与组件，采用 Radix 独立包与阅纹主题；MIT 许可原文保留在 [React 组件 LICENSE](../web/src/components/ui/LICENSE)。
 
 PC 布局核对了 [AIHOT](https://github.com/KKKKhazix/AIHOT) 提交 `c547b669acc7f64720cd82024e502446ee1ef88d` 的 `apps/web/app/components/shell/Sidebar.tsx`、`Chrome.tsx` 与 `NOTICE`：仅参考左侧导航、底部主题与右侧内容的布局关系，未复制源码或品牌资产，使用阅纹现有名称、Logo、字体与配色。
 
-前端构建配置依据 [Vitesse](https://github.com/antfu-collective/vitesse) 提交 `8a01bc9283fedcd63e750af55a75496361789a81` 裁剪，保留文件路由、自动导入及 Vue 目录组织。没有复制模板的示例业务、品牌、多语言或 UnoCSS。
+前端构建配置依据 [Vitesse](https://github.com/antfu-collective/vitesse) 提交 `8a01bc9283fedcd63e750af55a75496361789a81` 裁剪，历史 PC 保留文件路由、自动导入及 Vue 目录组织；PC4 后仅 H5 继续使用相关 Vue 构建工具。没有复制模板的示例业务、品牌、多语言或 UnoCSS。
 
-按钮、输入和工具函数参考 [shadcn/vue 的手动集成方式](https://www.shadcn-vue.com/docs/installation/vite)，行为依赖 Reka UI，自行适配阅纹主题。第三方 npm 包的许可随各包提供。
+按钮、输入和工具函数参考 [shadcn/vue 的手动集成方式](https://www.shadcn-vue.com/docs/installation/vite)，历史版本行为依赖 Reka UI；PC4 已删除旧 PC 的相关组件与依赖，仅保留既有检查使用的 Input 组件。第三方 npm 包的许可随各包提供。
 
 独立移动端采用 [Vant](https://github.com/youzan/vant) 4.10.2，依照其 [ConfigProvider 文档](https://vant-ui.github.io/vant/#/zh-CN/config-provider) 配置品牌颜色与明暗主题；组件按需导入。
 
@@ -28,6 +28,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 Select、Dialog、Table 从 [shadcn/vue 官方 new-york registry](https://www.shadcn-vue.com/r/styles/new-york/select.json) 取得（2026-10-03），保留组件结构，调整中文关闭文案、主题和可选属性默认值。Dialog 与 Table 分别来自同目录的 `dialog.json` 和 `table.json`。图标沿用组件采用的 Lucide，使用发布者当前维护的 `@lucide/vue` 包。shadcn/vue 为 MIT 许可，Copyright (c) 2023 unovue；上述 MIT 正文同样适用。
 
-字体来源：[LXGW WenKai Lite v1.522](https://github.com/lxgw/LxgwWenKai-Lite/releases/tag/v1.522)。使用官方 Regular、Medium TTF，以 FontTools 4.60.2 进行 WOFF2 格式转换，未裁剪字符或修改字形；实际字重为 400、500。完整版权与 SIL OFL 1.1 许可保留在 [OFL.txt](../web/public/fonts/OFL.txt)。品牌组合 SVG 的文字使用相同字形转路径，PNG 由矢量文件生成。
+字体来源：[LXGW WenKai Lite v1.522](https://github.com/lxgw/LxgwWenKai-Lite/releases/tag/v1.522)。使用官方 Regular、Medium TTF，以 FontTools 4.60.2 进行 WOFF2 格式转换，原文件未裁剪字符或修改字形；实际字重为 400、500。PC4 使用同版 FontTools 从原 WOFF2 生成界面字集子集供 PC 按需加载，不修改字形，原完整字体继续用于其他字符和导出。完整版权与 SIL OFL 1.1 许可保留在 [OFL.txt](../web/public/fonts/OFL.txt)。品牌组合 SVG 的文字使用相同字形转路径，PNG 由矢量文件生成。
 
 [微信读书公开首页](https://weread.qq.com/) 的公开书目数据（2026-10-03）用于 `shared/demo-books.json`：只保存书籍 ID、书名、作者及该书对应封面 URL。没有保存用户阅读数据；统计与演示文本来自本项目的独立模拟数据。
