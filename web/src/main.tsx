@@ -6,7 +6,10 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import App from '@/app'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { startAnalytics } from '@/lib/analytics'
 import { queries } from '@/lib/business'
+
+startAnalytics()
 
 const root = document.getElementById('app')
 if (!root) throw new Error('Missing app root')

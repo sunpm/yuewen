@@ -124,3 +124,19 @@ R2 采用 AWS S3 SDK，region 为 `auto`，endpoint 按账号构造；不配置�
 C3 危险操作每次输入管理员当前密码并选择结构化原因；事务内复用认证库校验，不增加公开改密或通用表编辑接口。前端不把密码放入 Query mutation 变量，提交后清空密码；错误保留目标版本，刷新后再操作，离开弹窗取消请求且不自动重放。审计按 180 天清理。
 
 0005 增加审计原因和游客报告清除回执；新管理接口要求迁移完成，前台账号替换回执、游客读取和 C2 审计保留迁移前兼容路径，生产未启用 C3 时无需抢先开放后台。回滚时先关闭 `CONSOLE_DATA_ENABLED`，保留新增字段、回执和附件删除任务；一旦实际使用游客清除，回滚代码也须保留游客回执拒绝重试的逻辑，不能通过反向删列恢复旧报告。生产迁移/管理启用仍在 C5 对应批次执行。本轮未使用生产数据库，检查见[C3 写操作记录](quality-log.md#c3-write-2026-10-12)。
+
+<a id="pc-analytics"></a>
+
+## C4 PC 公开页基础统计
+
+基础统计代码已完成，默认关闭；用户确认生产站点开通与实际接收留到 C5。没有新增数据库表、接口或 npm 依赖。后台概览通过固定外链打开 Cloudflare Web Analytics，不读取或缓存服务商统计数据；H5 与后台产物不加载 beacon。
+
+仅在 Netlify Production 的构建环境设置 `PC_ANALYTICS_ENABLED=true`、`CF_WEB_ANALYTICS_TOKEN` 与正式 HTTPS origin `APP_URL`。token 是 Cloudflare 管理站点提供的 32 位十六进制公开站点标识，不能填写账号 API token。`vite.config.ts` 要求宿主进程的 `CONTEXT=production`，不会从 `.env` 冒充部署 context；非生产、开发及预览构建不嵌入配置。开启但 origin/token 无效时构建失败，避免发布误配置；正常未配置时完全关闭。浏览器再核对实际 origin，复制生产产物到其他域名或本地不会启用。
+
+运行时入口为 `web/src/lib/analytics.ts`，在 React Router 启动前安装文档边界，再独立加载一次 `https://static.cloudflareinsights.com/beacon.min.js`，使用 `{ token, spa: false }`。不主动发送自定义事件、不重试或等待统计成功。站点必须选 **Enable with JS Snippet installation**，禁止 Cloudflare、Netlify 插件或其他平台整站自动注入。
+
+计数口径为首页 `/` 和模拟示例 `/demo`（兼容尾斜杠）；示例只接受唯一的 `range`、`view` 与 `source=mock` 白名单值。公开路径/视图改变使用新文档，产生新的页面访问；范围变化仍在当前文档，不补发 PV。私有路径、`analytics=off`、单书/月明细、未知或重复参数、片段均不加载；不安全的 referrer 也使该文档保持关闭。回到公开页面时只有新文档才可安装 beacon，不向已经承载私有数据的文档追加第三方脚本。公开文档内只存在白名单 History 条目，前进/后退不会把私有路由作为同文档页面恢复。
+
+反馈和示例搜索先完整导航至带 `analytics=off` 的原路由；搜索在统计文档中只读，聚焦后进入可输入的文档。最长一分钟的 sessionStorage 回执只包含原公开 URL、滚动位置及有界示例视图字段，读取即清除，不保存输入、正文、图片或凭据。页面/图表就绪后恢复滚动并打开反馈或聚焦搜索；图表等待最多十秒。存储不可用时仍可在原路由打开控件，局部视图和滚动可能使用默认值。刷新后继续保持无统计状态。全站使用 `Referrer-Policy: no-referrer`，PC HTML 同时设置相应 meta。
+
+C5 开通顺序：在 Cloudflare 为正式 hostname 创建/核对手动接入站点，确认关闭自动注入；只在 Production 配置以上公开变量并重新部署；确认服务商收到公开页 PV/性能、没有重复导航 PV、私有页面和控件文档没有统计请求。禁用或被拦截时主流程照常工作。回滚设置 `PC_ANALYTICS_ENABLED=false` 并重新部署，或恢复原关闭统计的部署；已打开的旧文档需重新加载才应用新配置。统计可见性与国内可达性必须在开通后记录，构建成功不等于数据已接收。
