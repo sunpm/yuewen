@@ -162,7 +162,7 @@ HTML 用同一报告对象生成，包含内嵌 SVG、完整数据表、范围�
 | `POST /api/console/auth/sign-out`         | 撤销当前管理会话并清理独立管理 Cookie                                                  |
 | `GET /api/console/overview`               | 每次核验有效管理会话，返回 `{ status: 'ready' }`，不暴露用户数据                       |
 
-管理认证与数据响应均 `no-store`；写操作保持同源 JSON 和 16 KiB 限制。管理 Cookie 8 小时到期，HTTPS 下 Secure、HttpOnly、SameSite Strict、host-only，Path 为 `/api/console`。配置未就绪返回 503 `CONSOLE_UNAVAILABLE`；业务接口未登录返回 401 `CONSOLE_AUTH_REQUIRED`；其他管理认证路径及未实现管理接口拒绝访问。公开预览在入口层返回 `PREVIEW_ONLY`。公开注册、邮箱登录/找回、资料修改和后台账号删除尚未开放。C2 反馈管理及 C3 用户/数据只读接口见下文，均由各自开关控制；危险动作的再认证仍随 C3 后续写操作实施。
+管理认证与数据响应均 `no-store`；写操作保持同源 JSON 和 16 KiB 限制。管理 Cookie 8 小时到期，HTTPS 下 Secure、HttpOnly、SameSite Strict、host-only，Path 为 `/api/console`。配置未就绪返回 503 `CONSOLE_UNAVAILABLE`；业务接口未登录返回 401 `CONSOLE_AUTH_REQUIRED`；其他管理认证路径及未实现管理接口拒绝访问。公开预览在入口层返回 `PREVIEW_ONLY`。公开注册、邮箱登录/找回、资料修改和后台账号删除尚未开放。C2 反馈管理及 C3 用户/数据接口见下文，均由各自开关控制；C3 危险操作在同次请求中核验管理员当前密码与目标版本。
 
 <a id="feedback-api"></a>
 
@@ -198,7 +198,7 @@ R2 写入不跨数据库事务：先预留，再上传同一 key，再以租约�
 
 ## C3 用户与数据只读 API（2026-10-10）
 
-已实现，默认由服务端 `CONSOLE_DATA_ENABLED=false` 关闭；要求 0000–0004 迁移、有效独立管理会话，不依赖 R2 或反馈提交开关。未启用/缺少 C2 表返回 503 `CONSOLE_DATA_UNAVAILABLE`，未登录返回 401 `CONSOLE_AUTH_REQUIRED`。读取后再次核验管理会话，响应 `no-store`，每管理员每分钟最多 120 次；公开预览继续拒绝管理 API。
+已实现，默认由服务端 `CONSOLE_DATA_ENABLED=false` 关闭；要求 0000–0005 迁移、有效独立管理会话，不依赖 R2 或反馈提交开关。未启用/未完成 C3 迁移返回 503 `CONSOLE_DATA_UNAVAILABLE`，未登录返回 401 `CONSOLE_AUTH_REQUIRED`。读取后再次核验管理会话，响应 `no-store`，每管理员每分钟最多 120 次；公开预览继续拒绝管理 API。
 
 所有分页返回 `{ items, total, page, pageSize }`，`page` 默认 1、最大 10,000，`pageSize` 默认 20、最大 100。固定按创建时间及 ID 降序，凭据按更新时间及用户 ID 降序；拒绝未登记的查询字段和任意排序。ID 筛选精确匹配，邮箱/ID 搜索为不区分大小写的字面子串，`%`、`_` 等不作为通配符。
 
@@ -210,9 +210,33 @@ R2 写入不跨数据库事务：先预留，再上传同一 key，再以租约�
 | `GET /api/console/data/guests`        | 分页及可选 `guestId`；仅 ID、状态、版本、闲置/绝对期限和创建/更新时间，不返回 token 哈希或密文                                                                                                                                                                                 |
 | `GET /api/console/data/reports`       | 分页及可选 `userId / guestId`；仅 ID、属主 ID、状态、任务/凭据版本、`rangeKey/rangeStart/rangeEnd`、请求/笔记/笔记本/待处理/失败数量及期限/时间；不返回正文、书目、队列参数、游标、租约或完整 `state`                                                                          |
 | `GET /api/console/data/sessions`      | 分页及可选 `userId`；仅会话 ID、用户 ID、创建/更新时间和期限，不返回 token、IP 或 User-Agent                                                                                                                                                                                   |
-| `GET /api/console/data/audit`         | 分页；只返回未过期审计的 ID、操作者、动作、目标 ID、结果和创建/到期时间                                                                                                                                                                                                        |
+| `GET /api/console/data/audit`         | 分页；只返回未过期审计的 ID、操作者、动作、目标 ID、结果、可选结构化操作原因和创建/到期时间                                                                                                                                                                                    |
 | `GET /api/console/data/cleanup-stats` | 无查询参数；返回 `{ items: [{ resource, total, expired }] }`，固定汇总 `auth_rate_limit / request_limit / connection_save / report_replacement`，不返回原始键、计数明细或回执                                                                                                  |
 
 `latestSessionCreatedAt` 只取当前未过期会话的最大创建时间，没有则为 `null`，不是登录历史。`feedbackCount` 只计 `feedback.user_id` 匹配、已提交且未过期记录；游客反馈的 `associated_user_id` 不计入账号名下。元信息列表可显示尚未被清理的过期连接/报告/会话，期限字段用于判断失效；不会借此开放正文。清理统计中认证限流的 `expired` 表示最后请求距今超过 24 小时，其他三表按期限统计；查询本身不执行清理。
 
-未提供 `auth_account`、`auth_verification`、管理认证表或任意 SQL/表名/列名读取，也未开放新增用户、改邮箱、昵称修改、删除账号、撤销连接/会话或报告写操作。2026-10-12 管理查询页面已接入上述接口，未改变响应契约；后续专用写操作仍按[后台计划](plans/console.md#users-and-data)推进。
+未提供 `auth_account`、`auth_verification`、管理认证表或任意 SQL/表名/列名读取，也未开放新增用户或改邮箱。2026-10-12 管理查询页面已接入上述接口，专用写操作见下文。
+
+<a id="console-write-api"></a>
+
+## C3 管理写操作（2026-10-12）
+
+与查询共用 `CONSOLE_DATA_ENABLED`、独立管理会话和 0005 迁移检查。所有请求使用同源 JSON，成功返回 204；只接受声明字段。写请求每管理员每分钟最多 30 次，危险操作的密码核验每分钟最多 5 次，失败也计数；仍计入管理数据接口每分钟 120 次总限流。
+
+| 接口                                            | 请求与行为                                                                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `PATCH /api/console/users/:id`                  | `{ name, updatedAt }`；昵称 trim 后 1–100 字，仅修改昵称，更新时间单调递增                                                      |
+| `POST /api/console/users/:id/delete`            | `{ password, reason, updatedAt }`；事务删除账号及关联认证、连接、报告、自有反馈，保存附件删除任务；禁止目标为管理员             |
+| `POST /api/console/data/credentials/:id/revoke` | `{ password, reason, version, updatedAt }`；ID 为用户 ID，撤销保存的连接并清除该账号全部报告                                    |
+| `POST /api/console/data/guests/:id/revoke`      | 同上；撤销游客连接并级联清除报告和游客回执，反馈保留游客类型并解除连接关联                                                      |
+| `POST /api/console/data/sessions/:id/revoke`    | `{ password, reason, updatedAt }`；删除指定前台会话及其报告、回执，不撤销其他会话或保存的连接                                   |
+| `POST /api/console/data/reports/:id/stop`       | `{ password, reason, version, updatedAt }`；仅停止 queued/running，递增版本并清空租约，保留采集状态、预算和期限；用户可主动继续 |
+| `POST /api/console/data/reports/:id/clear`      | 同上；删除指定报告并保存至原报告到期的短期回执，账号和游客的原生成请求重试均不能恢复它                                          |
+
+`updatedAt` 使用查询返回的 ISO 字符串，`version` 使用当前列表值。`reason` 仅接受 `user_request / security / troubleshooting / maintenance`；密码不进入审计、URL 或客户端持久存储。每次危险操作都在事务内调用认证库验证当前密码，核验只服务当前目标/动作，不发放可复用的再认证凭证；提交前复核管理会话及核验时间未超过 10 分钟。密码重置、管理写入共用管理员锁，管理会话行锁阻止退出与写入交错。
+
+业务锁顺序与前台一致：先属主，再会话/连接/报告，账号删除再锁反馈。报告归属在加锁后复核，变化时拒绝。成功审计与业务操作同事务提交；业务失败回滚后另记固定错误码，失败审计写入不可用时仅输出无载荷诊断。`console_audit.reason` 只存上述枚举，旧审计及昵称编辑为 null，不记录原昵称、密码、Key 或阅读正文。
+
+版本变化返回 409 `MANAGEMENT_CHANGED`，目标已删除/撤销返回 404 `MANAGEMENT_GONE`；非采集状态停止返回 409 `REPORT_NOT_RUNNING`。错误密码为 403 `CONSOLE_PASSWORD_INVALID`，核验超时为 403 `CONSOLE_REAUTH_REQUIRED`，管理会话失效为 401 `CONSOLE_AUTH_REQUIRED`。失败或响应未确认时不会自动重试；先刷新核对结果，再用新版本显式操作。
+
+账号后台删除与自助删除共用 `removeAccount` 的反馈/附件事务清理，辅助账号关联的游客反馈只置空关联；R2 故障不回滚已确认的账号删除，独立对象任务继续重试。0005 扩展 `report_replacement` 的游客归属、唯一索引和属主约束，回执随游客删除或到期清理；停止与清除均拒绝旧租约写回。完整工程及手动 API 证据见[C3 写操作记录](quality-log.md#c3-write-2026-10-12)。

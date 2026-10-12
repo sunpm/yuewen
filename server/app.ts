@@ -9,7 +9,7 @@ import { consoleRoutes } from './console/routes'
 import { feedbackRoutes } from './feedback/routes'
 import { deleteAccount } from './feedback/lifecycle'
 import { getDb } from './db'
-import { credential, guest, report, reportReplacement, session as authSession } from './db/schema'
+import { credential, guest, report, session as authSession } from './db/schema'
 import { encryptKey, keyring } from './crypto'
 import { AppError, weread } from './weread'
 import { advanceCollector, buildReport, newCollector, num, obj, str } from './collector'
@@ -33,6 +33,7 @@ import {
   liveGuest,
 } from './connections'
 import type { Access, AppEnv, Transaction } from './connections'
+import { findReplacement, rememberAccountReport, stopReport } from './report-lifecycle'
 type Row = typeof report.$inferSelect
 export const app = new Hono<AppEnv>()
 app.use('/api/*', async (c, next) => {
@@ -149,19 +150,9 @@ async function readTask(
 ) {
   const [row] = await db.select().from(report).where(active(id, session))
   if (!row) {
-    const [replaced] = await db
-      .select({ id: reportReplacement.id })
-      .from(reportReplacement)
-      .where(
-        and(
-          eq(reportReplacement.id, id),
-          eq(reportReplacement.userId, session.ownerId),
-          eq(reportReplacement.sessionId, session.sessionId),
-          gt(reportReplacement.expiresAt, new Date()),
-        ),
-      )
+    const replaced = await findReplacement(db, session, 'id', id)
     if (replaced)
-      throw new AppError('REPORT_REPLACED', '该临时报告已被替换。已停止读取，可主动重新生成。', 409)
+      throw new AppError('REPORT_REPLACED', '该临时报告已被替换或清除。可主动重新生成。', 409)
     throw new AppError('REPORT_EXPIRED', '临时报告已清除或过期，请重新生成。', 404)
   }
   const key = await readCredential(session, db)
@@ -348,19 +339,9 @@ app.post('/api/reports', async (c) => {
       await checkAccountSession(tx, session)
       return existing
     }
-    const [receipt] = await tx
-      .select()
-      .from(reportReplacement)
-      .where(
-        and(
-          eq(reportReplacement.userId, session.ownerId),
-          eq(reportReplacement.sessionId, session.sessionId),
-          eq(reportReplacement.requestId, body.requestId),
-          gt(reportReplacement.expiresAt, new Date()),
-        ),
-      )
+    const receipt = await findReplacement(tx, session, 'requestId', body.requestId)
     if (receipt)
-      throw new AppError('REPORT_REPLACED', '该生成请求的报告已被替换，请重新选择范围。', 409)
+      throw new AppError('REPORT_REPLACED', '该生成请求的报告已替换或清除，请重新选择范围。', 409)
     const [previous] = await tx.select().from(report).where(validReport(session))
     const target = reportTarget(previous, session, current.version)
     if (
@@ -379,12 +360,10 @@ app.post('/api/reports', async (c) => {
         target,
       )
     if (previous?.userId && previous.sessionId)
-      await tx.insert(reportReplacement).values({
-        id: previous.id,
+      await rememberAccountReport(tx, {
+        ...previous,
         userId: previous.userId,
         sessionId: previous.sessionId,
-        requestId: previous.requestId,
-        expiresAt: previous.expiresAt,
       })
     await tx.delete(report).where(ownerReports(session))
     const [created] = await tx
@@ -460,17 +439,7 @@ app.post('/api/reports/:id/touch', async (c) => {
 })
 app.post('/api/reports/:id/cancel', async (c) => {
   const updated = await changeTask(c.req.param('id'), c.get('access'), async (tx, row) => {
-    const [updated] = await tx
-      .update(report)
-      .set({
-        status: 'cancelled',
-        leaseId: null,
-        leaseUntil: null,
-        version: row.version + 1,
-      })
-      .where(eq(report.id, row.id))
-      .returning()
-    return updated
+    return { ...row, ...(await stopReport(tx, row.id, row.version)) }
   })
   return c.json(publicTask(updated))
 })

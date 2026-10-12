@@ -1,13 +1,11 @@
-import { Hono, type Context, type MiddlewareHandler } from 'hono'
+import { Hono, type Context } from 'hono'
 import { and, desc, eq, gte, lte, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { AppEnv } from '../connections'
-import { limit } from '../connections'
 import { getDb } from '../db'
 import { consoleAudit, credential, feedback, guest, report, session, user } from '../db/schema'
-import { feedbackTablesExist } from '../feedback/lifecycle'
 import { AppError } from '../weread'
-import { checkConsoleSession, maskEmail } from './access'
+import { checkConsoleSession, maskEmail, requireDataAccess } from './access'
 
 const pagination = z.object({
   page: z.coerce.number().int().min(1).max(10000).default(1),
@@ -16,12 +14,6 @@ const pagination = z.object({
 const id = z.string().trim().min(1).max(128)
 const userFilter = pagination.extend({ userId: id.optional() }).strict()
 const count = sql<number>`count(*)::int`
-const requireDataAccess: MiddlewareHandler<AppEnv> = async (c, next) => {
-  if (process.env.CONSOLE_DATA_ENABLED !== 'true' || !(await feedbackTablesExist()))
-    throw new AppError('CONSOLE_DATA_UNAVAILABLE', '用户与数据查询尚未启用。', 503)
-  await limit(`console:data:${c.get('consoleAccess').userId}`, 120, 60)
-  await next()
-}
 
 async function pageResponse<T>(
   c: Context<AppEnv>,
@@ -238,6 +230,7 @@ consoleData.get('/audit', (c) => {
         action: consoleAudit.action,
         targetId: consoleAudit.targetId,
         result: consoleAudit.result,
+        reason: consoleAudit.reason,
         createdAt: consoleAudit.createdAt,
         expiresAt: consoleAudit.expiresAt,
       })

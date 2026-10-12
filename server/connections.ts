@@ -10,7 +10,6 @@ import {
   guest,
   user,
   report,
-  reportReplacement,
   connectionSave,
   requestLimit,
   session as authSession,
@@ -18,6 +17,7 @@ import {
 import { authConfigured, getAuth } from './auth'
 import { decryptKey, encryptKey, keyring } from './crypto'
 import { AppError, weread } from './weread'
+import { rememberAccountReport } from './report-lifecycle'
 
 export type Access = { kind: 'guest' | 'account'; ownerId: string; sessionId: string }
 export type AppEnv = {
@@ -378,16 +378,11 @@ connections.post('/guest/save', async (c) => {
         .onConflictDoUpdate({ target: credential.userId, set: values })
     }
     if (previous?.userId && previous.sessionId)
-      await tx
-        .insert(reportReplacement)
-        .values({
-          id: previous.id,
-          userId: previous.userId,
-          sessionId: previous.sessionId,
-          requestId: previous.requestId,
-          expiresAt: previous.expiresAt,
-        })
-        .onConflictDoNothing()
+      await rememberAccountReport(tx, {
+        ...previous,
+        userId: previous.userId,
+        sessionId: previous.sessionId,
+      })
     await tx.delete(report).where(eq(report.userId, account.user.id))
     const expiresAt = new Date(
       Math.min(incoming.expiresAt.getTime(), anonymous.expiresAt.getTime()),

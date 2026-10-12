@@ -1,11 +1,23 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Input, Result, Table, type TableColumnsType, Tabs, Typography } from 'antd'
+import {
+  Alert,
+  Button,
+  Input,
+  Result,
+  Space,
+  Table,
+  type TableColumnsType,
+  Tabs,
+  Typography,
+} from 'antd'
 import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router'
 import { z } from 'zod'
+import { type ManagementReason, managementReasons } from '../../shared/console'
 import { type PageResult, ReadError, status, time } from './data-display'
+import { type ActionTarget, ManagementAction } from './management-action'
 import { consoleRequest } from './session'
 
 const resources = {
@@ -52,6 +64,7 @@ type AuditRow = {
   action: string
   targetId: string
   result: string
+  reason: ManagementReason | null
   createdAt: string
   expiresAt: string
 }
@@ -116,6 +129,12 @@ const columns: Record<PagedResource, TableColumnsType<DataRow>> = {
     { title: '动作', dataIndex: 'action' },
     { title: '对象 ID', dataIndex: 'targetId', render: identifier },
     { title: '结果', dataIndex: 'result' },
+    {
+      title: '操作原因',
+      dataIndex: 'reason',
+      render: (value: ManagementReason | null) =>
+        value ? (managementReasons[value] ?? value) : '—',
+    },
     created,
     expires,
   ],
@@ -170,6 +189,8 @@ export function ResourceTable({
 }) {
   const [pagination, setPagination] = useState({ page: 1, pageSize: 20 })
   const [filter, setFilter] = useState('')
+  const [target, setTarget] = useState<ActionTarget | null>(null)
+  const [notice, setNotice] = useState('')
   const userFilter = !userId && ['credentials', 'reports', 'sessions'].includes(resource)
   const guestFilter = !userId && ['guests', 'reports'].includes(resource)
   const form = useForm({
@@ -187,6 +208,15 @@ export function ResourceTable({
   })
   return (
     <>
+      {notice && (
+        <Alert
+          className="mb-4"
+          type="success"
+          title={notice}
+          closable
+          onClose={() => setNotice('')}
+        />
+      )}
       <form
         aria-label={`${resources[resource]}筛选`}
         className="mb-4 flex flex-wrap items-end gap-4"
@@ -259,7 +289,67 @@ export function ResourceTable({
           rowKey={resource === 'credentials' ? 'userId' : 'id'}
           loading={list.isFetching}
           dataSource={list.data?.items ?? []}
-          columns={columns[resource]}
+          columns={[
+            ...columns[resource],
+            ...(resource === 'audit'
+              ? []
+              : [
+                  {
+                    title: '操作',
+                    key: 'actions',
+                    fixed: 'right' as const,
+                    width: resource === 'reports' ? 180 : 110,
+                    render: (_: unknown, row: DataRow) => {
+                      const id =
+                        resource === 'credentials' && 'userId' in row
+                          ? row.userId
+                          : 'id' in row
+                            ? row.id
+                            : null
+                      if (!id || !('updatedAt' in row)) return null
+                      const expected = {
+                        id,
+                        updatedAt: row.updatedAt,
+                        ...('version' in row ? { version: row.version } : {}),
+                      }
+                      return resource === 'reports' ? (
+                        <Space>
+                          <Button
+                            disabled={
+                              !('status' in row) || !['queued', 'running'].includes(row.status)
+                            }
+                            onClick={() => setTarget({ ...expected, action: 'report.stop' })}
+                          >
+                            停止
+                          </Button>
+                          <Button
+                            danger
+                            onClick={() => setTarget({ ...expected, action: 'report.clear' })}
+                          >
+                            清除
+                          </Button>
+                        </Space>
+                      ) : (
+                        <Button
+                          danger
+                          onClick={() =>
+                            setTarget({
+                              ...expected,
+                              action: {
+                                credentials: 'credential.revoke',
+                                guests: 'guest.revoke',
+                                sessions: 'session.revoke',
+                              }[resource] as ActionTarget['action'],
+                            })
+                          }
+                        >
+                          撤销
+                        </Button>
+                      )
+                    },
+                  },
+                ]),
+          ]}
           scroll={{ x: resource === 'reports' ? 2800 : 1100 }}
           locale={{ emptyText: '没有符合条件的记录' }}
           pagination={{
@@ -272,6 +362,14 @@ export function ResourceTable({
             onChange: (page, pageSize) =>
               setPagination({ page: pageSize === pagination.pageSize ? page : 1, pageSize }),
           }}
+        />
+      )}
+      {target && (
+        <ManagementAction
+          target={target}
+          sessionId={sessionId}
+          close={() => setTarget(null)}
+          done={setNotice}
         />
       )}
     </>

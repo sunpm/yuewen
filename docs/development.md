@@ -115,8 +115,12 @@ R2 采用 AWS S3 SDK，region 为 `auto`，endpoint 按账号构造；不配置�
 
 孤儿回收每轮列出 `feedback/` 下最多 100 个对象，持久化分页游标，只处理 24 小时以上且无附件关联的对象，不会一直扫描同一批有效图片。业务删除先持久化独立 outbox，再删除反馈和账号，外键禁止绕过此顺序；双会话的游客反馈只解除辅助账号关联。回滚前关闭反馈入口；一旦存在反馈数据，回滚版本仍须保留 C2 账号删除与清理能力，旧版直接删除账号会被保护性外键拒绝。不要回滚删表或恢复旧数据库后直接开放附件，恢复要求见[上线计划](plans/release.md)。
 
-## C3 只读管理查询
+## C3 用户与数据管理
 
-`server/console/read.ts` 提供 `/api/console/users`、用户详情以及 `/api/console/data/*` 固定资源查询，见[数据契约](data-contract.md#console-read-api)。先应用 0000–0004 迁移并初始化对应环境的管理身份，再显式设置 `CONSOLE_DATA_ENABLED=true`；默认关闭，缺少 C2 表时返回 `CONSOLE_DATA_UNAVAILABLE`。该开关不依赖 `FEEDBACK_ENABLED` 或 R2 凭据，关闭反馈提交后仍可查看有效自有反馈的数量。生产开关本批未启用，不新增迁移。
+`server/console/read.ts` 提供 `/api/console/users`、用户详情以及 `/api/console/data/*` 固定资源查询，见[数据契约](data-contract.md#console-read-api)。先应用 0000–0005 迁移并初始化对应环境的管理身份，再显式设置 `CONSOLE_DATA_ENABLED=true`；默认关闭，缺少 C3 审计原因或游客回执字段时返回 `CONSOLE_DATA_UNAVAILABLE`。该开关不依赖 `FEEDBACK_ENABLED` 或 R2 凭据，关闭反馈提交后仍可查看有效自有反馈的数量。生产开关本批未启用；本轮新增 `0005_c3_management.sql`，已应用于独立开发环境。
 
-查询使用独立管理 Cookie、每管理员每分钟 120 次的共享限流、`no-store` 和返回前会话复核。前台/游客 Cookie 不替代管理身份。列表只选择声明字段，报告只在 SQL 中提取范围及数量，不读取完整采集状态到应用；认证账号、验证码与管理认证表不提供通用查询。查询页面已接入 `/console/users` 与 `/console/data/:resource?`；资源固定为 `credentials / guests / reports / sessions / audit / cleanup-stats`，未知资源显示 404，页面按需加载。用户详情可读取必要邮箱与关联运行记录；筛选值仅保留在内存，关闭详情/切换资源会取消旧查询，离线/会话失效沿用后台缓存清理。昵称修改和删除/撤销等写操作仍待后续实现。API 证据见[C3 查询记录](quality-log.md#c3-read-api-2026-10-10)，界面检查见[C3 页面记录](quality-log.md#c3-data-ui-2026-10-12)。
+查询使用独立管理 Cookie、每管理员每分钟 120 次的共享限流、`no-store` 和返回前会话复核。前台/游客 Cookie 不替代管理身份。列表只选择声明字段，报告只在 SQL 中提取范围及数量，不读取完整采集状态到应用；认证账号、验证码与管理认证表不提供通用查询。查询页面已接入 `/console/users` 与 `/console/data/:resource?`；资源固定为 `credentials / guests / reports / sessions / audit / cleanup-stats`，未知资源显示 404，页面按需加载。用户详情可读取必要邮箱与关联运行记录；筛选值仅保留在内存，关闭详情/切换资源会取消旧查询，离线/会话失效沿用后台缓存清理。昵称编辑、删除账号、撤销账号/游客连接和前台会话、报告停止/清除已接入 `server/console/write.ts` 与页面确认弹窗，具体请求见[写操作契约](data-contract.md#console-write-api)。API 证据见[C3 查询记录](quality-log.md#c3-read-api-2026-10-10)，界面检查见[C3 页面记录](quality-log.md#c3-data-ui-2026-10-12)。
+
+C3 危险操作每次输入管理员当前密码并选择结构化原因；事务内复用认证库校验，不增加公开改密或通用表编辑接口。前端不把密码放入 Query mutation 变量，提交后清空密码；错误保留目标版本，刷新后再操作，离开弹窗取消请求且不自动重放。审计按 180 天清理。
+
+0005 增加审计原因和游客报告清除回执；新管理接口要求迁移完成，前台账号替换回执、游客读取和 C2 审计保留迁移前兼容路径，生产未启用 C3 时无需抢先开放后台。回滚时先关闭 `CONSOLE_DATA_ENABLED`，保留新增字段、回执和附件删除任务；一旦实际使用游客清除，回滚代码也须保留游客回执拒绝重试的逻辑，不能通过反向删列恢复旧报告。生产迁移/管理启用仍在 C5 对应批次执行。本轮未使用生产数据库，检查见[C3 写操作记录](quality-log.md#c3-write-2026-10-12)。
