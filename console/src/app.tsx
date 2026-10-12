@@ -1,10 +1,11 @@
 import { Alert, Button, Layout, Result, Spin, Typography } from 'antd'
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router'
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router'
 import { auth, clearConsoleCache, requireOnline } from './session'
 
 const Login = lazy(() => import('./login'))
 const Overview = lazy(() => import('./overview'))
+const Feedback = lazy(() => import('./feedback'))
 
 export default function App() {
   const session = auth.useSession()
@@ -124,6 +125,8 @@ export default function App() {
       >
         <Typography.Text strong>阅纹 · 管理后台</Typography.Text>
         <div className="flex items-center gap-4">
+          <Link to="/">概览</Link>
+          <Link to="/feedback">意见反馈</Link>
           <a href="/">返回阅纹</a>
           <Button onClick={() => void signOut()}>退出登录</Button>
         </div>
@@ -155,6 +158,7 @@ export default function App() {
                 />
               }
             />
+            <Route path="/feedback" element={<Feedback sessionId={session.data.session.id} />} />
             <Route
               path="*"
               element={

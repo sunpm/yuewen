@@ -21,7 +21,7 @@ export default function Overview({
         后台概览
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        管理入口已接通，反馈和用户管理将在后续开放。
+        可从导航进入意见反馈，查看与处理已提交的反馈。用户与数据管理继续待开放。
       </Typography.Paragraph>
       {overview.error ? (
         <Alert

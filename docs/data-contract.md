@@ -168,7 +168,7 @@ HTML 用同一报告对象生成，包含内嵌 SVG、完整数据表、范围�
 
 ## C2 反馈 API（2026-10-10）
 
-已实现，默认关闭；需应用 `0004_c2_feedback.sql` 并设置服务端 `FEEDBACK_ENABLED=true`。公开 Deploy Preview 仍在进入数据库前拒绝。PC 截图组件与后台反馈页面尚未接入，生产及真实 R2 验收状态见[质量记录](quality-log.md#c2-backend-2026-10-10)。
+已实现，默认关闭；需应用 `0004_c2_feedback.sql` 并设置服务端 `FEEDBACK_ENABLED=true`。公开 Deploy Preview 仍在进入数据库前拒绝。PC 截图组件与后台反馈页面已接入，生产及真实 R2 尚未启用/验收，见[质量记录](quality-log.md#c2-feedback-ui-2026-10-12)。
 
 | 接口                                         | 已实现的载荷与结果                                                                                                                                                                                                                               |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -182,7 +182,7 @@ HTML 用同一报告对象生成，包含内嵌 SVG、完整数据表、范围�
 
 `payload` 为 `{ description, steps?, contact?, environment }`：描述 1–4,000 字，步骤最多 4,000 字，联系方式最多 200 字；未知字段拒绝。JSON 字符串最多 32 KiB，环境信息最多 16 KiB。仅反馈 multipart 的实际请求流可到 2 MiB，其他接口保持原 16 KiB/JSON 限制。
 
-`environment` 必填 `entry: "pc"`、`path`（`/`、`/demo`、`/overview`、`/report`、`/shelf`、`/notes`、`/settings`、`/login`）、`source`（`mock / guest / account / none`）、`theme`（`light / dark / unknown`）、`viewport: { width, height }` 和 `dpr`。可选 `range` 沿用报告范围、`view` 为 `overview / bookshelf / notes / insights`，以及受限的 `language / timezone / browser / browserVersion / os / clientVersion / clientTime / error`；具体枚举与校验以 `server/feedback/input.ts` 为准。不接收任意 URL、查询词、referrer、User-Agent 原文、DOM、网络响应或控制台内容。服务端单独记录部署、构建、接收时间、请求关联 ID 和未验证原因。
+`environment` 必填 `entry: "pc"`、`path`（`/`、`/demo`、`/overview`、`/report`、`/shelf`、`/notes`、`/settings`、`/login`）、`source`（`mock / guest / account / none`）、`theme`（`light / dark / unknown`）、`viewport: { width, height }` 和 `dpr`。可选 `range` 沿用报告范围、`view` 为 `overview / bookshelf / notes / insights`，以及受限的 `language / timezone / browser / browserVersion / os / clientVersion / clientTime / error`；具体枚举与纯校验共用于 `shared/feedback.ts`，multipart 和图片边界由 `server/feedback/input.ts` 核验。不接收任意 URL、查询词、referrer、User-Agent 原文、DOM、网络响应或控制台内容。服务端单独记录部署、构建、接收时间、请求关联 ID 和未验证原因。
 
 账号和游客沿用 `X-Yuewen-Connection` 与真实 Cookie 鉴权；两种有效 Cookie 同时存在时必须选择。所选会话过期时，调用上下文接口须显式 `allowUnverified: true` 重新确认，不能把旧请求自动转给访客；访客来源使用 `none` 或 `mock`。属主与辅助登录账号分列，游客保存为账号后不迁移旧反馈。客户端不能提交属主字段。
 
