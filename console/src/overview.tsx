@@ -21,7 +21,7 @@ export default function Overview({
         后台概览
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        可从导航进入意见反馈，查看与处理已提交的反馈。用户与数据管理继续待开放。
+        可从导航处理意见反馈、查询用户及连接、报告、会话等运行元信息。
       </Typography.Paragraph>
       {overview.error ? (
         <Alert

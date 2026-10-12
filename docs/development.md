@@ -119,4 +119,4 @@ R2 采用 AWS S3 SDK，region 为 `auto`，endpoint 按账号构造；不配置�
 
 `server/console/read.ts` 提供 `/api/console/users`、用户详情以及 `/api/console/data/*` 固定资源查询，见[数据契约](data-contract.md#console-read-api)。先应用 0000–0004 迁移并初始化对应环境的管理身份，再显式设置 `CONSOLE_DATA_ENABLED=true`；默认关闭，缺少 C2 表时返回 `CONSOLE_DATA_UNAVAILABLE`。该开关不依赖 `FEEDBACK_ENABLED` 或 R2 凭据，关闭反馈提交后仍可查看有效自有反馈的数量。生产开关本批未启用，不新增迁移。
 
-查询使用独立管理 Cookie、每管理员每分钟 120 次的共享限流、`no-store` 和返回前会话复核。前台/游客 Cookie 不替代管理身份。列表只选择声明字段，报告只在 SQL 中提取范围及数量，不读取完整采集状态到应用；认证账号、验证码与管理认证表不提供通用查询。管理页面、昵称修改和删除/撤销等写操作仍待后续实现。本批 API 手动验证及已有检查见[C3 质量记录](quality-log.md#c3-read-api-2026-10-10)。
+查询使用独立管理 Cookie、每管理员每分钟 120 次的共享限流、`no-store` 和返回前会话复核。前台/游客 Cookie 不替代管理身份。列表只选择声明字段，报告只在 SQL 中提取范围及数量，不读取完整采集状态到应用；认证账号、验证码与管理认证表不提供通用查询。查询页面已接入 `/console/users` 与 `/console/data/:resource?`；资源固定为 `credentials / guests / reports / sessions / audit / cleanup-stats`，未知资源显示 404，页面按需加载。用户详情可读取必要邮箱与关联运行记录；筛选值仅保留在内存，关闭详情/切换资源会取消旧查询，离线/会话失效沿用后台缓存清理。昵称修改和删除/撤销等写操作仍待后续实现。API 证据见[C3 查询记录](quality-log.md#c3-read-api-2026-10-10)，界面检查见[C3 页面记录](quality-log.md#c3-data-ui-2026-10-12)。

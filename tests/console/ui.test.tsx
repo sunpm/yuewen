@@ -176,7 +176,21 @@ describe('后台登录与会话恢复', () => {
     expect(mocks.logout).toHaveBeenCalledTimes(1)
     expect(queries.getQueryCache().getAll()).toHaveLength(0)
   })
-  it('未登录深链接回到登录，未实现的管理页面不展示业务数据', async () => {
+  it('用户深链接先登录，核验成功后进入用户管理页面', async () => {
+    // jsdom has no layout engine; this case verifies routing and the authenticated query.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe = vi.fn()
+        unobserve = vi.fn()
+        disconnect = vi.fn()
+      },
+    )
+    const computedStyle = window.getComputedStyle.bind(window)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => computedStyle(element))
+    vi.mocked(fetch).mockResolvedValue(
+      Response.json({ items: [], total: 0, page: 1, pageSize: 20 }),
+    )
     const view = renderApp('/users')
     await screen.findByLabelText('管理员账号')
     signedIn()
@@ -187,7 +201,13 @@ describe('后台登录与会话恢复', () => {
         </MemoryRouter>
       </QueryClientProvider>,
     )
-    await screen.findByText('页面尚未开放')
+    await screen.findByRole('heading', { name: '用户管理' })
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/console/users?page=1&pageSize=20',
+        expect.objectContaining({ signal: expect.any(AbortSignal), credentials: 'same-origin' }),
+      ),
+    )
     expect(screen.queryByText('后台概览')).toBeNull()
   })
 })
