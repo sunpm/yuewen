@@ -1,5 +1,7 @@
 # 模板与组件来源
 
+C4（2026-10-12）接入可选的 [Cloudflare Web Analytics](https://developers.cloudflare.com/web-analytics/get-started/) 托管 beacon，按官方 [SPA 配置](https://developers.cloudflare.com/web-analytics/get-started/web-analytics-spa/)设置 `spa: false`，只在受限生产公开文档手动加载。未复制、打包或修改第三方脚本，未新增 npm 依赖；站点 token 与生产开通留到 C5。该手动脚本没有可固定的版本/SRI，维护约束见 [Cloudflare FAQ](https://developers.cloudflare.com/web-analytics/faq/)。
+
 C2 界面（2026-10-12）新增 [html-to-image](https://github.com/bubkoo/html-to-image) 1.11.13（MIT），按官方 `toCanvas`、`getFontEmbedCSS` 和尺寸/字体选项接入 PC 当前网页截图；仅使用依赖 API，未复制示例工程。截图只在本地预览，用户提交后才发送本站接口。
 
 C2 后端（2026-10-10）新增 [AWS SDK for JavaScript S3 Client](https://github.com/aws/aws-sdk-js-v3) 3.1149.0 与 [sharp](https://github.com/lovell/sharp) 0.35.5，均为 Apache-2.0。R2 客户端依据 [Cloudflare S3 v3 示例](https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/)配置，图片限制依据 [sharp constructor 文档](https://sharp.pixelplumbing.com/api-constructor/)设置；使用依赖 API，未复制完整示例工程。原生 libvips 与平台依赖的许可证随各 npm 包分发。

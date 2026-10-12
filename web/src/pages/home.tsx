@@ -1,8 +1,11 @@
 import { ArrowRight } from 'lucide-react'
+import { useEffect } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
+import { restorePrivateEntry } from '@/lib/analytics'
 
 export default function Home() {
+  useEffect(restorePrivateEntry, [])
   return (
     <section className="welcome">
       <p className="eyebrow">你的个人阅读档案</p>

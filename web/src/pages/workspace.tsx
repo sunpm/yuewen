@@ -20,6 +20,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useReading } from '@/hooks/use-reading'
+import {
+  analyticsDocument,
+  enterPrivateDocument,
+  privateEntryPending,
+  rememberPublicView,
+  restorePrivateEntry,
+  resumedPublicView,
+} from '@/lib/analytics'
 import { flow, message, queries, useAction } from '@/lib/business'
 import { saveView, selectViewOwner, views, viewVersion } from '@/lib/view-memory'
 import { readingPath, reportView } from '@/navigation'
@@ -296,7 +304,7 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
   const viewKey = `${owner}:${location.key}`
   const [saved] = useState(() => {
     selectViewOwner(owner)
-    return views.get(viewKey)
+    return views.get(viewKey) ?? (reading.sample ? resumedPublicView() : undefined)
   })
   const [memoryVersion] = useState(viewVersion)
   const [section, setSection] = useState<(typeof sections)[number]>(
@@ -389,10 +397,11 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
       expandedModules,
       scroll: window.scrollY,
     }
+    rememberPublicView(snapshot.current)
   }, [section, search, category, sort, list, noteType, noteLimit, includeNotes, expandedModules])
   useEffect(() => {
     let frame = 0
-    let restoring = !!saved || !!location.hash
+    let restoring = !!saved || !!location.hash || privateEntryPending()
     const stopRestoring = () => {
       restoring = false
       cancelAnimationFrame(frame)
@@ -410,6 +419,7 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
             /* Ignore malformed URL fragments. */
           }
         }
+        restorePrivateEntry()
         stopRestoring()
       })
     }
@@ -426,11 +436,14 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
     const remember = () => {
       snapshot.current.scroll = window.scrollY
     }
+    // A failed/slow chart must not leave the requested feedback control waiting forever.
+    const entryTimer = privateEntryPending() ? setTimeout(restorePrivateEntry, 10_000) : undefined
     window.addEventListener('scroll', remember, { passive: true })
     window.addEventListener('wheel', stopRestoring, { passive: true, once: true })
     window.addEventListener('pointerdown', stopRestoring, { once: true })
     window.addEventListener('keydown', stopRestoring, { once: true })
     return () => {
+      clearTimeout(entryTimer)
       stopRestoring()
       window.removeEventListener('scroll', remember)
       window.removeEventListener('wheel', stopRestoring)
@@ -739,6 +752,8 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
               aria-label={view === 'shelf' ? '搜索书名或作者' : '搜索划线与想法'}
               placeholder={view === 'shelf' ? '搜索书名或作者' : '搜索划线与想法'}
               value={search}
+              readOnly={analyticsDocument}
+              onFocus={() => enterPrivateDocument('search')}
               onChange={(event) => {
                 setSearch(event.target.value)
                 setNoteLimit(24)
