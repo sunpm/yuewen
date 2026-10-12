@@ -97,7 +97,7 @@ export default function App() {
                   <span className="nav-label">{label}</span>
                 </NavLink>
               ))}
-              <Feedback />
+              <Feedback key={location.key} />
             </nav>
             <Select value={theme} onValueChange={setTheme}>
               <SelectTrigger aria-label="选择主题" className="theme-trigger">

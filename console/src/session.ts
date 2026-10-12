@@ -1,5 +1,5 @@
 import { ApiError, api } from '@client/api'
-import { QueryCache, QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 import { usernameClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 
@@ -9,17 +9,8 @@ export const auth = createAuthClient({
   sessionOptions: { refetchOnWindowFocus: false },
 })
 export const queries = new QueryClient({
-  queryCache: new QueryCache({
-    onError(error) {
-      if (
-        error instanceof ApiError &&
-        ['CONSOLE_AUTH_REQUIRED', 'FORBIDDEN'].includes(error.code)
-      ) {
-        clearConsoleCache()
-        auth.$store.notify('$sessionSignal')
-      }
-    },
-  }),
+  queryCache: new QueryCache({ onError: handleConsoleError }),
+  mutationCache: new MutationCache({ onError: handleConsoleError }),
   defaultOptions: {
     queries: {
       staleTime: 0,
@@ -33,6 +24,13 @@ export const queries = new QueryClient({
   },
 })
 
+function handleConsoleError(error: unknown) {
+  if (error instanceof ApiError && ['CONSOLE_AUTH_REQUIRED', 'FORBIDDEN'].includes(error.code)) {
+    clearConsoleCache()
+    auth.$store.notify('$sessionSignal')
+  }
+}
+
 export function clearConsoleCache(keepSessionId?: string) {
   const filters = {
     predicate: (query: { queryKey: readonly unknown[] }) =>
@@ -44,6 +42,7 @@ export function clearConsoleCache(keepSessionId?: string) {
 }
 
 export function consoleRequest<T>(path: string, signal: AbortSignal) {
+  requireOnline()
   return api<T>(`/console${path}`, { signal })
 }
 
