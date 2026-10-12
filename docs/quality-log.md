@@ -22,6 +22,8 @@
 | `CHOKIDAR_USEPOLLING=true pnpm build` | PC、冻结 H5、后台三入口构建通过；按需加载调整后再构建 PC/后台，通过。保留既有 chunk 大小和 Zod 注释提示。                      |
 | `git diff --check`                    | 通过。                                                                                                                         |
 
+PR #31 实现提交 `0bf4d09` 的 Netlify 预览构建、Header 和重写检查通过，Pages changed 为 skipping，不计作功能验收。只读 HTTP 核验 `/api/health` 为 200（preview 模式），`/api/console/feedback` 为 503 `PREVIEW_ONLY`；未调用浏览器或访问管理数据库。PC 弹窗约 10.39 kB、截图库及适配约 15.77 kB，均独立按需加载；后台反馈页面约 345.17 kB，未把该构建体积当作运行性能证据。
+
 ### 未执行与下一步
 
 未运行浏览器、截图视觉/字体/跨域封面/长页实测、真实反馈 UI 到 API 提交、R2 写读删及故障恢复，也未重跑未受实现改动影响的数据库认证集成。截图尺寸/超时/隐私及重试行为目前只有代码核查证据，不能当作真实浏览器通过。生产 `FEEDBACK_ENABLED` 保持默认关闭，邮件保留兜底。下一步配置独立开发 R2 并补闭环运行证据；未具备存储条件时继续 C3 用户/逐表页面及专用写操作。
