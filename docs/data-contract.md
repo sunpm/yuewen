@@ -215,4 +215,4 @@ R2 写入不跨数据库事务：先预留，再上传同一 key，再以租约�
 
 `latestSessionCreatedAt` 只取当前未过期会话的最大创建时间，没有则为 `null`，不是登录历史。`feedbackCount` 只计 `feedback.user_id` 匹配、已提交且未过期记录；游客反馈的 `associated_user_id` 不计入账号名下。元信息列表可显示尚未被清理的过期连接/报告/会话，期限字段用于判断失效；不会借此开放正文。清理统计中认证限流的 `expired` 表示最后请求距今超过 24 小时，其他三表按期限统计；查询本身不执行清理。
 
-未提供 `auth_account`、`auth_verification`、管理认证表或任意 SQL/表名/列名读取，也未开放新增用户、改邮箱、昵称修改、删除账号、撤销连接/会话或报告写操作。管理 UI 与后续专用动作仍按[后台计划](plans/console.md#users-and-data)推进。
+未提供 `auth_account`、`auth_verification`、管理认证表或任意 SQL/表名/列名读取，也未开放新增用户、改邮箱、昵称修改、删除账号、撤销连接/会话或报告写操作。2026-10-12 管理查询页面已接入上述接口，未改变响应契约；后续专用写操作仍按[后台计划](plans/console.md#users-and-data)推进。
