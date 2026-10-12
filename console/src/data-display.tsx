@@ -34,7 +34,7 @@ export function ReadError({
     <Alert
       type={disabled ? 'info' : 'error'}
       title={error instanceof Error ? error.message : '读取失败，请重试。'}
-      description={disabled ? '此环境尚未开放用户与数据查询。启用后可刷新读取。' : undefined}
+      description={disabled ? '此环境尚未开放用户与数据管理。启用后可刷新读取。' : undefined}
       action={
         <Button loading={loading} onClick={retry}>
           重试

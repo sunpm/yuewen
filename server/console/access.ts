@@ -1,9 +1,22 @@
-import type { Context } from 'hono'
-import { and, eq, gt } from 'drizzle-orm'
+import type { Context, MiddlewareHandler } from 'hono'
+import { and, eq, gt, sql } from 'drizzle-orm'
 import type { AppEnv, Transaction } from '../connections'
+import { limit } from '../connections'
 import { getDb } from '../db'
 import { AppError } from '../weread'
 import { consoleSession } from './schema'
+
+export const requireDataAccess: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (process.env.CONSOLE_DATA_ENABLED !== 'true')
+    throw new AppError('CONSOLE_DATA_UNAVAILABLE', '用户与数据管理尚未启用。', 503)
+  const [migration] = await getDb().execute(sql`select
+    exists(select 1 from pg_attribute where attrelid = to_regclass('console_audit') and attname = 'reason' and not attisdropped)
+    and exists(select 1 from pg_attribute where attrelid = to_regclass('report_replacement') and attname = 'guest_id' and not attisdropped) as ready`)
+  if (!migration.ready)
+    throw new AppError('CONSOLE_DATA_UNAVAILABLE', '用户与数据管理迁移尚未完成。', 503)
+  await limit(`console:data:${c.get('consoleAccess').userId}`, 120, 60)
+  await next()
+}
 
 export async function checkConsoleSession(
   c: Context<AppEnv>,

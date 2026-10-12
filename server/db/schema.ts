@@ -144,18 +144,20 @@ export const reportReplacement = pgTable(
   'report_replacement',
   {
     id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    sessionId: text('session_id')
-      .notNull()
-      .references(() => session.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => session.id, { onDelete: 'cascade' }),
+    guestId: text('guest_id').references(() => guest.id, { onDelete: 'cascade' }),
     requestId: text('request_id').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },
   (t) => [
     index('replacement_expiry_idx').on(t.expiresAt),
     uniqueIndex('replacement_request_idx').on(t.userId, t.requestId),
+    uniqueIndex('replacement_guest_request_idx').on(t.guestId, t.requestId),
+    check(
+      'replacement_owner_check',
+      sql`(${t.guestId} is not null and ${t.userId} is null and ${t.sessionId} is null) or (${t.guestId} is null and ${t.userId} is not null and ${t.sessionId} is not null)`,
+    ),
   ],
 )
 export const connectionSave = pgTable(
@@ -291,6 +293,7 @@ export const consoleAudit = pgTable(
     action: text('action').notNull(),
     targetId: text('target_id').notNull(),
     result: text('result').notNull(),
+    reason: text('reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },

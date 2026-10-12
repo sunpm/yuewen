@@ -1,11 +1,24 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Card, Descriptions, Input, Modal, Select, Table, Tabs, Typography } from 'antd'
+import {
+  Alert,
+  Button,
+  Card,
+  Descriptions,
+  Input,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Tabs,
+  Typography,
+} from 'antd'
 import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { ResourceTable } from './data'
 import { connectionLabels, type PageResult, ReadError, status, time } from './data-display'
+import { type ActionTarget, ManagementAction } from './management-action'
 import { consoleRequest } from './session'
 
 type UserRow = {
@@ -36,6 +49,7 @@ export default function Users({ sessionId }: { sessionId: string }) {
   const [pagination, setPagination] = useState({ page: 1, pageSize: 20 })
   const [filter, setFilter] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
+  const [notice, setNotice] = useState('')
   const form = useForm({
     resolver: zodResolver(filterSchema),
     defaultValues: { search: '', verified: '' as const, connection: '' as const, from: '', to: '' },
@@ -57,6 +71,15 @@ export default function Users({ sessionId }: { sessionId: string }) {
       <Typography.Paragraph type="secondary">
         列表邮箱已脱敏，详情可查看完整邮箱。最近会话创建时间仅取当前有效会话；反馈数仅计用户自有、有效且已提交的反馈。
       </Typography.Paragraph>
+      {notice && (
+        <Alert
+          className="mb-4"
+          type="success"
+          title={notice}
+          closable
+          onClose={() => setNotice('')}
+        />
+      )}
       <form
         aria-label="用户筛选"
         className="mb-6 flex flex-wrap items-end gap-4"
@@ -216,14 +239,33 @@ export default function Users({ sessionId }: { sessionId: string }) {
         width={1100}
         destroyOnHidden
       >
-        {selected && <UserDetail key={selected} sessionId={sessionId} id={selected} />}
+        {selected && (
+          <UserDetail
+            key={selected}
+            sessionId={sessionId}
+            id={selected}
+            deleted={() => setSelected(null)}
+            notify={setNotice}
+          />
+        )}
       </Modal>
     </section>
   )
 }
 
-function UserDetail({ sessionId, id }: { sessionId: string; id: string }) {
+function UserDetail({
+  sessionId,
+  id,
+  deleted,
+  notify,
+}: {
+  sessionId: string
+  id: string
+  deleted: () => void
+  notify: (message: string) => void
+}) {
   const [tab, setTab] = useState('profile')
+  const [target, setTarget] = useState<ActionTarget | null>(null)
   const detail = useQuery({
     queryKey: ['console', sessionId, 'users', 'detail', id],
     queryFn: ({ signal }) => consoleRequest<UserRow>(`/users/${encodeURIComponent(id)}`, signal),
@@ -240,54 +282,93 @@ function UserDetail({ sessionId, id }: { sessionId: string; id: string }) {
   if (!detail.data) return <Card loading />
   const row = detail.data
   return (
-    <Tabs
-      activeKey={tab}
-      onChange={setTab}
-      destroyOnHidden
-      items={[
-        {
-          key: 'profile',
-          label: '账号资料',
-          children: (
-            <>
-              <Button
-                className="mb-4"
-                disabled={detail.isFetching}
-                onClick={() => void detail.refetch()}
-              >
-                刷新详情
-              </Button>
-              <Descriptions
-                column={1}
-                items={[
-                  { key: 'id', label: '用户 ID', children: row.id },
-                  { key: 'name', label: '昵称', children: row.name },
-                  { key: 'email', label: '邮箱', children: row.email },
-                  {
-                    key: 'verified',
-                    label: '邮箱验证',
-                    children: row.emailVerified ? '已验证' : '未验证',
-                  },
-                  { key: 'connection', label: '连接状态', children: status(row.connectionStatus) },
-                  { key: 'created', label: '注册时间', children: time(row.createdAt) },
-                  { key: 'updated', label: '更新时间', children: time(row.updatedAt) },
-                  {
-                    key: 'session',
-                    label: '最近有效会话创建时间',
-                    children: time(row.latestSessionCreatedAt),
-                  },
-                  { key: 'feedback', label: '有效自有反馈数', children: row.feedbackCount },
-                ]}
-              />
-            </>
-          ),
-        },
-        ...(['credentials', 'reports', 'sessions'] as const).map((resource) => ({
-          key: resource,
-          label: { credentials: '账号连接', reports: '阅读报告', sessions: '用户会话' }[resource],
-          children: <ResourceTable sessionId={sessionId} resource={resource} userId={id} />,
-        })),
-      ]}
-    />
+    <>
+      <Tabs
+        activeKey={tab}
+        onChange={setTab}
+        destroyOnHidden
+        items={[
+          {
+            key: 'profile',
+            label: '账号资料',
+            children: (
+              <>
+                <Button
+                  className="mb-4"
+                  disabled={detail.isFetching}
+                  onClick={() => void detail.refetch()}
+                >
+                  刷新详情
+                </Button>
+                <Descriptions
+                  column={1}
+                  items={[
+                    { key: 'id', label: '用户 ID', children: row.id },
+                    { key: 'name', label: '昵称', children: row.name },
+                    { key: 'email', label: '邮箱', children: row.email },
+                    {
+                      key: 'verified',
+                      label: '邮箱验证',
+                      children: row.emailVerified ? '已验证' : '未验证',
+                    },
+                    {
+                      key: 'connection',
+                      label: '连接状态',
+                      children: status(row.connectionStatus),
+                    },
+                    { key: 'created', label: '注册时间', children: time(row.createdAt) },
+                    { key: 'updated', label: '更新时间', children: time(row.updatedAt) },
+                    {
+                      key: 'session',
+                      label: '最近有效会话创建时间',
+                      children: time(row.latestSessionCreatedAt),
+                    },
+                    { key: 'feedback', label: '有效自有反馈数', children: row.feedbackCount },
+                  ]}
+                />
+                <Space className="mt-4">
+                  <Button
+                    onClick={() =>
+                      setTarget({
+                        action: 'user.rename',
+                        id,
+                        name: row.name,
+                        updatedAt: row.updatedAt,
+                      })
+                    }
+                  >
+                    编辑昵称
+                  </Button>
+                  <Button
+                    danger
+                    onClick={() =>
+                      setTarget({ action: 'user.delete', id, updatedAt: row.updatedAt })
+                    }
+                  >
+                    删除账号
+                  </Button>
+                </Space>
+              </>
+            ),
+          },
+          ...(['credentials', 'reports', 'sessions'] as const).map((resource) => ({
+            key: resource,
+            label: { credentials: '账号连接', reports: '阅读报告', sessions: '用户会话' }[resource],
+            children: <ResourceTable sessionId={sessionId} resource={resource} userId={id} />,
+          })),
+        ]}
+      />
+      {target && (
+        <ManagementAction
+          target={target}
+          sessionId={sessionId}
+          close={() => setTarget(null)}
+          done={(message) => {
+            notify(message)
+            if (target.action === 'user.delete') deleted()
+          }}
+        />
+      )}
+    </>
   )
 }

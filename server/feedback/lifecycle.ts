@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { and, eq, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
 import type { Access, Transaction } from '../connections'
-import { checkAccountSession, lockOwner } from '../connections'
+import { lockOwner } from '../connections'
+import type { ManagementReason } from '../../shared/console'
 import { getDb } from '../db'
 import {
   consoleAudit,
@@ -32,15 +33,12 @@ export async function audit(
   actorId: string | null,
   action: string,
   targetId: string,
+  reason?: ManagementReason,
+  result = 'success',
 ) {
-  await tx.insert(consoleAudit).values({
-    id: randomUUID(),
-    actorId,
-    action,
-    targetId,
-    result: 'success',
-    expiresAt: new Date(Date.now() + 180 * DAY),
-  })
+  // Existing C2/self-service operations remain compatible before the optional C3 migration.
+  await tx.execute(sql`insert into ${consoleAudit} (id, actor_id, action, target_id, result, expires_at${reason ? sql`, reason` : sql``})
+    values (${randomUUID()}, ${actorId}, ${action}, ${targetId}, ${result}, ${new Date(Date.now() + 180 * DAY).toISOString()}::timestamptz${reason ? sql`, ${reason}` : sql``})`)
 }
 export async function queueObjectDelete(
   tx: Transaction,
@@ -78,22 +76,35 @@ export async function removeFeedback(tx: Transaction, where: SQL) {
     .where(inArray(feedbackSubmission.feedbackId, ids))
   await tx.delete(feedback).where(where)
 }
-// Shared by self-service now and the explicit C3 account-management action later.
+// Callers hold the user row lock and authorize the complete transaction before commit.
+export async function removeAccount(tx: Transaction, userId: string) {
+  const withFeedback = await feedbackTablesExist(tx)
+  if (withFeedback) {
+    await lockFeedback(tx)
+    await removeFeedback(tx, eq(feedback.userId, userId))
+  }
+  await tx.delete(user).where(eq(user.id, userId))
+  return withFeedback
+}
+
 export async function deleteAccount(access: Access) {
   await getDb().transaction(async (tx) => {
     await lockOwner(tx, access)
-    const [login] = await tx.select().from(session).where(eq(session.id, access.sessionId))
+    const [login] = await tx
+      .select({ createdAt: session.createdAt, expiresAt: session.expiresAt })
+      .from(session)
+      .where(and(eq(session.id, access.sessionId), eq(session.userId, access.ownerId)))
+      .for('update')
     if (!login || Date.now() - login.createdAt.getTime() > 600_000)
       throw new AppError('REAUTH_REQUIRED', '删除账号前，请先退出并重新登录。', 403)
-    if (await feedbackTablesExist(tx)) {
-      await lockFeedback(tx)
-      await removeFeedback(tx, eq(feedback.userId, access.ownerId))
+    if (await removeAccount(tx, access.ownerId)) {
       await audit(tx, null, 'account.self_delete', access.ownerId)
     }
-    await checkAccountSession(tx, access)
+    // The session has been deleted by cascade; its locked snapshot remains authoritative.
+    if (login.expiresAt.getTime() <= Date.now())
+      throw new AppError('AUTH_REQUIRED', '账号登录已过期，请重新登录。', 401)
     if (Date.now() - login.createdAt.getTime() > 600_000)
       throw new AppError('REAUTH_REQUIRED', '删除账号前，请先退出并重新登录。', 403)
-    await tx.delete(user).where(eq(user.id, access.ownerId))
   })
   await tryObjectDeletion()
 }

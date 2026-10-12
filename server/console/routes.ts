@@ -5,6 +5,7 @@ import { AppError } from '../weread'
 import { consoleConfigured, createConsoleAuth, getConsoleAuth, lockConsoleAdmin } from './auth'
 import { feedbackConsole } from '../feedback/console'
 import { consoleData, consoleUsers } from './read'
+import { consoleWrites } from './write'
 
 export const consoleRoutes = new Hono<AppEnv>()
 consoleRoutes.on(['GET', 'POST'], '/auth/*', async (c) => {
@@ -40,6 +41,7 @@ consoleRoutes.use('*', async (c, next) => {
   await next()
 })
 consoleRoutes.get('/overview', (c) => c.json({ status: 'ready' }))
+consoleRoutes.route('/', consoleWrites)
 consoleRoutes.route('/feedback', feedbackConsole)
 consoleRoutes.route('/users', consoleUsers)
 consoleRoutes.route('/data', consoleData)

@@ -36,6 +36,13 @@
       "when": 1791599535048,
       "tag": "0004_c2_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791794747722,
+      "tag": "0005_c3_management",
+      "breakpoints": true
     }
   ]
 }
