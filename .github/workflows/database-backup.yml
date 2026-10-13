@@ -1,0 +1,38 @@
+name: Database backup
+on:
+  schedule:
+    - cron: '0 19 * * *' # 03:00 Asia/Shanghai
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    if: vars.RECOVERY_BACKUP_ENABLED == 'true'
+    environment: database-backup
+    runs-on: ubuntu-latest
+    container: postgres:18-bookworm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --global pnpm@10.9.0
+      - run: pnpm install --frozen-lockfile
+      - name: Encrypt and upload database snapshot
+        run: pnpm exec tsx scripts/database-recovery.ts backup
+        env:
+          DATABASE_URL: ${{ secrets.RECOVERY_DATABASE_URL }}
+          RECOVERY_DATABASE: ${{ vars.RECOVERY_DATABASE }}
+          RECOVERY_LOG_ENABLED: 'true'
+          RECOVERY_SCOPE: ${{ vars.RECOVERY_SCOPE }}
+          RECOVERY_EPOCH: ${{ vars.RECOVERY_EPOCH }}
+          RECOVERY_CODE_REVISION: ${{ github.sha }}
+          RECOVERY_ENCRYPTION_KEY: ${{ secrets.RECOVERY_ENCRYPTION_KEY }}
+          RECOVERY_R2_ACCOUNT_ID: ${{ secrets.RECOVERY_R2_ACCOUNT_ID }}
+          RECOVERY_R2_ACCESS_KEY_ID: ${{ secrets.RECOVERY_R2_ACCESS_KEY_ID }}
+          RECOVERY_R2_SECRET_ACCESS_KEY: ${{ secrets.RECOVERY_R2_SECRET_ACCESS_KEY }}
+          RECOVERY_R2_BUCKET: ${{ vars.RECOVERY_R2_BUCKET }}

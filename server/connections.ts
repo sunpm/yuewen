@@ -16,6 +16,7 @@ import {
 } from './db/schema'
 import { authConfigured, getAuth } from './auth'
 import { decryptKey, encryptKey, keyring } from './crypto'
+import { recordRecoveryIntent } from './recovery/journal'
 import { AppError, weread } from './weread'
 import { rememberAccountReport } from './report-lifecycle'
 
@@ -88,6 +89,7 @@ export function decryptConnection(key: {
   return decryptKey(key.encryptedKey, key.ownerId, secret)
 }
 export async function invalidateConnection(access: Access, version: number) {
+  if (access.kind === 'account') await recordRecoveryIntent('credential.revoke', access.ownerId)
   if (access.kind === 'guest')
     await getDb()
       .update(guest)
@@ -363,6 +365,7 @@ connections.post('/guest/save', async (c) => {
     const reuse = sameKey && saved.status === 'valid' && anonymous.status === 'valid'
     const version = reuse ? saved.version : (saved?.version ?? 0) + 1
     if (!reuse) {
+      if (saved) await recordRecoveryIntent('credential.revoke', account.user.id)
       const ring = keyring(),
         values = {
           encryptedKey: encryptKey(secret, account.user.id, ring.keys[ring.version]),

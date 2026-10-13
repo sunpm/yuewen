@@ -1,0 +1,16 @@
+{
+  "rules": [
+    {
+      "id": "database-backups-7-days",
+      "enabled": true,
+      "conditions": { "prefix": "recovery/production/backups/" },
+      "deleteObjectsTransition": { "condition": { "type": "Age", "maxAge": 604800 } }
+    },
+    {
+      "id": "revocation-journal-30-days",
+      "enabled": true,
+      "conditions": { "prefix": "recovery/production/journal/" },
+      "deleteObjectsTransition": { "condition": { "type": "Age", "maxAge": 2592000 } }
+    }
+  ]
+}
