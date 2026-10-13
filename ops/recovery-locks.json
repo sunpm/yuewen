@@ -1,0 +1,16 @@
+{
+  "rules": [
+    {
+      "id": "retain-database-backups",
+      "enabled": true,
+      "prefix": "recovery/production/backups/",
+      "condition": { "type": "Age", "maxAgeSeconds": 604800 }
+    },
+    {
+      "id": "retain-revocation-journal",
+      "enabled": true,
+      "prefix": "recovery/production/journal/",
+      "condition": { "type": "Age", "maxAgeSeconds": 2592000 }
+    }
+  ]
+}

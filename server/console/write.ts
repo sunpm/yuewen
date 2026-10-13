@@ -13,6 +13,7 @@ import { credential, guest, report, session, user } from '../db/schema'
 import { audit, removeAccount, tryObjectDeletion } from '../feedback/lifecycle'
 import { removeReports, stopReport } from '../report-lifecycle'
 import { AppError } from '../weread'
+import { recordRecoveryIntent } from '../recovery/journal'
 import { requireDataAccess } from './access'
 import { getConsoleAuth, lockConsoleAdmin } from './auth'
 import { consoleAccount, consoleSession } from './schema'
@@ -167,6 +168,7 @@ consoleWrites.post('/data/credentials/:id/revoke', requireDataAccess, async (c) 
       .for('update')
     if (!row) missing()
     checkVersion(row, body)
+    await recordRecoveryIntent('credential.revoke', id)
     await removeReports(tx, eq(report.userId, id))
     await tx.delete(credential).where(eq(credential.userId, id))
   })

@@ -15,6 +15,11 @@ import {
   user,
 } from '../db/schema'
 import { AppError } from '../weread'
+import {
+  recordRecoveryBatch,
+  recordRecoveryIntent,
+  recoveryLoggingEnabled,
+} from '../recovery/journal'
 import { deleteScreenshot, listScreenshots, r2Configured } from './storage'
 
 export const DAY = 86400_000
@@ -46,6 +51,7 @@ export async function queueObjectDelete(
   bytes: number,
   notBefore = new Date(),
 ) {
+  await recordRecoveryIntent('object.delete', objectKey, { bytes, notBefore })
   await tx
     .insert(feedbackObjectDelete)
     .values({ objectKey, bytes, nextAttemptAt: notBefore })
@@ -57,7 +63,19 @@ export async function queueObjectDelete(
       },
     })
 }
-async function removeAttachments(tx: Transaction, where: SQL) {
+export async function removeAttachments(tx: Transaction, where: SQL) {
+  if (recoveryLoggingEnabled()) {
+    const attachments = await tx.select().from(feedbackAttachment).where(where)
+    // Recovery also waits for the maximum upload lease before draining these tasks.
+    await recordRecoveryBatch(
+      attachments.map((attachment) => ({
+        action: 'object.delete',
+        targetId: attachment.objectKey,
+        bytes: attachment.bytes,
+        notBefore: new Date(Date.now() + 120_000).toISOString(),
+      })),
+    )
+  }
   await tx.execute(sql`insert into feedback_object_delete (object_key, bytes, next_attempt_at)
     select a.object_key, a.bytes, greatest(now(), coalesce(s.lease_until + interval '1 minute', now()))
     from feedback_attachment a left join feedback_submission s on s.feedback_id = a.feedback_id
@@ -67,6 +85,12 @@ async function removeAttachments(tx: Transaction, where: SQL) {
   await tx.delete(feedbackAttachment).where(where)
 }
 export async function removeFeedback(tx: Transaction, where: SQL) {
+  if (recoveryLoggingEnabled()) {
+    const removed = await tx.select({ id: feedback.id }).from(feedback).where(where)
+    await recordRecoveryBatch(
+      removed.map((row) => ({ action: 'feedback.delete', targetId: row.id })),
+    )
+  }
   const ids = tx.select({ id: feedback.id }).from(feedback).where(where)
   // Revoke access and transfer the byte reservation to the durable outbox in one transaction.
   await removeAttachments(tx, inArray(feedbackAttachment.feedbackId, ids))
@@ -78,6 +102,7 @@ export async function removeFeedback(tx: Transaction, where: SQL) {
 }
 // Callers hold the user row lock and authorize the complete transaction before commit.
 export async function removeAccount(tx: Transaction, userId: string) {
+  await recordRecoveryIntent('account.delete', userId)
   const withFeedback = await feedbackTablesExist(tx)
   if (withFeedback) {
     await lockFeedback(tx)
@@ -260,6 +285,10 @@ export async function drainObjectDeletes(deadline = Date.now() + 10_000, maximum
       eq(feedbackObjectDelete.revision, task.revision),
     )
     try {
+      await recordRecoveryIntent('object.delete', task.objectKey, {
+        bytes: task.bytes,
+        notBefore: task.nextAttemptAt,
+      })
       await deleteScreenshot(task.objectKey)
       await db.delete(feedbackObjectDelete).where(current)
       deletedObjects++

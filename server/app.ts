@@ -8,6 +8,7 @@ import { authConfigured, getAuth } from './auth'
 import { consoleRoutes } from './console/routes'
 import { feedbackRoutes } from './feedback/routes'
 import { deleteAccount } from './feedback/lifecycle'
+import { recordRecoveryIntent } from './recovery/journal'
 import { getDb } from './db'
 import { credential, guest, report, session as authSession } from './db/schema'
 import { encryptKey, keyring } from './crypto'
@@ -229,6 +230,7 @@ app.put('/api/account/weread-key', async (c) => {
     if (current?.version !== before?.version)
       throw new AppError('KEY_CHANGED', '连接已在另一处更新，请重新提交。', 409)
     const now = new Date()
+    if (current) await recordRecoveryIntent('credential.revoke', userId)
     await tx
       .insert(credential)
       .values({
@@ -257,6 +259,7 @@ app.delete('/api/account/weread-key', async (c) => {
   const id = c.get('access').ownerId
   await getDb().transaction(async (tx) => {
     await lockOwner(tx, c.get('access'))
+    await recordRecoveryIntent('credential.revoke', id)
     await tx.delete(report).where(eq(report.userId, id))
     await tx.delete(credential).where(eq(credential.userId, id))
     await checkAccountSession(tx, c.get('access'))
