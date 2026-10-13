@@ -15,6 +15,8 @@ export default function App() {
   const [leaving, setLeaving] = useState(false)
   const [error, setError] = useState('')
   const [offline, setOffline] = useState(!navigator.onLine)
+  const consoleUnavailable =
+    session.error && 'code' in session.error && session.error.code === 'CONSOLE_UNAVAILABLE'
   const refetch = session.refetch
   const sessionId = session.data?.session.id
   const expiry = session.data ? new Date(session.data.session.expiresAt).getTime() : 0
@@ -34,22 +36,21 @@ export default function App() {
   useEffect(() => {
     const recover = () => {
       setOffline(!navigator.onLine)
-      void refetch()
+      if (navigator.onLine) void refetch()
     }
     const visibility = () => {
-      if (document.visibilityState === 'visible') recover()
+      // Recheck an expired session if the browser suspended its expiry timer.
+      if (document.visibilityState === 'visible' && expiry > 0 && expiry <= Date.now()) recover()
     }
     const disconnect = () => setOffline(true)
     window.addEventListener('online', recover)
     window.addEventListener('offline', disconnect)
-    window.addEventListener('focus', recover)
     document.addEventListener('visibilitychange', visibility)
     const timer =
       expiry > Date.now() ? setTimeout(() => void refetch(), expiry - Date.now()) : undefined
     return () => {
       window.removeEventListener('online', recover)
       window.removeEventListener('offline', disconnect)
-      window.removeEventListener('focus', recover)
       document.removeEventListener('visibilitychange', visibility)
       clearTimeout(timer)
     }
@@ -93,8 +94,14 @@ export default function App() {
     return (
       <Result
         status="warning"
-        title={offline ? '当前离线' : '无法核验管理会话'}
-        subTitle="联网后可以重新核验，未完成的操作不会自动提交。"
+        title={offline ? '当前离线' : consoleUnavailable ? '管理后台尚未启用' : '无法核验管理会话'}
+        subTitle={
+          offline
+            ? '联网后可以重新核验，未完成的操作不会自动提交。'
+            : consoleUnavailable
+              ? '管理服务尚未启用，请联系维护者。'
+              : '会话核验失败，请稍后重试。未完成的操作不会自动提交。'
+        }
         extra={<Button onClick={() => void refetch()}>重新核验</Button>}
       />
     )

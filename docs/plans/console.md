@@ -6,6 +6,8 @@
 
 [返回总计划](../../PLAN.md) · [部署与命名](release.md#console-deployment) · [设备入口](design.md#device-entry) · [现行数据契约](../data-contract.md)
 
+2026-10-13 修复 `console/src/app.tsx`：普通聚焦或切回标签页不再主动核验会话，仍保留首次进入、网络恢复、登录状态变化、期限到达及手动重试；从后台恢复时仅对已到期会话补核验。`CONSOLE_UNAVAILABLE` 显示管理后台尚未启用，只有离线状态提示联网。线上只读确认管理服务仍未启用；本地 Chrome、已有后台测试、类型、Biome 和后台构建通过，修复待发布，生产启用及登录验收继续留在 C5。见[质量记录](../quality-log.md#console-session-recovery-2026-10-13)。
+
 ## 目标与现状
 
 新增后台，用于处理带截图与环境信息的反馈、查询用户、执行明确范围的数据库管理。PC 按[迁移专题](pc-refresh.md)改为 React，独立 Vant H5 冻结；后台新增 React 应用，共用现有 Hono、PostgreSQL 与 Drizzle 迁移。截图文件统一存 Cloudflare R2，数据库只存反馈及附件元信息，服务器不落盘。后台地址、备用域名与存储资源命名由上线计划统一维护。

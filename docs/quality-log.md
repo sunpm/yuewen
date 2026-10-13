@@ -1,5 +1,17 @@
 # 开发验证记录
 
+<a id="console-session-recovery-2026-10-13"></a>
+
+## 2026-10-13：后台重复核验与未启用提示修复
+
+线上只读调用 `GET /api/console/auth/get-session` 返回 `503 / CONSOLE_UNAVAILABLE`，正文明确为后台尚未启用。原界面把所有核验错误都显示为联网后重试；`focus` 和 `visibilitychange` 又无条件触发核验，导致每次切回页面都重新显示整页加载并清理缓存。这些逻辑来自 2026-10-09 后台基础实现。
+
+`console/src/app.tsx` 移除普通聚焦触发，仅在恢复可见且会话已到期时补充核验；首次进入、登录状态通知、到期计时、重连和手动重试保留。核验期间的数据隐藏及服务端逐次鉴权不变。按错误码单独展示后台未启用；只有实际离线才提示联网，其他失败提供主动重试。
+
+- `pnpm typecheck:console`、`pnpm exec biome check console/src/app.tsx`、`pnpm exec vitest run tests/console/ui.test.tsx`（6/6）及 `pnpm build:console` 通过。构建仍有依赖注释和大 chunk 警告；没有新增或修改自动化测试。
+- 本地 API 未加载 `.env` 或数据库凭据，以真实未启用响应检查 Chrome：页面显示“管理后台尚未启用”；点击重新核验发出一次请求，切到新标签页再返回后 Network 仍为一次请求，没有自动再次核验。未模拟 API 响应，未操作生产数据库或后台配置。
+- 本轮只检查上述关键流程，没有新增生产登录、已登录表单、自然 8 小时到期的浏览器证据。修复未提交、未发布；生产配置/初始化与登录验收继续由 C5 承接。
+
 <a id="recovery-journal-2026-10-13"></a>
 
 ## 2026-10-13：加密备份策略与独立撤销日志
