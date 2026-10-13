@@ -103,9 +103,9 @@ C2 后端位于 `server/feedback/`，迁移 `0004_c2_feedback.sql` 新增反馈�
 
 PC 反馈入口先建立提交上下文，截图仅在内存预览，点击提交才上传。`shared/feedback.ts` 共用字段校验；`client/api.ts` 对 FormData 由浏览器设置 multipart boundary，其他请求沿用 JSON。截图使用 html-to-image 1.11.13，离屏副本遮蔽所有表单输入，十秒超时，最多 400 万像素、1 MiB；过长页面提示改截可见区域或文字反馈。取消/离开页面会清理草稿和对象 URL；重试复用首次 FormData，修改文字或图片才生成新请求标识，身份失效须显式重新确认。
 
-后台反馈列表以 Query 驱动受控分页与筛选，RHF/Zod 维护处理表单；列表只用脱敏归属，详情按需读取正文和图片。修改及删除携带版本，冲突保留草稿并提供刷新；管理请求鉴权失败、离线或会话核验会清理缓存/图片。界面代码完成不等于截图效果、真实 R2 或生产闭环已验收。
+后台反馈列表以 Query 驱动受控分页与筛选，RHF/Zod 维护处理表单；列表只用脱敏归属，详情按需读取正文和图片。修改及删除携带版本，冲突保留草稿并提供刷新；管理请求鉴权失败、离线或会话核验会清理缓存/图片。开发 R2 关键 API 已取得实际证据；截图效果、界面运行及生产闭环仍待验收。
 
-先迁移，配置对应环境私有 R2 bucket、仅限该 bucket 的凭据与 30 天对象生命周期，再完成真实写/读/删及失败恢复验收，最后设置 `FEEDBACK_ENABLED=true`。服务端变量为 `R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET`；缺少 R2 配置仍允许已启用环境的文字反馈，截图明确拒绝。本批未创建云资源或写入生产变量。
+先迁移，配置对应环境私有 R2 bucket、仅限该 bucket 的凭据与 30 天对象生命周期，再完成真实写/读/删及失败恢复验收，最后设置 `FEEDBACK_ENABLED=true`。服务端变量为 `R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET`；缺少 R2 配置仍允许已启用环境的文字反馈，截图明确拒绝。2026-10-13 已配置独立开发 bucket 和本地忽略的 `.env`，限定开发 bucket 的对象读写凭据有效至 2026-11-12，到期需更新本地凭据。生产变量未写入，持久 `FEEDBACK_ENABLED` 保持关闭；本次只在隔离联调进程临时开启。资源命名见[上线计划](plans/release.md#r2-deployment)，实际 API 结果见[质量记录](quality-log.md#c2-development-r2-2026-10-13)。
 
 R2 采用 AWS S3 SDK，region 为 `auto`，endpoint 按账号构造；不配置公共 URL、不签发浏览器直传链接。图片用 `sharp` 有界完整解码，Netlify 将该原生模块列为 `external_node_modules`；部署时需确认 Linux 原生包实际打包/启动。普通前端构建不等于 Functions 已验证。
 
