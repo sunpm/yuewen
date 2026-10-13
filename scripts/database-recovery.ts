@@ -6,12 +6,17 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import postgres from 'postgres'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '../server/db'
 import { account, credential, feedback, feedbackAttachment } from '../server/db/schema'
 import { consoleAccount } from '../server/console/schema'
-import { queueObjectDelete, removeAccount, removeFeedback } from '../server/feedback/lifecycle'
+import {
+  queueObjectDelete,
+  removeAccount,
+  removeAttachments,
+  removeFeedback,
+} from '../server/feedback/lifecycle'
 import { recoveryEntry, type RecoveryEvent } from '../server/recovery/journal'
 import {
   BACKUP_DAYS,
@@ -160,18 +165,7 @@ export async function replayRecoveryEvents(events: RecoveryEvent[]) {
       } else if (event.action === 'feedback.delete') {
         await removeFeedback(tx, eq(feedback.id, event.targetId))
       } else if (event.action === 'object.delete') {
-        const attachments = await tx
-          .select({ id: feedbackAttachment.feedbackId })
-          .from(feedbackAttachment)
-          .where(eq(feedbackAttachment.objectKey, event.targetId))
-        if (attachments.length)
-          await removeFeedback(
-            tx,
-            inArray(
-              feedback.id,
-              attachments.map((row) => row.id),
-            ),
-          )
+        await removeAttachments(tx, eq(feedbackAttachment.objectKey, event.targetId))
         await queueObjectDelete(
           tx,
           event.targetId,
@@ -202,18 +196,7 @@ export async function replayRecoveryEvents(events: RecoveryEvent[]) {
     }
     // Backup age is never allowed to extend the original feedback/attachment retention period.
     await removeFeedback(tx, sql`${feedback.expiresAt} <= now()`)
-    const expired = await tx
-      .select({ id: feedbackAttachment.feedbackId })
-      .from(feedbackAttachment)
-      .where(sql`${feedbackAttachment.expiresAt} <= now()`)
-    if (expired.length)
-      await removeFeedback(
-        tx,
-        inArray(
-          feedback.id,
-          expired.map((row) => row.id),
-        ),
-      )
+    await removeAttachments(tx, sql`${feedbackAttachment.expiresAt} <= now()`)
     await tx.delete(credential).where(eq(credential.status, 'invalid'))
   })
 }

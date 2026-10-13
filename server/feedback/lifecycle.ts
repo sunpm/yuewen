@@ -63,7 +63,7 @@ export async function queueObjectDelete(
       },
     })
 }
-async function removeAttachments(tx: Transaction, where: SQL) {
+export async function removeAttachments(tx: Transaction, where: SQL) {
   if (recoveryLoggingEnabled()) {
     const attachments = await tx.select().from(feedbackAttachment).where(where)
     // Recovery also waits for the maximum upload lease before draining these tasks.
