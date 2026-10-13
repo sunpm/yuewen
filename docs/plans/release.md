@@ -104,7 +104,7 @@ Neon 的两个分支使用独立连接串。公开预览使用模拟示例或脱
 
 ### 后台子路径与备用域名
 
-首选 `https://read.sunpm.me/console`，后台产物为 `dist/console/`，Vite `base` 为 `/console/`，React Router 基址为 `/console`；前台 `/` 和 `/m/` 保留。Netlify 已支持 [SPA 重写](https://docs.netlify.com/manage/routing/redirects/rewrites-proxies/)，2026-10-09 已接入 `/console` 和 `/console/*` 重写，并通过包含后台的四入口构建；浏览器与平台管理登录验收仍待完成。
+首选 `https://read.sunpm.me/console`，后台产物为 `dist/console/`，Vite `base` 为 `/console/`，React Router 基址为 `/console`；前台 `/` 和 `/m/` 保留。Netlify 已支持 [SPA 重写](https://docs.netlify.com/manage/routing/redirects/rewrites-proxies/)，2026-10-09 已接入 `/console` 和 `/console/*` 重写，并通过包含后台的四入口构建；2026-10-13 已启用生产管理认证，Chrome 登录、刷新保持会话与切回无重复请求通过，见[发布记录](../quality-log.md#console-session-recovery-2026-10-13)。
 
 重写优先级为 `/api/*` → `/console` 精确入口与 `/console/*` → `/m/*` → 桌面 `/*`；后台回退到 `/console/index.html`，静态资源优先，不能强制把 JS/CSS 重写成 HTML。验证带/不带尾斜杠、`/console/login`、`/console/users`、刷新、登录返回和未知后台路由；当前不新增设备自动分流，统计排除管理页面和冻结 H5。构建顺序避免桌面清空其他两端产物，部署检查确认三个入口同时存在。
 

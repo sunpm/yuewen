@@ -33,6 +33,8 @@ pnpm console:admin:reset
 
 `pnpm test` 包含原有 Vue/服务端测试和后台 React Testing Library 用例。`pnpm test:console` 读取本地 `.env`，可用 `CONSOLE_TEST_DATABASE_URL` 覆盖开发连接；仅在生成的独立 `console_test_*` schema 中执行提交的迁移和管理 API 集成检查，测试结束删除该 schema。Neon 使用 direct endpoint 及 `options=-c search_path=...`，迁移前校验实际 schema；显式外键的 schema 仅在测试副本中替换。该命令不应指向生产库，测试账号/密码随机生成且不输出。当前 60 秒的单用例上限容纳远程数据库往返，不代表接口性能门槛。
 
+2026-10-13 已启用生产 C0–C1 管理登录：生产迁移截至 0003，独立管理密钥仅配置 Netlify Production；管理员初始化凭据保留在本地忽略的 `.env.production`（权限 `0600`），不上传到 Netlify。实际登录与切回结果见[质量记录](quality-log.md#console-session-recovery-2026-10-13)。生产 C2/C3 迁移及功能启用仍按各自批次执行。
+
 ## 登录与数据库联调顺序
 
 1. 准备独立开发 PostgreSQL 数据库及受验证的 Resend 发信域，填写服务端环境变量。

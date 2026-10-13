@@ -10,7 +10,17 @@
 
 - `pnpm typecheck:console`、`pnpm exec biome check console/src/app.tsx`、`pnpm exec vitest run tests/console/ui.test.tsx`（6/6）及 `pnpm build:console` 通过。构建仍有依赖注释和大 chunk 警告；没有新增或修改自动化测试。
 - 本地 API 未加载 `.env` 或数据库凭据，以真实未启用响应检查 Chrome：页面显示“管理后台尚未启用”；点击重新核验发出一次请求，切到新标签页再返回后 Network 仍为一次请求，没有自动再次核验。未模拟 API 响应，未操作生产数据库或后台配置。
-- 本轮只检查上述关键流程，没有新增生产登录、已登录表单、自然 8 小时到期的浏览器证据。修复未提交、未发布；生产配置/初始化与登录验收继续由 C5 承接。
+- 上述为本地修复阶段的证据；随后按用户明确授权完成以下生产启用。本轮未新增已登录编辑表单、自然 8 小时到期或完整 C5 专项的浏览器证据。
+
+### 生产启用与线上验收
+
+用户明确授权提交推送、启用生产后台并检查登录和切回。修复提交 `2b3eaac` 已推送 `main`，Netlify 生产自动发布生效；正式后台产物包含本次修复。`pnpm build` 的 PC、H5、console 三入口构建通过，仍只有既有依赖注释及 chunk 体积警告。
+
+- 核对生产与开发 endpoint 独立；生产原有 0000–0002，本批仅向前应用 0003 管理认证迁移。复用 `provisionConsoleAdmin('init')` 创建唯一生产管理员，没有重置已有密码或改写业务数据。
+- 生成独立生产管理密钥和随机密码，保存在忽略的生产环境文件且权限为 `0600`。Netlify 只添加 `CONSOLE_AUTH_SECRET` 的 Production Secret value；平台套餐限定其作用域为 Builds、Functions、Runtime，其他部署上下文不赋值。初始化账号和密码不上传到 Netlify。
+- 生产 `GET /api/console/auth/get-session` 从 `503 / CONSOLE_UNAVAILABLE` 变为 `200 / null`（匿名）；匿名概览返回 `401 / CONSOLE_AUTH_REQUIRED`。正式健康返回 `200 / auth:true`，后台与 H5 静态入口返回 200。
+- Chrome 在正式 `/console/` 跳转登录页，用生产管理员登录后进入后台概览，显示 8 小时期限。刷新仍保持登录，Network 中管理会话与概览分别返回 200。最小化 Chrome 后恢复，概览保持显示，管理 API 仍只有这两次读取，没有新增核验或整页加载；没有保存浏览器密码。
+- 本批只启用 C0–C1 管理登录；未应用 0004/0005，未启用 C2 反馈、C3 数据管理、C4 统计或恢复日志/调度。其余 C5 验收继续保留，不将本次登录验收视为所有后台功能已上线。
 
 <a id="recovery-journal-2026-10-13"></a>
 
