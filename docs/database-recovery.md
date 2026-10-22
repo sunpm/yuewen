@@ -1,8 +1,8 @@
 # 数据库备份、独立撤销日志与恢复
 
-更新日期：2026-10-13（Asia/Shanghai）
+更新日期：2026-10-22（Asia/Shanghai）
 
-适用于 0000–0005 迁移。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；本批只在隔离开发库演练，生产尚未配置或启用。最新证据见[质量记录](quality-log.md#recovery-journal-2026-10-13)，此前原生备份与兼容代码回滚见[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
+适用于 0000–0005 迁移，包括尚未应用 0004/0005 的升级前备份。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；目前只在隔离开发库演练，生产尚未配置或启用。升级前备份的恢复证据见[本次记录](quality-log.md#pre-upgrade-recovery-2026-10-22)，完整独立日志与原生备份演练见[独立日志记录](quality-log.md#recovery-journal-2026-10-13)和[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
 
 ## 备份策略与存储
 
@@ -63,7 +63,8 @@ pnpm exec tsx scripts/database-recovery.ts backup
 1. 冻结来源应用全部写入、备份和清理任务，等待在途请求、上传租约及其安全期结束；仅关闭反馈/管理开关不足以冻结写入。保留原库供核对，恢复目标不得绑定公开应用。
 2. 新进程指定目标库 `DATABASE_URL / RECOVERY_DATABASE`，沿用来源 scope、epoch、R2 读取凭据与备份解密密钥；设置 `RECOVERY_LOG_ENABLED=false`、`RECOVERY_WRITES_FROZEN=true`。后者是操作者对真实冻结状态的确认，不会代替平台停写。
 3. 执行下面命令。工具先认证解密、核验摘要/年龄/epoch/来源目标不同、分页读取并校验全部日志及 checkpoint，然后确认目标没有业务表/序列/视图。仅删除空 public（不使用 CASCADE），以单事务 pg_restore 恢复。
-4. 自动在目标事务重放撤销、失效密码与临时状态、清理已过期反馈；对象任务保留至少两分钟安全期。恢复阶段不直接访问截图 R2。恢复或重放失败都保持隔离，重新使用空库，不能开放部分完成的结果。
+4. 在隔离目标应用当前恢复工具随附的缺失迁移，再重放撤销。迁移目录按工具文件位置解析，不依赖执行目录；升级前档案会补齐反馈表及对象删除队列，已升级档案沿用迁移历史，不重复建表。恢复目标使用当前结构，不再与旧快照逐表完全相同；来源库不执行迁移。
+5. 自动在目标事务重放撤销、失效密码与临时状态、清理已过期反馈；对象任务保留至少两分钟安全期。恢复阶段不直接访问截图 R2。恢复、迁移或重放任一步失败都保持隔离，重新使用空库，不能开放部分完成的结果。
 
 ```sh
 pnpm exec tsx scripts/database-recovery.ts restore '<备份输出的 object key>'
@@ -79,4 +80,4 @@ pnpm exec tsx scripts/database-recovery.ts restore '<备份输出的 object key>
 
 演练只用开发分支中新建库、合成账号/图片和随机 scope，开发对象不混入生产前缀。本轮复用已授权开发 R2 的对象权限，未更改共享 bucket 的规则；演练不证明生产 bucket 保留锁或自然到期已运行。结束关闭连接，删除本轮库、确切 scope 下的日志/备份、合成图片与临时档案；不清空共享 bucket。
 
-本批提交和合并消息使用 `[skip netlify]`，遵守“不动生产”；本地必要检查照常执行。该标记由 [Netlify 官方部署规则](https://docs.netlify.com/deploy/manage-deploys/manage-deploys-overview/)支持，不替代验收。
+需要保留生产部署关闭时，合并到生产分支的提交消息使用 `[skip netlify]`。需要 PR 预览 CI 时，PR 标题不带跳过标记，并推送新提交触发检查；标题中的 `[skip netlify]` 会直接跳过预览，不能把无检查结果视为通过。本地必要检查照常执行，预览构建不替代功能验收。规则见 [Netlify 官方部署说明](https://docs.netlify.com/deploy/manage-deploys/manage-deploys-overview/)。

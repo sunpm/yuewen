@@ -3,10 +3,12 @@ import { execFile } from 'node:child_process'
 import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import postgres from 'postgres'
 import { eq, sql } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { z } from 'zod'
 import { getDb } from '../server/db'
 import { account, credential, feedback, feedbackAttachment } from '../server/db/schema'
@@ -241,7 +243,7 @@ export async function restoreDatabase(object: string) {
     events.push(...batch)
   }
   // Replay the entire retained epoch, including pre-snapshot intents with delayed DB commits.
-  const db = postgres(process.env.DATABASE_URL!, { max: 1, prepare: false })
+  const db = postgres(process.env.DATABASE_URL!, { max: 1, prepare: false, onnotice: () => {} })
   const directory = await mkdtemp(join(tmpdir(), 'yuewen-restore-'))
   try {
     const tables = await db`select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
@@ -259,6 +261,10 @@ export async function restoreDatabase(object: string) {
       `--dbname=${databaseConfig().name}`,
       file,
     ])
+    // Pre-upgrade snapshots need the current tables before replay can retain deletion tasks.
+    await migrate(drizzle(db), {
+      migrationsFolder: fileURLToPath(new URL('../server/db/migrations', import.meta.url)),
+    })
     await replayRecoveryEvents(events)
     return {
       restored: true,
