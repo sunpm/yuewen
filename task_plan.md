@@ -12,7 +12,7 @@
 
 本轮在 `codex/c5-recovery-preflight` 完成生产恢复存储只读核对命令：对照仓库规则读取生命周期、保留锁及公开访问配置，缺失、不符或读取失败均非零退出。类型、lint、格式和现有安全测试通过，缺配置命令按预期失败；实际远端回读因尚无控制面配置而保留，见[本轮证据](docs/quality-log.md#recovery-storage-2026-10-22)。未新增或修改自动化测试。
 
-继续 C5 时按[恢复与回滚交付](docs/plans/release.md#database-recovery)准备生产专用 bucket、独立对象权限与密钥保管，应用规则并使用新命令取得实际回读证据，再冻结写入、启用日志和建立基线备份。本批开发及本地验收完成，用户已授权提交、推送、PR 和检查通过后合并；交付状态以该分支对应 PR 为准，提交和合并消息保留 `[skip netlify]`，本批不部署生产。
+继续 C5 时按[恢复与回滚交付](docs/plans/release.md#database-recovery)准备生产专用 bucket、独立对象权限与密钥保管，应用规则并使用新命令取得实际回读证据，再冻结写入、启用日志和建立基线备份。本批开发及本地验收完成，已提交推送并创建 [PR #42](https://github.com/sunpm/yuewen/pull/42)；用户已授权最终提交检查通过后合并，远端检查与合并结果由 PR 留存。提交和合并消息保留 `[skip netlify]`，本批不部署生产。
 
 上一批恢复目标修复 [PR #41](https://github.com/sunpm/yuewen/pull/41) 已合并，开发真实恢复证据见[质量记录](docs/quality-log.md#recovery-target-2026-10-22)。
 

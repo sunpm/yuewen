@@ -14,6 +14,7 @@
 
 ## 研究发现
 
+- 本批实现已提交为 `c00c62b` 并推送，创建并附加 [PR #42](https://github.com/sunpm/yuewen/pull/42)。预览与规则检查已启动；交付补记只改规划文件，沿用已通过的本地代码验收，最终按远端 head 检查通过后合并。
 - 本批代码及本地验收完成：服务端/脚本类型、受影响 ESLint/Prettier、现有安全测试 13/13 通过；真实 CLI 在缺配置时输出 unavailable 和四个变量名并退出 1。尚无远端成功/不符/权限/超时实测，证据边界见[质量记录](docs/quality-log.md#recovery-storage-2026-10-22)。
 - 本轮工程检查的 pnpm 启动器尚未进入检查就因版本解析请求遭 DNS 限制；改用 node_modules 中已安装的 Prettier、ESLint、vue-tsc、Vitest 与 Node 的 tsx loader，避免下载或改依赖。
 - 已按 Cloudflare 官方 API 核对四个 GET：生命周期 `lifecycle`、保留锁 `lock`（单数）、托管域 `domains/managed`、自定义域 `domains/custom`。规则数组可省略，代表没有规则，必须判为不符；公开访问依据 enabled，不能把域名存在或 SSL 状态当作开放判据。来源：[生命周期](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/methods/get/)、[保留锁](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/methods/get/)、[托管域](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/domains/subresources/managed/methods/list/)、[自定义域](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/domains/subresources/custom/methods/list/)。
