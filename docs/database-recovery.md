@@ -47,7 +47,7 @@
 
 应用 Functions 只配置 `RECOVERY_LOG_ENABLED=true`、`RECOVERY_R2_ACCOUNT_ID / ACCESS_KEY_ID / SECRET_ACCESS_KEY / BUCKET`、`RECOVERY_SCOPE` 与 UUID `RECOVERY_EPOCH`。使用限定专用 bucket 的凭据，不给应用配置备份解密密钥或存储控制面权限。生产 scope 固定为 `production`；命名见[上线计划](plans/release.md#database-recovery)。预览不接入这些配置。
 
-运维进程另外需要 direct `DATABASE_URL`、与 URL 库名完全一致的 `RECOVERY_DATABASE`、32 字节随机密钥的 Base64 `RECOVERY_ENCRYPTION_KEY` 及 `RECOVERY_CODE_REVISION`。`PG_BIN` 可指定官方客户端目录，客户端主版本不得低于源库；拒绝 pooler 与 `search_path` 连接选项，清除继承的 libpq 环境配置。revision 记录备份工具代码版本，不证明生产正在部署同一个版本。
+运维进程另外需要 direct `DATABASE_URL`、与 URL 解码后库名完全一致的 `RECOVERY_DATABASE`、32 字节随机密钥的 Base64 `RECOVERY_ENCRYPTION_KEY` 及 `RECOVERY_CODE_REVISION`。URL 必须为带显式账号和密码的单主机 `postgres://` 或 `postgresql://` 连接；查询参数仅允许各出现一次的 `sslmode` 和 `channel_binding`，拒绝 `database`、`user`、`options`、`search_path` 等覆盖项、pooler、多主机及可被 libpq 当成连接串的库名。未指定 sslmode 时统一为 require；原生工具同时接收 channel_binding，清除继承的 libpq 环境配置。`PG_BIN` 可指定官方客户端目录，客户端主版本不得低于源库。revision 记录备份工具代码版本，不证明生产正在部署同一个版本。
 
 ```sh
 # 本地命令读取 .env；生产仅在另行授权、配置核实后显式选择受限环境文件。
@@ -83,7 +83,7 @@ pnpm exec tsx scripts/database-recovery.ts status
 2. 新进程指定目标库 `DATABASE_URL / RECOVERY_DATABASE`，沿用来源 scope、epoch、R2 读取凭据与备份解密密钥；设置 `RECOVERY_LOG_ENABLED=false`、`RECOVERY_WRITES_FROZEN=true`。后者是操作者对真实冻结状态的确认，不会代替平台停写。
 3. 执行下面命令。工具先认证解密、核验摘要/年龄/epoch/来源目标不同，校验 checkpoint 的动作、epoch、时间和工具版本与档案一致，再分页读取并校验全部日志，然后确认目标没有业务表/序列/视图。仅删除空 public（不使用 CASCADE），以单事务 pg_restore 恢复。
 4. 在隔离目标应用当前恢复工具随附的缺失迁移，再重放撤销。迁移目录按工具文件位置解析，不依赖执行目录；升级前档案会补齐反馈表及对象删除队列，已升级档案沿用迁移历史，不重复建表。恢复目标使用当前结构，不再与旧快照逐表完全相同；来源库不执行迁移。
-5. 自动在目标事务重放撤销、失效密码与临时状态、清理已过期反馈；对象任务保留至少两分钟安全期。恢复阶段不直接访问截图 R2。恢复、迁移或重放任一步失败都保持隔离，重新使用空库，不能开放部分完成的结果。
+5. 空库检查、迁移与撤销重放共用同一隔离目标连接，显式传入与原生恢复一致的解码库名，不使用应用的 getDb 缓存。自动在目标事务重放撤销、失效密码与临时状态、清理已过期反馈；对象任务保留至少两分钟安全期。恢复阶段不直接访问截图 R2。恢复、迁移或重放任一步失败都保持隔离，重新使用空库，不能开放部分完成的结果；连接释放异常也会执行临时明文清理。
 
 ```sh
 pnpm exec tsx scripts/database-recovery.ts restore '<备份输出的 object key>'
@@ -91,7 +91,7 @@ pnpm exec tsx scripts/database-recovery.ts restore '<备份输出的 object key>
 
 成功仍输出 `isolated:true`，不切换应用。用目标专用进程和正确的截图 bucket 运行已有 `drainObjectDeletes`，核对对象、容量及所有任务已处理；独立日志启用时清理也需要日志存储可用。重置管理员密码，通过邮箱重新验证保留账号，核对旧 Cookie/密码被拒绝、已删账号/撤销 Key 不复活。保留的 Key 还需用对应旧密钥验证解密。恢复不会还原已删图片；缺图继续返回 `SCREENSHOT_GONE`。
 
-数据库角色和权限不随 `--no-owner --no-acl` 复制，切换前重建最小权限。生产还需记录最新成功备份年龄、日志连续性、锁/生命周期回读、密钥可用性及有界恢复结果，然后在另行授权后切换。不要在已经缓存 `getDb()` 的进程中修改 DATABASE_URL 切库。
+数据库角色和权限不随 `--no-owner --no-acl` 复制，切换前重建最小权限。生产还需记录最新成功备份年龄、日志连续性、锁/生命周期回读、密钥可用性及有界恢复结果，然后在另行授权后切换。恢复后的对象清理等应用操作仍使用目标专用的新进程，不能在已经缓存 `getDb()` 的应用进程中修改 DATABASE_URL 切库。
 
 ## 应用回滚与收尾
 
