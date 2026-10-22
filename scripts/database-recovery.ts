@@ -202,10 +202,7 @@ export async function replayRecoveryEvents(events: RecoveryEvent[]) {
     await tx.delete(credential).where(eq(credential.status, 'invalid'))
   })
 }
-export async function restoreDatabase(object: string) {
-  if (process.env.RECOVERY_WRITES_FROZEN !== 'true' || recoveryEnabled())
-    throw new Error('Freeze source writes/jobs and use an isolated recovery process first')
-  const { identity } = databaseConfig()
+async function readBackup(object: string) {
   const config = recoveryConfig()
   if (!object.startsWith(`${config.prefix}backups/${config.epoch}/`))
     throw new Error('Invalid backup object')
@@ -218,17 +215,56 @@ export async function restoreDatabase(object: string) {
       Buffer.concat([decipher.update(encrypted.subarray(28)), decipher.final()]).toString(),
     ),
   )
-  const age = Date.now() - Date.parse(data.startedAt)
-  if (
-    data.source === identity ||
-    data.epoch !== config.epoch ||
-    age < 0 ||
-    age >= BACKUP_DAYS * 86400_000
-  )
-    throw new Error('Source target, journal epoch or backup age is unsafe')
+  if (data.epoch !== config.epoch) throw new Error('Backup epoch mismatch')
   const dump = Buffer.from(data.dump, 'base64')
   if (dump.length > MAX_BACKUP_BYTES || digest(dump) !== data.sha256)
     throw new Error('Backup digest mismatch')
+  if (!data.checkpoint.startsWith(`${config.prefix}journal/${config.epoch}/`))
+    throw new Error('Invalid journal checkpoint')
+  const checkpoint = recoveryEntry.parse(
+    JSON.parse((await readRecoveryObject(data.checkpoint, 512 * 1024)).toString()),
+  )
+  if (
+    Array.isArray(checkpoint) ||
+    checkpoint.action !== 'checkpoint' ||
+    checkpoint.epoch !== data.epoch ||
+    checkpoint.at !== data.startedAt ||
+    checkpoint.targetId !== data.revision
+  )
+    throw new Error('Journal checkpoint mismatch')
+  return { data, dump }
+}
+
+export async function backupStatus() {
+  const { identity } = databaseConfig()
+  const objects = await listRecoveryObjects('backups')
+  const latest = objects.sort((a, b) => b.modified.getTime() - a.modified.getTime())[0]
+  if (!latest) return { healthy: false, status: 'missing' }
+  const { data, dump } = await readBackup(latest.key)
+  const age = Date.now() - Date.parse(data.startedAt)
+  if (data.source !== identity || age < 0) throw new Error('Backup source or timestamp mismatch')
+  const healthy = age <= 30 * 3600_000
+  return {
+    healthy,
+    status: healthy ? 'ok' : 'stale',
+    object: latest.key,
+    startedAt: data.startedAt,
+    ageHours: Math.round((age / 3600_000) * 100) / 100,
+    bytes: dump.length,
+    sha256: data.sha256,
+    revision: data.revision,
+  }
+}
+
+export async function restoreDatabase(object: string) {
+  if (process.env.RECOVERY_WRITES_FROZEN !== 'true' || recoveryEnabled())
+    throw new Error('Freeze source writes/jobs and use an isolated recovery process first')
+  const { identity } = databaseConfig()
+  const config = recoveryConfig()
+  const { data, dump } = await readBackup(object)
+  const age = Date.now() - Date.parse(data.startedAt)
+  if (data.source === identity || age < 0 || age >= BACKUP_DAYS * 86400_000)
+    throw new Error('Source target or backup age is unsafe')
   const objects = await listRecoveryObjects('journal')
   if (!objects.some((entry) => entry.key === data.checkpoint))
     throw new Error('Journal checkpoint missing')
@@ -282,15 +318,25 @@ export async function restoreDatabase(object: string) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const [command, object] = process.argv.slice(2)
   try {
-    const [command, object] = process.argv.slice(2)
     if (command === 'backup') console.log(JSON.stringify(await backupDatabase()))
-    else if (command === 'restore' && object)
+    else if (command === 'status') {
+      const status = await backupStatus()
+      console.log(JSON.stringify(status))
+      process.exit(status.healthy ? 0 : 1)
+    } else if (command === 'restore' && object)
       console.log(JSON.stringify(await restoreDatabase(object)))
-    else throw new Error('Usage: database-recovery.ts backup | restore <object-key>')
+    else throw new Error('Usage: database-recovery.ts backup | status | restore <object-key>')
     process.exit(0)
   } catch {
-    console.error('数据库备份/恢复失败；未开放恢复环境。检查配置、存储权限、日志完整性及空库要求。')
+    if (command === 'status') {
+      console.log(JSON.stringify({ healthy: false, status: 'unavailable' }))
+      console.error('备份状态核验失败；检查配置、存储权限、备份密钥、档案与 checkpoint。')
+    } else
+      console.error(
+        '数据库备份/恢复失败；未开放恢复环境。检查配置、存储权限、日志完整性及空库要求。',
+      )
     process.exit(1)
   }
 }

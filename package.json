@@ -23,6 +23,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file=.env server/db/migrate.ts",
     "db:backup": "tsx --env-file=.env scripts/database-recovery.ts backup",
+    "db:backup:status": "tsx --env-file=.env scripts/database-recovery.ts status",
     "db:restore": "tsx --env-file=.env scripts/database-recovery.ts restore",
     "feedback:cleanup": "tsx --env-file=.env scripts/cleanup-feedback.ts --run",
     "dev:mobile": "vite --config vite.mobile.config.ts --host 127.0.0.1",

@@ -2,7 +2,7 @@
 
 更新日期：2026-10-22（Asia/Shanghai）
 
-适用于 0000–0005 迁移，包括尚未应用 0004/0005 的升级前备份。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；目前只在隔离开发库演练，生产尚未配置或启用。升级前备份的恢复证据见[本次记录](quality-log.md#pre-upgrade-recovery-2026-10-22)，完整独立日志与原生备份演练见[独立日志记录](quality-log.md#recovery-journal-2026-10-13)和[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
+适用于 0000–0005 迁移，包括尚未应用 0004/0005 的升级前备份。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；目前只在隔离开发库演练，生产尚未配置或启用。状态命令及共用档案校验见[本轮记录](quality-log.md#backup-status-2026-10-22)，升级前兼容见[恢复记录](quality-log.md#pre-upgrade-recovery-2026-10-22)，完整独立日志与原生备份演练见[独立日志记录](quality-log.md#recovery-journal-2026-10-13)和[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
 
 ## 备份策略与存储
 
@@ -19,9 +19,9 @@
 
 配置载荷为 [R2 生命周期](../ops/recovery-lifecycle.json) 与 [R2 保留锁](../ops/recovery-locks.json)，按 `recovery/production/backups/` 和 `recovery/production/journal/` 前缀匹配。先在专用 bucket 应用并回读规则，再启用日志；这些 API 会替换整组规则，不能直接覆盖共享 bucket 的既有规则。开发使用不同 scope，不向截图 bucket 应用生产规则。参考 Cloudflare 官方[生命周期 API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/methods/update/)与[保留锁 API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/methods/update/)。锁不阻止拥有控制面权限的人修改规则，因此控制面权限与应用对象凭据分开保管。
 
-每日备份的正常目标 RPO 为 24 小时；调度延迟或失败会扩大窗口，不作无条件承诺。检查最近一次成功记录，超过 30 小时未成功即按备份故障处理；关注 GitHub Actions 失败通知，查明后手动补一次。RTO 尚未承诺，小数据演练耗时不是生产恢复时限。Neon 原生 PITR 仅作为额外恢复手段：生产套餐的实际窗口尚未核实，本策略不依赖它，不能从免费额度或旧记录推定恢复保证。
+每日备份的正常目标 RPO 为 24 小时；调度延迟或失败会扩大窗口，不作无条件承诺。使用下方只读状态命令核对最近备份，超过 30 小时即按备份故障处理；关注 GitHub Actions 失败通知，查明后手动补一次。RTO 尚未承诺，小数据演练耗时不是生产恢复时限。Neon 原生 PITR 仅作为额外恢复手段：生产套餐的实际窗口尚未核实，本策略不依赖它，不能从免费额度或旧记录推定恢复保证。
 
-备份含邮箱、密码哈希和加密凭据，不作为 CI artifact 上传。临时明文只在权限 0700 的随机目录中出现，档案 0600，成功或失败均清理；连接串不放命令参数或输出。R2 图片、角色、环境变量和密钥不进入数据库档案。应用 `KEY_ENCRYPTION_KEYS` 的所有在用版本及备份密钥分别保管；缺少旧版本密钥时保持隔离。当前备份密钥轮换前保留旧密钥至少到其最后一份档案过期，恢复进程显式选择对应密钥。
+备份含邮箱、密码哈希和加密凭据，不作为 CI artifact 上传。临时明文只在权限 0700 的随机目录中出现，档案 0600，正常完成或抛错时自动清理；进程被强制终止后，按本次执行时间和档案摘要确认并清理残留目录。连接串不放命令参数或输出。R2 图片、角色、环境变量和密钥不进入数据库档案。应用 `KEY_ENCRYPTION_KEYS` 的所有在用版本及备份密钥分别保管；缺少旧版本密钥时保持隔离。当前备份密钥轮换前保留旧密钥至少到其最后一份档案过期，恢复进程显式选择对应密钥。
 
 ## 独立日志的语义与覆盖
 
@@ -56,13 +56,32 @@ pnpm db:backup
 pnpm exec tsx scripts/database-recovery.ts backup
 ```
 
-成功输出 R2 object key、备份开始时间、原始字节数、SHA-256 和工具版本。只有上传成功才返回成功；失败工作流非零退出。GitHub 工作流默认为跳过：仅仓库变量 `RECOVERY_BACKUP_ENABLED=true` 才进入备份作业。启用前建立 `database-backup` Environment，并配置工作流列出的 secrets/vars；不要只在 Environment 内设置作业级启用变量。当前未写入 GitHub secrets/vars，也未打开此开关。
+成功输出 R2 object key、备份开始时间、原始字节数、SHA-256 和工具版本。只有上传成功才返回成功；失败工作流非零退出。GitHub 定时备份默认跳过，仅仓库变量 `RECOVERY_BACKUP_ENABLED=true` 时运行；`workflow_dispatch` 手动执行不受此开关限制。先建立 `database-backup` Environment 并配置工作流列出的 secrets/vars，手动备份和状态核对成功后再开启定时开关；不要只在 Environment 内设置作业级启用变量。当前未写入 GitHub secrets/vars，也未打开此开关。
+
+## 只读备份状态
+
+```sh
+pnpm db:backup:status
+# 受限执行器已注入对应环境时：
+pnpm exec tsx scripts/database-recovery.ts status
+```
+
+命令只读取当前 scope/epoch 下最新上传的备份和其 checkpoint；核验 AES-GCM、SHA-256、来源数据库及 checkpoint 的 epoch、时间和工具版本。`DATABASE_URL / RECOVERY_DATABASE` 必须指向备份来源；连接串只用于计算来源标识，不连接数据库。需要 R2 读取/列表权限和备份解密密钥，不需要 `pg_dump`、`RECOVERY_CODE_REVISION` 或启用日志。
+
+| status        | 含义                                               | 退出码 |
+| ------------- | -------------------------------------------------- | ------ |
+| `ok`          | 最新档案校验通过，距快照开始时间不超过 30 小时     | 0      |
+| `missing`     | 当前 scope/epoch 下没有备份                        | 1      |
+| `stale`       | 最新档案校验通过，但距快照开始时间超过 30 小时     | 1      |
+| `unavailable` | 配置、读取、解密、摘要、来源或 checkpoint 校验失败 | 1      |
+
+标准输出始终提供 JSON 状态；`ok` 和 `stale` 另含 object key、开始时间、年龄小时数、原始字节数、摘要和版本。使用档案内的开始时间计算年龄，重新上传旧档案不会刷新恢复点；最新档案损坏时直接报错，不回退旧档案掩盖故障。状态检查不会写入日志、修改数据或恢复数据库，也不证明全量撤销日志连续、存储保留规则有效或恢复成功；完整恢复仍按下一节执行。
 
 ## 空库恢复与撤销重放
 
 1. 冻结来源应用全部写入、备份和清理任务，等待在途请求、上传租约及其安全期结束；仅关闭反馈/管理开关不足以冻结写入。保留原库供核对，恢复目标不得绑定公开应用。
 2. 新进程指定目标库 `DATABASE_URL / RECOVERY_DATABASE`，沿用来源 scope、epoch、R2 读取凭据与备份解密密钥；设置 `RECOVERY_LOG_ENABLED=false`、`RECOVERY_WRITES_FROZEN=true`。后者是操作者对真实冻结状态的确认，不会代替平台停写。
-3. 执行下面命令。工具先认证解密、核验摘要/年龄/epoch/来源目标不同、分页读取并校验全部日志及 checkpoint，然后确认目标没有业务表/序列/视图。仅删除空 public（不使用 CASCADE），以单事务 pg_restore 恢复。
+3. 执行下面命令。工具先认证解密、核验摘要/年龄/epoch/来源目标不同，校验 checkpoint 的动作、epoch、时间和工具版本与档案一致，再分页读取并校验全部日志，然后确认目标没有业务表/序列/视图。仅删除空 public（不使用 CASCADE），以单事务 pg_restore 恢复。
 4. 在隔离目标应用当前恢复工具随附的缺失迁移，再重放撤销。迁移目录按工具文件位置解析，不依赖执行目录；升级前档案会补齐反馈表及对象删除队列，已升级档案沿用迁移历史，不重复建表。恢复目标使用当前结构，不再与旧快照逐表完全相同；来源库不执行迁移。
 5. 自动在目标事务重放撤销、失效密码与临时状态、清理已过期反馈；对象任务保留至少两分钟安全期。恢复阶段不直接访问截图 R2。恢复、迁移或重放任一步失败都保持隔离，重新使用空库，不能开放部分完成的结果。
 

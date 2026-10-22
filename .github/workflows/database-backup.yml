@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   backup:
-    if: vars.RECOVERY_BACKUP_ENABLED == 'true'
+    if: github.event_name == 'workflow_dispatch' || vars.RECOVERY_BACKUP_ENABLED == 'true'
     environment: database-backup
     runs-on: ubuntu-latest
     container: postgres:18-bookworm
