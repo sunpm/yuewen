@@ -12,7 +12,7 @@
 
 本轮在 `codex/c5-recovery-integrity` 完成恢复目标一致性修复：约束连接串参数，统一解码库名与默认端口，让空库检查、迁移和重放共用隔离连接。已有工程检查及开发真实恢复通过，见[本轮证据](docs/quality-log.md#recovery-target-2026-10-22)。继续 C5 时按[恢复与回滚交付](docs/plans/release.md#database-recovery)核对生产存储、日志和基线备份的准备与操作授权，再分批启用；页面及生产验收仍待完成。
 
-上一批分支交付 [PR #40](https://github.com/sunpm/yuewen/pull/40) 已合并。本轮开发及本地检查完成，正在提交推送并创建 PR；用户已授权检查通过后合并，提交和合并消息保留 `[skip netlify]`，生产资源不变。
+本轮开发及本地验收已完成，提交推送至 [PR #41](https://github.com/sunpm/yuewen/pull/41)；用户已授权检查通过后合并，提交和合并消息保留 `[skip netlify]`，远端检查与合并结果以该 PR 记录为准。生产资源不变。
 
 ## 当前阶段
 
