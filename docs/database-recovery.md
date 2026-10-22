@@ -80,4 +80,4 @@ pnpm exec tsx scripts/database-recovery.ts restore '<备份输出的 object key>
 
 演练只用开发分支中新建库、合成账号/图片和随机 scope，开发对象不混入生产前缀。本轮复用已授权开发 R2 的对象权限，未更改共享 bucket 的规则；演练不证明生产 bucket 保留锁或自然到期已运行。结束关闭连接，删除本轮库、确切 scope 下的日志/备份、合成图片与临时档案；不清空共享 bucket。
 
-本批提交和合并消息使用 `[skip netlify]`，遵守“不动生产”；本地必要检查照常执行。该标记由 [Netlify 官方部署规则](https://docs.netlify.com/deploy/manage-deploys/manage-deploys-overview/)支持，不替代验收。
+需要保留生产部署关闭时，合并到生产分支的提交消息使用 `[skip netlify]`。需要 PR 预览 CI 时，PR 标题不带跳过标记，并推送新提交触发检查；标题中的 `[skip netlify]` 会直接跳过预览，不能把无检查结果视为通过。本地必要检查照常执行，预览构建不替代功能验收。规则见 [Netlify 官方部署说明](https://docs.netlify.com/deploy/manage-deploys/manage-deploys-overview/)。
