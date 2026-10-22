@@ -1,5 +1,22 @@
 # 开发验证记录
 
+<a id="recovery-storage-2026-10-22"></a>
+
+## 2026-10-22：C5 恢复存储只读核对
+
+在 `codex/c5-recovery-preflight` 接续生产存储准备，新增 `db:recovery:storage:status`。命令只读核对生产 scope 的生命周期、保留锁、r2.dev 与自定义域开关，直接对照仓库规则；全部通过才返回 ok，规则不符、缺配置或读取失败均非零退出。只使用原生 fetch、isDeepStrictEqual 和已有 Zod，没有新增依赖、迁移或应用请求链路改动。
+
+### 实际检查
+
+- 仓库已安装的 `vue-tsc --noEmit`、新脚本 ESLint、受影响文件 Prettier 与 `git diff --check` 通过。
+- 现有 `tests/security.test.ts` 13/13 通过；该文件不覆盖新增 CLI，未新增或修改自动化测试，也未编写临时测试脚本或断言。
+- 通过 `node --import tsx --env-file=.env scripts/recovery-storage-status.ts` 执行真实命令：缺配置时输出 `healthy:false / status:unavailable` 及四个变量名，退出码 1；未发起远端请求或输出凭据。
+- 人工代码核对四个固定 GET 路径与 Cloudflare 官方响应契约、production scope 限制、规则排序后完整比较、公开访问开关、HTTP 失败及 JSON 校验失败的状态汇总。规则数组缺失按空规则处理，不能得到成功；不跟随重定向，各请求最多 15 秒。
+
+最初 pnpm 启动器请求固定版本元数据时遇到沙箱 DNS 失败，同批等待命令已停止，改用仓库已安装 CLI 完成同等检查，未改依赖或锁文件。诊断时误将原生 pnpm 按文本读取、ps 被沙箱拒绝；不影响上述最终结果。
+
+本地没有恢复存储 account/bucket/控制面 token，尚未实际回读 Cloudflare 配置，也未运行真实成功、规则不符、权限拒绝和超时分支；不能把工程检查写成生产存储已通过。没有创建权限、变更生产资源、访问数据库、执行恢复、浏览器验收或重复前端构建。真实配置回读、对象权限隔离、日志与基线备份仍按[上线计划](plans/release.md#database-recovery)继续。
+
 <a id="recovery-target-2026-10-22"></a>
 
 ## 2026-10-22：C5 恢复目标一致性

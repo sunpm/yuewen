@@ -17,7 +17,7 @@
 | 容量         | 单次原始档案上限 128 MiB，超过即失败；后续需要扩大时改为流式/分段上传         |
 | 恢复目标     | 新建空库，保持离线；禁止覆盖原库、`--clean` 或反向删表                        |
 
-配置载荷为 [R2 生命周期](../ops/recovery-lifecycle.json) 与 [R2 保留锁](../ops/recovery-locks.json)，按 `recovery/production/backups/` 和 `recovery/production/journal/` 前缀匹配。先在专用 bucket 应用并回读规则，再启用日志；这些 API 会替换整组规则，不能直接覆盖共享 bucket 的既有规则。开发使用不同 scope，不向截图 bucket 应用生产规则。参考 Cloudflare 官方[生命周期 API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/methods/update/)与[保留锁 API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/methods/update/)。锁不阻止拥有控制面权限的人修改规则，因此控制面权限与应用对象凭据分开保管。
+配置载荷为 [R2 生命周期](../ops/recovery-lifecycle.json) 与 [R2 保留锁](../ops/recovery-locks.json)，按 `recovery/production/backups/` 和 `recovery/production/journal/` 前缀匹配。先在专用 bucket 应用规则，并运行[只读存储核对](#storage-status)，再启用日志；这些 API 会替换整组规则，不能直接覆盖共享 bucket 的既有规则。开发使用不同 scope，不向截图 bucket 应用生产规则。参考 Cloudflare 官方[生命周期 API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/methods/update/)与[保留锁 API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/methods/update/)。锁不阻止拥有控制面权限的人修改规则，因此控制面权限与应用对象凭据分开保管。
 
 每日备份的正常目标 RPO 为 24 小时；调度延迟或失败会扩大窗口，不作无条件承诺。使用下方只读状态命令核对最近备份，超过 30 小时即按备份故障处理；关注 GitHub Actions 失败通知，查明后手动补一次。RTO 尚未承诺，小数据演练耗时不是生产恢复时限。Neon 原生 PITR 仅作为额外恢复手段：生产套餐的实际窗口尚未核实，本策略不依赖它，不能从免费额度或旧记录推定恢复保证。
 
@@ -57,6 +57,24 @@ pnpm exec tsx scripts/database-recovery.ts backup
 ```
 
 成功输出 R2 object key、备份开始时间、原始字节数、SHA-256 和工具版本。只有上传成功才返回成功；失败工作流非零退出。GitHub 定时备份默认跳过，仅仓库变量 `RECOVERY_BACKUP_ENABLED=true` 时运行；`workflow_dispatch` 手动执行不受此开关限制。先建立 `database-backup` Environment 并配置工作流列出的 secrets/vars，手动备份和状态核对成功后再开启定时开关；不要只在 Environment 内设置作业级启用变量。当前未写入 GitHub secrets/vars，也未打开此开关。
+
+<a id="storage-status"></a>
+
+## 只读存储核对
+
+```sh
+pnpm db:recovery:storage:status
+# 受限执行器已注入对应环境时：
+pnpm exec tsx scripts/recovery-storage-status.ts
+```
+
+配置 `RECOVERY_R2_ACCOUNT_ID`、`RECOVERY_R2_BUCKET`、`RECOVERY_SCOPE=production` 及 `RECOVERY_R2_API_TOKEN`。token 只供本命令使用，需要读取 bucket 配置的 Cloudflare 控制面权限，不是 S3 Access Key/Secret；不要提供给应用 Functions 或备份工作流。命令不需要数据库、epoch、备份密钥或日志开关。当前支持既定默认 jurisdiction 的生产专用 bucket，不会将生产规则改写成开发 scope。
+
+命令仅执行四个 GET：读取生命周期、保留锁、r2.dev 开关和所有自定义域开关。规则按 id 排序后与仓库 JSON 完整比较，字段顺序不影响结果；缺失、额外规则、禁用或时长不同均不通过，包括全桶规则。r2.dev 和全部自定义域必须禁用，即使域名尚未激活，也不允许 enabled 为 true。每项请求最多 15 秒，拒绝重定向；不会创建 bucket、修改规则或读取对象内容。
+
+标准输出为 JSON，包含 `healthy`、`status` 及已验证配置中的 account/bucket/scope，四个 `checks` 分别为 `lifecycle`、`locks`、`managedDomain`、`customDomains`；配置不合法时仅列 `invalidConfiguration` 变量名。全部通过返回 `ok`/退出 0，规则或公开访问不符返回 `mismatch`/退出 1，配置、网络、权限或响应解析失败返回 `unavailable`/退出 1；任一读取失败优先汇总为 unavailable，其余检查结果仍保留。HTTP 失败仅带状态码，不输出 token、远端响应正文或异常详情。
+
+核对通过仅说明当时四项配置符合仓库规则，不证明对象凭据权限隔离、日志连续性、自然到期、备份可解密或恢复成功，也不代替 Workers 等其他访问路径的权限核对。保留该结果并继续完成下一节备份状态及隔离恢复；当前实际生产回读尚未执行，见[开发检查记录](quality-log.md#recovery-storage-2026-10-22)。
 
 ## 只读备份状态
 
