@@ -15,6 +15,8 @@
 
 ## 研究发现
 
+- 本轮配置及文档提交 `1cf899b` 已推送并创建 [PR #43](https://github.com/sunpm/yuewen/pull/43)，已附加到当前任务；预览和规则检查已启动。最终文档补记后按最终 head 检查通过再合并，保留 `[skip netlify]`。
+
 - 本轮已在独立生产恢复 bucket 应用仓库两条生命周期及两条保留锁，备份 7 天、日志 30 天，公开访问关闭；真实 CLI 四项全部 ok/退出 0。详细配置与证据见[质量记录](docs/quality-log.md#production-recovery-storage-2026-10-22)。
 - 新空桶默认带有 `Default Multipart Abort Rule`，最初回读仅生命周期 mismatch/退出 1；经用户明确批准移除后与仓库完全一致，无需修改脚本或规则 JSON。
 - 长期 Account 对象凭据仅限恢复 bucket，受限保存在 Git 忽略的 `.env.recovery.production`（0600），与开发凭据不同。一次实际 ListObjectsV2 返回 HTTP 200/空桶；未写入对象或访问其他 bucket。

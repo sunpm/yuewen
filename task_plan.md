@@ -10,7 +10,7 @@
 
 ## 下一步
 
-本轮在 `codex/c5-production-recovery-storage` 完成生产恢复专用私有 bucket、7/30 天生命周期与保留锁、独立对象凭据和受限保管。既有 CLI 真实回读四项全部 ok，独立对象凭据只读列举返回 HTTP 200/空桶；短期控制面凭据已撤销并删除本地副本，详见[本轮证据](docs/quality-log.md#production-recovery-storage-2026-10-22)。本批仅同步文档，无应用代码、测试或部署变更；按授权完成提交、推送、PR 检查后合并，提交和合并消息保留 `[skip netlify]`。
+本轮在 `codex/c5-production-recovery-storage` 完成生产恢复专用私有 bucket、7/30 天生命周期与保留锁、独立对象凭据和受限保管。既有 CLI 真实回读四项全部 ok，独立对象凭据只读列举返回 HTTP 200/空桶；短期控制面凭据已撤销并删除本地副本，详见[本轮证据](docs/quality-log.md#production-recovery-storage-2026-10-22)。本批仅同步文档，无应用代码、测试或部署变更；已提交推送并创建 [PR #43](https://github.com/sunpm/yuewen/pull/43)，最终检查与合并结果由 PR 留存，提交和合并消息保留 `[skip netlify]`。
 
 继续 C5 时按[恢复与回滚交付](docs/plans/release.md#database-recovery)，在获准发布后安排持久写入冻结，生成新 epoch 和独立备份加密密钥、配置生产日志，并在 0003 基线完成首份加密备份与隔离恢复/撤销重放后解除冻结。本轮没有冻结生产写入、启用日志或执行备份；存储配置通过不代表恢复链路已上线。
 
