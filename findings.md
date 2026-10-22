@@ -4,6 +4,7 @@
 
 ## 需求
 
+- 2026-10-22 本轮在 `codex/c5-recovery-preflight` 接续生产存储准备；用户授权分支、提交、推送、PR 和检查通过后合并，继续使用 `[skip netlify]`。本轮补齐只读核对入口，不部署生产、不新增或修改测试。
 - 本轮创建 `codex/c5-recovery-integrity`，继续 C5 备份与恢复准备，修复连接目标解析分歧；不新增或修改测试代码。改动只涉及运维脚本，无需浏览器验收。
 - C5 开发完成后，用户授权提交、推送、创建 PR 和检查通过后合并；使用 `[skip netlify]` 跳过生产部署，生产资源配置与功能启用仍不在本批范围。
 - 上一批 C5 分支通过现有 SSH 凭据推送并合并 [PR #40](https://github.com/sunpm/yuewen/pull/40)；HTTPS OAuth 凭据不具备修改工作流的权限。当前分支不改工作流，可沿用普通 Git 推送。
@@ -13,6 +14,17 @@
 
 ## 研究发现
 
+- PR #42 在补记提交 `492adf7` 上已取得预览、Header 与 Redirect 成功，Pages changed 为中性；最初短暂无检查是状态回传延迟，没有重新触发部署。Chrome 原生窗口只读查看首次预览成功日志，未操作发布或重跑，临时标签页已关闭。最终文档补记后按同样方式核对 head，再合并。
+- Netlify 官方说明仍区分 PR 标题与分支提交中的跳过标记，PR 标题未带标记；生产 squash 消息继续保留标记。来源：[部署跳过规则](https://docs.netlify.com/deploy/manage-deploys/manage-deploys-overview/#skip-a-deploy)。
+- 本批实现已提交为 `c00c62b` 并推送，创建并附加 [PR #42](https://github.com/sunpm/yuewen/pull/42)。预览与规则检查已启动；交付补记只改规划文件，沿用已通过的本地代码验收，最终按远端 head 检查通过后合并。
+- 本批代码及本地验收完成：服务端/脚本类型、受影响 ESLint/Prettier、现有安全测试 13/13 通过；真实 CLI 在缺配置时输出 unavailable 和四个变量名并退出 1。尚无远端成功/不符/权限/超时实测，证据边界见[质量记录](docs/quality-log.md#recovery-storage-2026-10-22)。
+- 本轮工程检查的 pnpm 启动器尚未进入检查就因版本解析请求遭 DNS 限制；改用 node_modules 中已安装的 Prettier、ESLint、vue-tsc、Vitest 与 Node 的 tsx loader，避免下载或改依赖。
+- 已按 Cloudflare 官方 API 核对四个 GET：生命周期 `lifecycle`、保留锁 `lock`（单数）、托管域 `domains/managed`、自定义域 `domains/custom`。规则数组可省略，代表没有规则，必须判为不符；公开访问依据 enabled，不能把域名存在或 SSL 状态当作开放判据。来源：[生命周期](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/methods/get/)、[保留锁](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/methods/get/)、[托管域](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/domains/subresources/managed/methods/list/)、[自定义域](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/domains/subresources/custom/methods/list/)。
+- 本地 .env 与进程中均未配置恢复 bucket/account 或控制面 API token（仅核对存在性，未输出凭据）。因此本批能完成代码、已有工程检查与缺配置命令核验，实际 Cloudflare 配置回读仍留待生产准备；不临时创建权限或把未检查的远端状态写成通过。
+- 实现选择直接导入仓库两份规则，按 id 排序后完整比较；新增/缺失/禁用/缩短/延长规则都报告 mismatch，避免漏掉全桶规则或延长保留造成的偏离。固定 production scope，控制面 token 只供运维进程，四项 GET 各 15 秒超时、不跟随重定向、不输出远端错误正文。
+- 本轮已确认 PR #41 合并到 main，远端同步后创建新分支。根目录计划是当前唯一选定计划，初始工作区干净。
+- 下一项生产准备要求应用并回读生命周期/保留锁、确认私有 bucket。现有仓库只有两份规则 JSON 和人工手册，备份 status 只检查档案与 checkpoint，不能说明存储保留及公开访问配置是否符合上线条件。本轮增加独立只读 CLI，直接以仓库规则为判据，不触发规则写入、数据库访问或生产部署。
+- 首次 git fetch 被沙箱拒绝写入 FETCH_HEAD，授权后成功；批量读取三文件出现截断，已分文件补读。环境选择器未设置，解析器空结果为正常根目录回退。
 - 本轮实现已提交推送，并创建 [PR #41](https://github.com/sunpm/yuewen/pull/41)。PR 标题保留预览检查，提交与最终合并消息保留 `[skip netlify]`；代码未修改生产功能开关，检查与合并结果由 PR 留存。
 - 本轮开发验收完成：编码库名的正常恢复成功（2 条事件），目标保留账号 1、撤销账号 0、非空密码 0、迁移 6 条；来源仍为 2 个账号及 1 条合成密码。两个临时库及三个随机 scope 对象已删除，回查为 0。完整结果见[目标一致性记录](docs/quality-log.md#recovery-target-2026-10-22)。
 - 开发原生备份成功（52,921 字节），状态 CLI 返回 ok；带 database 覆盖参数的恢复命令退出 1。目标库使用含空格的编码库名，恢复前仍无业务表；接下来在继承 PGPORT=1 的进程执行正常恢复，验证显式默认端口不会被环境覆盖。
