@@ -15,6 +15,7 @@
 - 开发及本地验收完成：本地 vue-tsc、ESLint、受影响 Prettier、git diff --check 通过，现有安全测试 13/13 通过；真实 CLI 缺配置时返回 unavailable、列出四个变量名并退出 1。真实远端回读尚未执行，见[质量记录](docs/quality-log.md#recovery-storage-2026-10-22)。
 - 已同步三文件、恢复手册、开发说明、上线专题与质量记录；无临时文件或云端临时资源需要清理。按已有授权继续提交、推送、创建 PR 与检查后合并，交付结果以该分支 PR 留存，生产部署保持跳过。
 - 实现提交 `c00c62b` 已推送并创建 [PR #42](https://github.com/sunpm/yuewen/pull/42)，已附到当前任务。Netlify 预览与规则检查已启动；本次补记后重新核对最终 head 的远端结果，再按授权合并，提交与合并消息继续保留 `[skip netlify]`。
+- `492adf7` 的预览、Header、Redirect 检查成功，Pages changed 为中性，无失败项。初次 gh watch 返回暂无检查，稍后状态正常回传；未重跑或发布。无 Netlify CLI/本地状态目录，Chrome 扩展入口不可用后使用原生 Chrome 只读查看预览日志并关闭临时标签页；未进行应用页面验收。最终补记仅为文档，沿用本地代码验收，后续检查与合并结果继续由 PR 留存。
 
 ## 会话：2026-10-22 · C5 恢复完整性
 

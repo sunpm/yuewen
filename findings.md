@@ -14,6 +14,8 @@
 
 ## 研究发现
 
+- PR #42 在补记提交 `492adf7` 上已取得预览、Header 与 Redirect 成功，Pages changed 为中性；最初短暂无检查是状态回传延迟，没有重新触发部署。Chrome 原生窗口只读查看首次预览成功日志，未操作发布或重跑，临时标签页已关闭。最终文档补记后按同样方式核对 head，再合并。
+- Netlify 官方说明仍区分 PR 标题与分支提交中的跳过标记，PR 标题未带标记；生产 squash 消息继续保留标记。来源：[部署跳过规则](https://docs.netlify.com/deploy/manage-deploys/manage-deploys-overview/#skip-a-deploy)。
 - 本批实现已提交为 `c00c62b` 并推送，创建并附加 [PR #42](https://github.com/sunpm/yuewen/pull/42)。预览与规则检查已启动；交付补记只改规划文件，沿用已通过的本地代码验收，最终按远端 head 检查通过后合并。
 - 本批代码及本地验收完成：服务端/脚本类型、受影响 ESLint/Prettier、现有安全测试 13/13 通过；真实 CLI 在缺配置时输出 unavailable 和四个变量名并退出 1。尚无远端成功/不符/权限/超时实测，证据边界见[质量记录](docs/quality-log.md#recovery-storage-2026-10-22)。
 - 本轮工程检查的 pnpm 启动器尚未进入检查就因版本解析请求遭 DNS 限制；改用 node_modules 中已安装的 Prettier、ESLint、vue-tsc、Vitest 与 Node 的 tsx loader，避免下载或改依赖。
