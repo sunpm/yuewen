@@ -2,7 +2,7 @@
 
 更新日期：2026-10-22（Asia/Shanghai）
 
-适用于 0000–0005 迁移，包括尚未应用 0004/0005 的升级前备份。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；目前只在隔离开发库演练，生产尚未配置或启用。状态命令及共用档案校验见[本轮记录](quality-log.md#backup-status-2026-10-22)，升级前兼容见[恢复记录](quality-log.md#pre-upgrade-recovery-2026-10-22)，完整独立日志与原生备份演练见[独立日志记录](quality-log.md#recovery-journal-2026-10-13)和[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
+适用于 0000–0005 迁移，包括尚未应用 0004/0005 的升级前备份。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；备份恢复目前只在隔离开发库演练，生产存储配置与真实回读已完成，日志、基线备份和调度尚未启用。生产存储证据见[配置记录](quality-log.md#production-recovery-storage-2026-10-22)；状态命令及共用档案校验见[命令记录](quality-log.md#backup-status-2026-10-22)，升级前兼容见[恢复记录](quality-log.md#pre-upgrade-recovery-2026-10-22)，完整独立日志与原生备份演练见[独立日志记录](quality-log.md#recovery-journal-2026-10-13)和[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
 
 ## 备份策略与存储
 
@@ -47,6 +47,8 @@
 
 应用 Functions 只配置 `RECOVERY_LOG_ENABLED=true`、`RECOVERY_R2_ACCOUNT_ID / ACCESS_KEY_ID / SECRET_ACCESS_KEY / BUCKET`、`RECOVERY_SCOPE` 与 UUID `RECOVERY_EPOCH`。使用限定专用 bucket 的凭据，不给应用配置备份解密密钥或存储控制面权限。生产 scope 固定为 `production`；命名见[上线计划](plans/release.md#database-recovery)。预览不接入这些配置。
 
+2026-10-22 已建立生产专用 Account 对象读写凭据，仅限恢复 bucket，长期有效；S3 Access Key/Secret 与 account/bucket/scope 保存在 Git 忽略的 `.env.recovery.production`（权限 `0600`），其中 `RECOVERY_LOG_ENABLED=false`。本文件不含控制面 token、数据库连接、epoch 或备份加密密钥，尚未写入 Netlify/GitHub 环境。启用前仍须安排停写、生成新 epoch 和独立加密密钥并完成保管；不要把存储准备文件直接当作可执行的生产备份环境。
+
 运维进程另外需要 direct `DATABASE_URL`、与 URL 解码后库名完全一致的 `RECOVERY_DATABASE`、32 字节随机密钥的 Base64 `RECOVERY_ENCRYPTION_KEY` 及 `RECOVERY_CODE_REVISION`。URL 必须为带显式账号和密码的单主机 `postgres://` 或 `postgresql://` 连接；查询参数仅允许各出现一次的 `sslmode` 和 `channel_binding`，拒绝 `database`、`user`、`options`、`search_path` 等覆盖项、pooler、多主机及可被 libpq 当成连接串的库名。未指定 sslmode 时统一为 require；原生工具同时接收 channel_binding，清除继承的 libpq 环境配置。`PG_BIN` 可指定官方客户端目录，客户端主版本不得低于源库。revision 记录备份工具代码版本，不证明生产正在部署同一个版本。
 
 ```sh
@@ -74,7 +76,9 @@ pnpm exec tsx scripts/recovery-storage-status.ts
 
 标准输出为 JSON，包含 `healthy`、`status` 及已验证配置中的 account/bucket/scope，四个 `checks` 分别为 `lifecycle`、`locks`、`managedDomain`、`customDomains`；配置不合法时仅列 `invalidConfiguration` 变量名。全部通过返回 `ok`/退出 0，规则或公开访问不符返回 `mismatch`/退出 1，配置、网络、权限或响应解析失败返回 `unavailable`/退出 1；任一读取失败优先汇总为 unavailable，其余检查结果仍保留。HTTP 失败仅带状态码，不输出 token、远端响应正文或异常详情。
 
-核对通过仅说明当时四项配置符合仓库规则，不证明对象凭据权限隔离、日志连续性、自然到期、备份可解密或恢复成功，也不代替 Workers 等其他访问路径的权限核对。保留该结果并继续完成下一节备份状态及隔离恢复；当前实际生产回读尚未执行，见[开发检查记录](quality-log.md#recovery-storage-2026-10-22)。
+核对通过仅说明当时四项配置符合仓库规则，不证明对象凭据权限隔离、日志连续性、自然到期、备份可解密或恢复成功，也不代替 Workers 等其他访问路径的权限核对。2026-10-22 生产回读已四项通过，见[实际结果](quality-log.md#production-recovery-storage-2026-10-22)；继续完成下一节备份状态及隔离恢复。
+
+本次配置使用 Chrome 应用规则。新 bucket 自动带有 `Default Multipart Abort Rule`，已在空桶上移除以与仓库两条生命周期规则一致；不能将此操作照搬到有既有对象或上传任务的共享桶。核对使用独立的 24 小时管理员只读 token，平台该权限也能读取账户内 R2 对象；完成后已撤销，旧 token 回读四项均 HTTP 401，本地临时配置已删除。下次核对重新获取短期控制面读取凭据，限定用途并在结束后清理，不将其加入长期对象配置。
 
 ## 只读备份状态
 

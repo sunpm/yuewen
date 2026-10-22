@@ -1,5 +1,38 @@
 # 开发验证记录
 
+<a id="production-recovery-storage-2026-10-22"></a>
+
+## 2026-10-22：生产恢复存储配置与真实回读
+
+从最新 `origin/main` 创建 `codex/c5-production-recovery-storage`，接续 C5 存储准备。用户授权生产存储配置、真实回读和 Git 分支/提交/推送/PR/检查后合并，生产部署继续使用 `[skip netlify]`。本批仓库只更新规划与运行文档，没有修改应用、运维脚本、规则 JSON、依赖或自动化测试。
+
+### 配置结果
+
+- 在与开发 R2 同一 Cloudflare 账户创建独立的 `sunpm-read-recovery`，Standard / default jurisdiction / WNAM；scope 为 `production`。无自定义域，公共开发 URL 禁用，没有绑定 Worker、上传对象或修改已有 bucket。
+- 应用仓库两条生命周期与两条保留锁：备份前缀 7 天，撤销日志前缀 30 天，名称与前缀均对应 `ops/recovery-*.json`。空桶自动附带的 `Default Multipart Abort Rule` 经用户明确批准移除。
+- 创建长期 Account 对象读写凭据，仅限该 bucket；S3 凭据存入 Git 忽略的 `.env.recovery.production`，权限 `0600`，与开发凭据不同。配置含 account/bucket/scope 和 `RECOVERY_LOG_ENABLED=false`，不含控制面 token、数据库连接、epoch 或备份加密密钥。
+- 为回读单独创建有效期 24 小时的 Account 管理员只读 token。创建前明确说明该权限也可读取账户内 R2 对象并获准；实际只用于四个配置 GET，完成后立即撤销并删除本地临时配置。没有写入 Netlify 或 GitHub secrets/vars。
+
+### 实际检查
+
+使用仓库既有命令 `node --import tsx --env-file=.env.recovery.preflight scripts/recovery-storage-status.ts`；临时文件在核对后已删除。
+
+| 时点                   | 生命周期              | 保留锁                | 托管域                | 自定义域              | 汇总 / 退出码        |
+| ---------------------- | --------------------- | --------------------- | --------------------- | --------------------- | -------------------- |
+| 默认多段上传规则仍存在 | mismatch              | ok                    | ok                    | ok                    | mismatch / 1         |
+| 移除默认规则后         | ok                    | ok                    | ok                    | ok                    | ok，healthy:true / 0 |
+| 撤销短期 token 后      | unavailable，HTTP 401 | unavailable，HTTP 401 | unavailable，HTTP 401 | unavailable，HTTP 401 | unavailable / 1      |
+
+使用独立对象凭据调用一次 S3 `ListObjectsV2`，仅访问恢复 bucket、`MaxKeys=1`，返回 HTTP 200、KeyCount 0、IsTruncated false；确认凭据可用且桶为空，未写对象、未读取对象正文或访问其他 bucket。权限范围另由创建表单、成功页和令牌列表确认，没有扩展越权尝试。
+
+七份变更文档 Prettier 与 `git diff --check` 通过，已核对当前状态、接续步骤及证据链接；本批没有代码变化，未重复运行类型检查、应用测试或本地构建，未新增自动化测试或临时断言脚本。
+
+### 过程与边界
+
+控制台使用 Chrome。既有会话过期后正常登录，双重验证引导的跳过操作两次被自动审批拒绝；用户随后明确允许“暂不设置”，最新页面已进入账户主页。日志生命周期弹层索引变化造成一次输入错位，表单拒绝保存，修正后核对无误才提交；日志锁首次点击遇到 offscreen，重新同步后完成。没有错误规则落地。两个临时 Chrome 标签页已关闭，凭据编辑窗口已关闭，临时只读凭据及本地文件均已清理。
+
+本次证明存储配置、对象凭据可用与短期权限撤销；未验证自然到期、实际覆盖/删除被锁拒绝、日志连续性、备份加解密、生产恢复、PITR 或平台回滚。未访问生产数据库、冻结写入、配置 epoch/加密密钥、启用日志/调度或部署应用。后续顺序见[上线计划](plans/release.md#database-recovery)。
+
 <a id="recovery-storage-2026-10-22"></a>
 
 ## 2026-10-22：C5 恢复存储只读核对

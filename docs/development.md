@@ -70,7 +70,7 @@ API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.ne
 
 `pnpm db:backup:status` 只读核验当前 scope/epoch 的最新档案及 checkpoint，超过 30 小时、缺失或校验失败时非零退出，详细状态见[恢复手册](database-recovery.md#只读备份状态)。该检查不连接数据库、不替代隔离恢复或日志连续性验收。
 
-备份 7 天、日志 30 天的规则及每日调度已入库；应用生产规则后使用 `pnpm db:recovery:storage:status` 只读核对生命周期、保留锁及公开访问，变量和结果边界见[存储核对](database-recovery.md#storage-status)。手动工作流可在调度关闭时执行，先验证手动备份再启用仓库变量 `RECOVERY_BACKUP_ENABLED`。该开关未开启，生产配置未写入。开发合成演练见[质量记录](quality-log.md#recovery-journal-2026-10-13)。日志启用后回滚版本也须保留日志能力，不能仅凭旧 C2/C3 兼容证据回滚；生产存储启用、实际恢复窗口及平台回滚仍待接入。
+备份 7 天、日志 30 天的规则及每日调度已入库；2026-10-22 生产专用存储规则与公开访问四项真实回读通过，独立对象凭据空桶列举成功，见[生产存储证据](quality-log.md#production-recovery-storage-2026-10-22)。本地受限配置及短期控制面凭据清理见[恢复手册](database-recovery.md#配置与执行)；`pnpm db:recovery:storage:status` 的变量与结果边界见[存储核对](database-recovery.md#storage-status)。手动工作流可在调度关闭时执行，先验证手动备份再启用仓库变量 `RECOVERY_BACKUP_ENABLED`。该开关仍未开启，Netlify/GitHub 生产恢复环境尚未配置，日志及基线备份仍待启用。日志启用后回滚版本也须保留日志能力，不能仅凭旧 C2/C3 兼容证据回滚；实际恢复窗口及平台回滚仍待接入。
 
 ## 故障定位
 
