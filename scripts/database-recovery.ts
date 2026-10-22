@@ -7,10 +7,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import postgres from 'postgres'
 import { eq, sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/postgres-js'
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { z } from 'zod'
-import { getDb } from '../server/db'
+import * as schema from '../server/db/schema'
 import { account, credential, feedback, feedbackAttachment } from '../server/db/schema'
 import { consoleAccount } from '../server/console/schema'
 import {
@@ -53,14 +53,31 @@ function databaseConfig() {
   const url = new URL(process.env.DATABASE_URL ?? '')
   const name = decodeURIComponent(url.pathname.slice(1))
   if (
+    !['postgres:', 'postgresql:'].includes(url.protocol) ||
+    !url.hostname ||
+    /[%,]/.test(url.hostname) ||
+    !url.username ||
+    !url.password ||
     name !== process.env.RECOVERY_DATABASE ||
     !name ||
+    name.includes('=') ||
+    /^postgres(?:ql)?:\/\//.test(name) ||
     url.hostname.includes('-pooler.') ||
-    url.searchParams.has('options')
+    [...url.searchParams.keys()].some(
+      (key) =>
+        !['sslmode', 'channel_binding'].includes(key) || url.searchParams.getAll(key).length !== 1,
+    )
   )
     throw new Error(
-      'Explicit RECOVERY_DATABASE and direct endpoint without search_path are required',
+      'Explicit database credentials and a direct endpoint with only TLS parameters are required',
     )
+  const sslmode = z
+    .enum(['disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify-full'])
+    .parse(url.searchParams.get('sslmode') ?? 'require')
+  z.enum(['disable', 'prefer', 'require']).parse(
+    url.searchParams.get('channel_binding') ?? 'prefer',
+  )
+  url.searchParams.set('sslmode', sslmode)
   return { url, name, identity: digest(`${url.hostname}:${url.port || '5432'}/${name}`) }
 }
 async function pgTool(tool: 'pg_dump' | 'pg_restore', args: string[]) {
@@ -78,6 +95,7 @@ async function pgTool(tool: 'pg_dump' | 'pg_restore', args: string[]) {
         PGUSER: decodeURIComponent(url.username),
         PGPASSWORD: decodeURIComponent(url.password),
         PGSSLMODE: url.searchParams.get('sslmode') || 'require',
+        PGCHANNELBINDING: url.searchParams.get('channel_binding') || 'prefer',
         PGCONNECT_TIMEOUT: '10',
       },
     })
@@ -154,10 +172,13 @@ export async function backupDatabase() {
   }
 }
 
-export async function replayRecoveryEvents(events: RecoveryEvent[]) {
+export async function replayRecoveryEvents(
+  database: PostgresJsDatabase<typeof schema>,
+  events: RecoveryEvent[],
+) {
   if (recoveryEnabled())
     throw new Error('Replay requires a separate process with journal writes disabled')
-  await getDb().transaction(async (tx) => {
+  await database.transaction(async (tx) => {
     for (const event of events) {
       if (event.action === 'account.delete') {
         await tx.execute(sql`select id from app_user where id = ${event.targetId} for update`)
@@ -259,7 +280,7 @@ export async function backupStatus() {
 export async function restoreDatabase(object: string) {
   if (process.env.RECOVERY_WRITES_FROZEN !== 'true' || recoveryEnabled())
     throw new Error('Freeze source writes/jobs and use an isolated recovery process first')
-  const { identity } = databaseConfig()
+  const { url, name, identity } = databaseConfig()
   const config = recoveryConfig()
   const { data, dump } = await readBackup(object)
   const age = Date.now() - Date.parse(data.startedAt)
@@ -279,7 +300,15 @@ export async function restoreDatabase(object: string) {
     events.push(...batch)
   }
   // Replay the entire retained epoch, including pre-snapshot intents with delayed DB commits.
-  const db = postgres(process.env.DATABASE_URL!, { max: 1, prepare: false, onnotice: () => {} })
+  // Explicit decoded name matches libpq; the URL query cannot override the target.
+  const db = postgres(url.toString(), {
+    database: name,
+    port: Number(url.port || '5432'),
+    max: 1,
+    prepare: false,
+    onnotice: () => {},
+  })
+  const target = drizzle(db, { schema })
   const directory = await mkdtemp(join(tmpdir(), 'yuewen-restore-'))
   try {
     const tables = await db`select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
@@ -294,14 +323,14 @@ export async function restoreDatabase(object: string) {
       '--single-transaction',
       '--no-owner',
       '--no-acl',
-      `--dbname=${databaseConfig().name}`,
+      `--dbname=${name}`,
       file,
     ])
     // Pre-upgrade snapshots need the current tables before replay can retain deletion tasks.
-    await migrate(drizzle(db), {
+    await migrate(target, {
       migrationsFolder: fileURLToPath(new URL('../server/db/migrations', import.meta.url)),
     })
-    await replayRecoveryEvents(events)
+    await replayRecoveryEvents(target, events)
     return {
       restored: true,
       events: events.length,
@@ -312,8 +341,11 @@ export async function restoreDatabase(object: string) {
       consolePasswordResetRequired: true,
     }
   } finally {
-    await db.end()
-    await rm(directory, { recursive: true, force: true })
+    try {
+      await db.end({ timeout: 5 })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   }
 }
 
