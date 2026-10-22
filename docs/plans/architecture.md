@@ -4,7 +4,7 @@
 
 状态：游客、账号链路与普通报告跨登录会话替换确认已实现，开发与生产迁移完成，完整动态验收待完成；PC React 迁移、后台、反馈与统计方案待实施，H5 冻结。
 
-[返回总计划](../../PLAN.md) · [游客接入实施计划](guest-access.md) · [现行数据契约](../data-contract.md) · [开发说明](../development.md)
+[返回总计划](../../task_plan.md) · [游客接入实施计划](guest-access.md) · [现行数据契约](../data-contract.md) · [开发说明](../development.md)
 
 本文维护采集预算、生命周期、接口目标与导出约束。现有正式个人 API 接受有效游客或账号会话；账号凭证管理与保存转换仍须登录。游客会话与保存转换的具体规则由游客接入计划维护；[后台、截图反馈与统计](console.md)维护新扩展。实际代码、数据契约与验证证据用于判断完成状态，不能把下面的目标接口当作已开放接口。本文代码路径均相对于仓库根目录。
 
@@ -43,7 +43,9 @@ yuewen/
   docs/                数据契约、设计规范、开发说明与质量记录
   docs/plans/          目标方案、实施专题及历史归档
   AGENTS.md
-  PLAN.md
+  task_plan.md         目标、阶段、下一步与未完成项
+  findings.md          发现、决策与专题索引
+  progress.md          会话记录与验证摘要
   README.md
   package.json
   pnpm-lock.yaml
