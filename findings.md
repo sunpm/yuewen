@@ -4,6 +4,10 @@
 
 ## 需求
 
+- 2026-10-23 本轮按用户要求接续一个完整步骤：配置 GitHub 备份 Environment，手动备份/status 验证成功后开启每日调度；创建新分支、提交推送、PR 检查通过后合并。保留上一轮未提交的生产恢复记录，应用发布继续使用 `[skip netlify]`。
+
+- 2026-10-23 本轮用户明确授权生产日志启用、基线备份、隔离恢复及必要生产部署；需要控制台使用已登录 Chrome，其他功能暂不启用。
+
 - 2026-10-23 用户要求继续准备生产日志、基线备份与隔离恢复，先完成无需生产部署的部分；控制台使用已登录 Chrome，授权新分支、提交推送、PR 与检查后合并，继续 `[skip netlify]`。
 - 2026-10-22 本轮用户明确授权完成生产恢复存储配置与真实回读，需要控制台时使用已登录 Chrome；创建分支、提交推送、PR 检查通过后合并，继续 `[skip netlify]`。范围包括专用私有 bucket、仓库规则、独立对象凭据与保管；应用发布、冻结写入、日志启用与基线备份留待后续批次。
 - 2026-10-22 本轮在 `codex/c5-recovery-preflight` 接续生产存储准备；用户授权分支、提交、推送、PR 和检查通过后合并，继续使用 `[skip netlify]`。本轮补齐只读核对入口，不部署生产、不新增或修改测试。
@@ -15,6 +19,26 @@
 - 文件规划迁移保留原项目阶段、专题、后续范围及未验证项；迁移本身仅改文档。
 
 ## 研究发现
+
+- 本地两份生产恢复配置均为 0600 且 Git 忽略。向 GitHub 专用环境传输五项凭据的命令被自动审批拒绝，尚未执行分支规则或凭据写入；已请求用户明确授权具体秘密项与目的地。环境本身创建成功，不等于已配置或备份成功。
+- 本机未安装 actionlint；本轮只改工作流调用顺序，先使用已有 Prettier 和 diff 检查，实际 GitHub 手动执行作为运行验收，不为此新增检查脚本。
+
+- 授权联网后 gh/API 正常，仓库有管理权限，main 与 origin/main 一致；已创建 `codex/c5-scheduled-backup`。GitHub 原先没有 Environment 或仓库变量，最近 3 次 schedule 均为 skipped；现已创建 `database-backup` 并开启精确分支策略，尚未写入凭据。
+- 工作流已有 PostgreSQL 18 容器、Node 22、只读 contents 权限与串行并发，但上传后没有调用现有 status；本轮直接在同一步增加 status，复用原有环境和失败退出机制，不新增脚本或测试。
+- 按 [GitHub Environment API](https://docs.github.com/en/rest/deployments/environments) 与[分支策略 API](https://docs.github.com/en/rest/deployments/branch-policies)核对，专用环境可限定允许分支；本轮手动验收临时允许精确开发分支，收尾只保留 main。使用 [gh secret set](https://cli.github.com/manual/gh_secret_set) 的标准输入传入秘密值，不将值放进命令参数或输出。
+
+- 本轮恢复使用根目录三文件，PLAN_ID/PWF_PLAN_ROOT 均为空；初始 main 有 8 份上一轮生产恢复文档改动，无应用代码改动。下一项以 release.md 的接续顺序为准，先完成自动备份，再处理生产迁移与功能启用。
+- 首次沙箱内 gh auth status 报 token invalid，须通过获准联网核对，不能直接认定凭据失效；规划读取输出过长，后续按短段独立读取。
+
+- 2026-10-23 生产日志、基线备份和隔离恢复已完成，最终生产部署 `6adb0f0177813577800bc7f1`、代码 `959e21a`；健康 HTTP 200、Chrome 管理员登录成功且已退出。完整证据见[恢复窗口记录](docs/quality-log.md#recovery-activation-window-2026-10-23)。
+- 真实冻结由维护门禁、生产原角色密码轮换、旧 direct/pooler 的 28P01 拒绝和连接排空共同完成；安全期 195 秒后客户端及 prepared transactions 均为 0。原部署无法再用旧密码写入，最终仅更新 Production 连接。
+- 生产基线开始于上海时间 15:30:44，原始档案 36,616 字节，status=ok；恢复返回 restored/isolated=true、events=1。源库仍为 4 条迁移（0003），目标补为 6 条迁移（0005），后台密码从源库 1 条在目标失效为 0，临时状态和对象任务均空。
+- 生产当时无前台账号、Key 或报告，实际日志只有 checkpoint；没有新增/删除生产用户充当样本。真实撤销与 Key 解密样本沿用开发证据，不把本轮空数据或 checkpoint 重放说成真实样本通过。
+- 最终同一 epoch 保留 1 个加密档案和 1 个 checkpoint；日志保持开启。备份调度仍关闭，本次没有迁移生产 0004/0005 或启用反馈、数据管理、统计。
+- 用户确认密钥保管包已离机保管可取回；本地保管交付文件和完整运维记录为 0600/Git 忽略，备份解密密钥不进入 Netlify。生产与备份本地连接已同步轮换值。
+- 用户明确允许 Netlify 当前套餐的 Production Builds/Functions/Runtime 秘密值范围；新增八项日志/维护变量均只供 Production，排除预览和开发，Post processing 排除。普通 scope/bucket 的秘密标记不可撤销，首次扫描仅命中这两项；仅配置 `SECRETS_SCAN_OMIT_KEYS=RECOVERY_SCOPE,RECOVERY_R2_BUCKET`，真实凭据扫描保持开启。[Netlify 官方说明](https://docs.netlify.com/build/environment-variables/secrets-controller/)。
+- 原生产角色轮换采用 Neon 官方支持的 SQL，权限未扩大，平台角色未修改；后续连接拒绝旧密码由实际 direct/pooler 调用确认。[Neon 角色说明](https://neon.com/docs/manage/roles)。
+- 本次恢复数据库、目标覆盖/新旧轮换连接及重复输出文件已清理，临时档案目录为 0；密钥保管交付文件和受限运维记录保留。没有应用/测试代码改动、Git 提交或推送。
 
 - 本轮最终 diff 仅 5 行应用/清理门禁逻辑、环境样例及相关文档；无测试改动、未跟踪受限配置。受影响代码/Markdown Prettier 与 git diff --check 通过，远端允许 squash 合并；继续按最终 PR head 检查后交付。
 - 本轮最小检查已通过：vue-tsc、受影响 ESLint、既有 security/input 共 14/14；本机 HTTP 认证读取返回 503 MAINTENANCE/no-store/Retry-After 300，cleanup 生产上下文返回 204，使用不可连接的占位数据库配置且未访问生产。

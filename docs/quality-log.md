@@ -1,5 +1,49 @@
 # 开发验证记录
 
+<a id="recovery-activation-window-2026-10-23"></a>
+
+## 2026-10-23：生产日志、基线备份与隔离恢复
+
+本次三项已完成。用户授权必要生产部署，并确认密钥已离机保管可取回；生产源库仍为 0003，反馈、数据管理、统计和备份调度未启用。代码为已合入的 `959e21ab5ddd85e968be3e2ab82743c570fca4c8`，本轮没有应用或自动化测试代码改动。
+
+### 配置与部署
+
+- 日志和维护的八项变量仅配置到 Production。当前套餐不允许单独 Functions scope，用户明确批准 Builds/Functions/Runtime 的秘密值范围，Post processing 排除；全部预览/开发环境排除。备份解密密钥和控制面凭据不进入 Netlify。
+- 维护部署 `6adb0b6f40befd7fb0a9f0ec` 成功后，正式 API 返回 HTTP 503、`MAINTENANCE`、`no-store`、`Retry-After:300`。维护期间手动运行既有 cleanup，平台记录请求 `d931b429`、耗时 3620.29 ms，无错误日志；没有以本地调用冒充生产执行。
+- 生产原角色密码已轮换，权限不变；旧 direct/pooler 新连接均实际返回 `28P01`。结束 1 条旧连接后剩余连接为 0；屏障时间为上海时间 15:26:40，195 秒后复核客户端连接和 prepared transactions 均为 0。不是仅依赖维护变量或冻结声明。
+- 最终部署 `6adb0f0177813577800bc7f1` 使用同一代码与 epoch，维护=false、日志=true，并使用轮换后的 Production 数据库连接。Building/Deploying/Cleanup/Post-processing 全部 Complete。
+
+### 备份与恢复结果
+
+| 检查          | 实际结果                                                                                                          |
+| ------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 生产源库      | PostgreSQL 18.6、10,248,192 字节，0000–0003 共 4 条迁移；无反馈/审计新表                                          |
+| 密钥保管      | 用户确认独立备份密钥及全部应用 Key 解密版本已离机保管并可取回；本地保管文件 0600/Git 忽略                         |
+| 首份加密备份  | 上海时间 2026-10-23 15:30:44 开始；原始档案 36,616 字节，上传成功                                                 |
+| status CLI    | healthy=true、status=ok、退出 0；来源、AES-GCM、SHA-256、checkpoint、开始时间及 revision 校验通过                 |
+| 隔离恢复 CLI  | restored=true、isolated=true、events=1、退出 0；摘要和 revision 与档案一致                                        |
+| 目标结构      | 独立 template0 空库恢复后补齐 0004/0005，共 6 条迁移；未绑定公开应用                                              |
+| 认证失效      | 源库后台非空密码 1，目标为 0；前台密码/token、两类会话/验证码、游客、报告和短期回执均为空                         |
+| 目标对象队列  | feedback、attachment、object delete task、submission/context 均为 0；未访问生产截图 bucket                        |
+| 来源不变      | 恢复完成时源库仍为 4 条迁移、后台非空密码 1，原聚合基线未变                                                       |
+| 最终日志/档案 | 同一 epoch 中仍有 1 个加密档案及 1 个 checkpoint，可实际读取                                                      |
+| 服务恢复      | 正式健康接口 HTTP 200、status=ok/auth=true；Chrome 管理员登录成功并已退出，证明新数据库连接可用                   |
+| 清理          | 恢复数据库删除后回查为 0；目标覆盖/新旧轮换连接与重复输出文件删除，临时明文目录为空；本次新建 Chrome 标签页已关闭 |
+
+档案 SHA-256 为 `1cbf8df197e3dc2aa79c15497c7acfbe14b922122a3ea3bee69588d6476df3bd`。完整 object key、epoch、时间、输出与聚合证据保留在 `.env.recovery.window.production.json`（0600、Git 忽略）；密钥值不进入该记录或仓库。
+
+生产当时没有前台用户、Key 或报告，没有真实删除/撤销事件；本轮重放的是实际存在的 checkpoint，不能声称验证了真实生产撤销或保留 Key 解密样本。开发合成撤销证据继续沿用既有记录。日志已持续配置在两次成功部署中；本次没有通过人为生产删除制造日志，也不把 checkpoint 当作所有未来撤销均已运行的证明。
+
+### 失败、处理与未启用范围
+
+首次部署 `6adb083d2febfadd6a326366` 在构建扫描失败：批量导入把普通 `RECOVERY_SCOPE=production` 和 bucket 名也标成 secret，仓库既有正文因此命中，日志恰好报告两项。Netlify 的秘密标记不能撤销，按[官方扫描配置](https://docs.netlify.com/build/environment-variables/secrets-controller/#configure-secret-scanning)仅设置 Production 的 `SECRETS_SCAN_OMIT_KEYS=RECOVERY_SCOPE,RECOVERY_R2_BUCKET`；未关闭扫描、未豁免路径，数据库/R2 凭据继续扫描。修正后两次部署成功。
+
+普通输入框的 paste 曾未生效，首次保存显示 0 个环境值；改用 setValue，核对预期值匹配后保存为仅 Production 的 1 个值。首次数据库只读连接因沙箱 DNS 失败，授权联网后成功；环境变量整页输出被自动审批拒绝后改用控件/键名白名单；Mac 锁定由用户手动解锁；用户切换 Chrome 时重读状态；一次文档编码错误改用 apply_patch。均未绕过限制或把失败算作通过。
+
+受影响 Markdown 的 Prettier 与 git diff --check 通过。没有新增测试、改动应用代码或重复无关全量检查；使用既有备份/status/restore CLI、生产构建和一次 Chrome 管理登录完成本轮验收。没有 Git 提交或推送。
+
+生产 0004/0005、C2/C3/C4、GitHub 备份 Environment/调度、PITR/平台回滚和其他完整上线验收仍待后续批次；当前单份基线不等于每日备份已运行。
+
 <a id="recovery-activation-prep-2026-10-23"></a>
 
 ## 2026-10-23：生产日志与恢复启用准备

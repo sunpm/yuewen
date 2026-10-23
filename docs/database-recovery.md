@@ -2,7 +2,7 @@
 
 更新日期：2026-10-23（Asia/Shanghai）
 
-适用于 0000–0005 迁移，包括尚未应用 0004/0005 的升级前备份。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；备份恢复目前只在隔离开发库演练，生产存储配置与真实回读已完成，日志、基线备份和调度尚未启用。生产存储证据见[配置记录](quality-log.md#production-recovery-storage-2026-10-22)；状态命令及共用档案校验见[命令记录](quality-log.md#backup-status-2026-10-22)，升级前兼容见[恢复记录](quality-log.md#pre-upgrade-recovery-2026-10-22)，完整独立日志与原生备份演练见[独立日志记录](quality-log.md#recovery-journal-2026-10-13)和[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
+适用于 0000–0005 迁移，包括尚未应用 0004/0005 的升级前备份。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；生产存储配置、独立日志启用、0003 基线备份与隔离恢复已完成，备份调度仍关闭；本轮生产证据见[启用窗口记录](quality-log.md#recovery-activation-window-2026-10-23)。生产存储证据见[配置记录](quality-log.md#production-recovery-storage-2026-10-22)；状态命令及共用档案校验见[命令记录](quality-log.md#backup-status-2026-10-22)，升级前兼容见[恢复记录](quality-log.md#pre-upgrade-recovery-2026-10-22)，完整独立日志与原生备份演练见[独立日志记录](quality-log.md#recovery-journal-2026-10-13)和[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
 
 ## 备份策略与存储
 
@@ -47,14 +47,18 @@
 
 应用 Functions 只配置 `RECOVERY_LOG_ENABLED=true`、`RECOVERY_R2_ACCOUNT_ID / ACCESS_KEY_ID / SECRET_ACCESS_KEY / BUCKET`、`RECOVERY_SCOPE` 与 UUID `RECOVERY_EPOCH`。使用限定专用 bucket 的凭据，不给应用配置备份解密密钥或存储控制面权限。生产 scope 固定为 `production`；命名见[上线计划](plans/release.md#database-recovery)。预览不接入这些配置。
 
-2026-10-23 已完成本地分层准备，均为 Git 忽略文件、权限 `0600`，尚未导入 Netlify/GitHub：
+2026-10-23 已完成首次启用。本地分层文件仍为 Git 忽略、权限 `0600`；本地日志/维护默认开关保持 false，生产部署中的日志为 true、维护为 false。GitHub 备份环境及调度尚未配置：
 
 | 文件                              | 内容与用途                                                                                                                                                      |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.env.recovery.production`        | 仅限生产恢复 bucket 的 Account 对象凭据、account/bucket/scope、预留且未使用的新 UUID epoch；日志和维护开关均为 false。不含数据库连接、备份密钥或控制面 token。  |
+| `.env.recovery.production`        | 仅限生产恢复 bucket 的 Account 对象凭据、account/bucket/scope、当前已启用的 UUID epoch；本地日志和维护开关均为 false。不含数据库连接、备份密钥或控制面 token。  |
 | `.env.recovery.backup.production` | 运维专用 direct `DATABASE_URL`、明确库名、独立随机 32 字节 Base64 备份密钥及 `PG_BIN`；`RECOVERY_WRITES_FROZEN=false`。与上一文件叠加加载，禁止导入应用或预览。 |
 
-应用原 `.env.production` 保持不变。预留 epoch 尚无备份，现有 status 命令返回 `missing`；这只证明所查备份前缀为空，不证明日志已启用。正式窗口开始前确认 epoch 未被使用或经历日志中断；否则重新生成。备份密钥与应用所有在用 Key 解密密钥须在独立受限保管位置可取回，单机文件不等于离机保管完成。不要把预备配置当作可执行的生产备份环境。
+生产 `.env.production` 及备份 direct URL 已同步轮换后的数据库密码；旧 direct/pooler 密码已失效。相同 epoch 下首份基线 status=ok，隔离恢复成功且副本已清理。`.env.recovery.window.production.json` 保存不含密钥的完整运维证据；`.env.recovery.key-custody.production` 仅含备份密钥及全部应用 Key 解密版本，用户已确认离机保管可取回，作为保管交付文件保留，不导入应用。
+
+当前 Netlify 套餐不能将新增变量只限 Functions，用户已批准仅 Production 的 Builds/Functions/Runtime 秘密值范围；预览/开发及 Post processing 排除。普通 scope/bucket 被秘密标记后不可撤销，Production 仅以 `SECRETS_SCAN_OMIT_KEYS=RECOVERY_SCOPE,RECOVERY_R2_BUCKET` 排除这两个非敏感值，真实凭据扫描保持开启。不要把此规则扩展到数据库或对象访问密钥。
+
+备份密钥与全部在用应用 Key 解密版本须继续在独立受限位置可取回。现有 epoch 已正式启用，不能重新当作未使用 epoch；只有实际日志中断或未记录写入后，才按新的冻结窗口建立新 epoch 与基线。
 
 运维进程另外需要 direct `DATABASE_URL`、与 URL 解码后库名完全一致的 `RECOVERY_DATABASE`、32 字节随机密钥的 Base64 `RECOVERY_ENCRYPTION_KEY` 及 `RECOVERY_CODE_REVISION`。URL 必须为带显式账号和密码的单主机 `postgres://` 或 `postgresql://` 连接；查询参数仅允许各出现一次的 `sslmode` 和 `channel_binding`，拒绝 `database`、`user`、`options`、`search_path` 等覆盖项、pooler、多主机及可被 libpq 当成连接串的库名。未指定 sslmode 时统一为 require；原生工具同时接收 channel_binding，清除继承的 libpq 环境配置。`PG_BIN` 可指定官方客户端目录，客户端主版本不得低于源库。revision 记录备份工具代码版本，不证明生产正在部署同一个版本。
 
@@ -65,13 +69,15 @@ pnpm db:backup
 pnpm exec tsx scripts/database-recovery.ts backup
 ```
 
-成功输出 R2 object key、备份开始时间、原始字节数、SHA-256 和工具版本。只有上传成功才返回成功；失败工作流非零退出。GitHub 定时备份默认跳过，仅仓库变量 `RECOVERY_BACKUP_ENABLED=true` 时运行；`workflow_dispatch` 手动执行不受此开关限制。先建立 `database-backup` Environment 并配置工作流列出的 secrets/vars，手动备份和状态核对成功后再开启定时开关；不要只在 Environment 内设置作业级启用变量。当前未写入 GitHub secrets/vars，也未打开此开关。
+成功输出 R2 object key、备份开始时间、原始字节数、SHA-256 和工具版本。备份 CLI 只有上传成功才返回成功；GitHub 工作流随后调用同一 CLI 的 `status`，回读校验当前 scope/epoch 的最新档案，解密、摘要、来源、checkpoint 或时效校验失败均使工作流失败。CLI 不把上传成功当作恢复演练通过。
+
+GitHub 定时备份默认跳过，仅仓库变量 `RECOVERY_BACKUP_ENABLED=true` 时运行；`workflow_dispatch` 手动执行不受此开关限制。先建立 `database-backup` Environment 并配置工作流列出的 secrets/vars，手动备份和状态核对成功后再开启定时开关；不要只在 Environment 内设置作业级启用变量。环境仅允许 main，受控分支验收时临时加入该精确分支，验收后移除。当前未写入 GitHub secrets/vars，也未打开此开关。
 
 <a id="activation-window"></a>
 
 ## 首次启用窗口
 
-以下步骤需要生产发布授权；本轮仅准备配置、代码与只读证据，没有执行停写或备份。
+2026-10-23 首次启用窗口已完成，实际部署、冻结、备份、恢复与解除维护见[质量记录](quality-log.md#recovery-activation-window-2026-10-23)。以下保留操作顺序；后续重新建立基线时重新核对实际状态，不复用旧冻结声明。其他功能及生产 0004/0005 迁移未在本次执行。
 
 `APP_MAINTENANCE_MODE=true` 在应用 API 最前面的 middleware 返回 `503 MAINTENANCE`、`Retry-After: 300` 和 `no-store`，包括认证、读取、写入、health 和 demo；读取可能续期或触发清理，不能只拦 POST。定时 cleanup 在取得数据库连接前返回 204。开关默认 false，不影响静态页面或独立运维 CLI。`RECOVERY_WRITES_FROZEN` 仍只是恢复命令的操作者确认，两者不可互相替代。
 
@@ -99,7 +105,7 @@ Netlify Functions 环境变量变更需要[新部署才生效](https://docs.netl
      scripts/database-recovery.ts restore '<本轮备份 object key>'
    ```
 
-   Node 中宿主已有环境变量优先于文件；在干净的专用进程执行，避免继承 DATABASE_URL 或其他同名配置。执行前核对实际目标，不能只看文件名。目标覆盖文件在发布窗口创建，本轮未生成；禁止先设置冻结声明再寻找真实停写证据。
+   Node 中宿主已有环境变量优先于文件；在干净的专用进程执行，避免继承 DATABASE_URL 或其他同名配置。执行前核对实际目标，不能只看文件名。目标覆盖文件只在恢复窗口创建并在副本清理后删除；禁止先设置冻结声明再寻找真实停写证据。
 
 6. 恢复必须返回 `restored:true / isolated:true`；核对 0004/0005 只应用在目标、旧密码/会话/报告失效及撤销事件重放。0003 来源没有反馈表；目标如出现对象任务，先调查来源，不直接以生产图片 bucket 清理来验证隔离副本。合成账号/撤销验证沿用开发演练，不在生产创建或删除用户充当测试。没有真实撤销事件时如实记录，不能声称已验证生产删除样本。
 7. 通过后仅将 Production Functions 的维护开关改为 false 并新部署，保持日志及同一 epoch；确认新请求的日志链路与连续性，再解除其他停写措施。配置 GitHub 备份 Environment、手动执行及 status 成功后才开启调度。隔离副本不切换为生产，按受限证据保留要求清理目标库、覆盖文件及临时明文。
