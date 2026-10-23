@@ -16,6 +16,7 @@ import { accountNavigation, navigation, pageTitle, readingPath, reportView } fro
 const Home = lazy(() => import('@/pages/home'))
 const Workspace = lazy(() => import('@/pages/workspace'))
 const Account = lazy(() => import('@/pages/account'))
+const Archives = lazy(() => import('@/pages/archives'))
 
 export default function App() {
   const location = useLocation()
@@ -25,7 +26,9 @@ export default function App() {
   const title = pageTitle(location.pathname, location.search)
   const currentPath = location.pathname.replace(/\/+$/, '') || '/'
   const activePath =
-    currentPath === '/demo' ? `/${reportView(currentPath, location.search)}` : currentPath
+    currentPath === '/demo' || currentPath.startsWith('/archives/')
+      ? `/${reportView(currentPath, location.search)}`
+      : currentPath
 
   useEffect(() => {
     document.title = `${title} · 阅纹`
@@ -134,9 +137,13 @@ export default function App() {
                   {[...navigation.slice(1), { path: '/demo' }].map(({ path }) => (
                     <Route key={path} path={path} element={<Workspace />} />
                   ))}
-                  {accountNavigation.map(({ path }) => (
-                    <Route key={path} path={path} element={<Account />} />
-                  ))}
+                  <Route path="/archives" element={<Archives />} />
+                  <Route path="/archives/:id" element={<Archives />} />
+                  {accountNavigation
+                    .filter(({ path }) => path !== '/archives')
+                    .map(({ path }) => (
+                      <Route key={path} path={path} element={<Account />} />
+                    ))}
                   <Route
                     path="*"
                     element={

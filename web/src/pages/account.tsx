@@ -269,7 +269,7 @@ function Settings() {
           <p>
             {guest
               ? '移除游客 Key 和临时报告，不影响账号连接。'
-              : '移除连接会删除账号 Key 和临时报告。删除账号还会删除本站账号及会话，需在 10 分钟内重新登录。'}
+              : '移除连接会删除账号 Key 和临时报告，保留历史报告。删除账号还会删除全部存档及账号数据，需在 10 分钟内重新登录。'}
           </p>
           <label htmlFor="confirmation">输入「移除连接」{!guest && '或「删除账号」'}确认</label>
           <input id="confirmation" autoComplete="off" {...confirmation.register('confirmation')} />
@@ -403,7 +403,7 @@ function Login() {
   }
   return (
     <section className="data-panel login-panel">
-      <h2>{mode === 'reset' ? '设置或重置密码' : '登录保存连接'}</h2>
+      <h2>{mode === 'reset' ? '设置或重置密码' : '登录'}</h2>
       <p>无需登录也能查看和下载临时报告；登录本身不会替换账号连接。</p>
       <div className="connection-actions">
         {(['otp', 'password', 'reset'] as const).map((value) => (

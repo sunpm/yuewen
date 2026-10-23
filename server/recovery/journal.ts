@@ -14,6 +14,7 @@ export const recoveryEvent = z
       'account.delete',
       'credential.revoke',
       'feedback.delete',
+      'archive.delete',
       'object.delete',
       'checkpoint',
     ]),
@@ -34,7 +35,7 @@ export const recoveryEntry = z.union([recoveryEvent, z.array(recoveryEvent).min(
 type Intent = Pick<RecoveryEvent, 'action' | 'targetId' | 'bytes' | 'notBefore'>
 
 // Write-ahead intent: an ambiguous/rolled-back DB write is deliberately still replayed.
-// All sessions, passwords, guests and reports are unconditionally invalidated on recovery.
+// Sessions, passwords, guests and temporary reports are invalidated; archives survive.
 export async function recordRecoveryIntent(
   action: RecoveryEvent['action'],
   targetId: string,

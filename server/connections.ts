@@ -136,7 +136,7 @@ export async function limitSource(c: Context<AppEnv>, action: string, maximum: n
 export async function accountSession(c: Context) {
   return authConfigured() ? getAuth().api.getSession({ headers: c.req.raw.headers }) : null
 }
-async function guestSession(c: Context, db?: Transaction | ReturnType<typeof getDb>) {
+export async function guestSession(c: Context, db?: Transaction | ReturnType<typeof getDb>) {
   const token = getCookie(c, cookie)
   if (!token || !/^[\w-]{43}$/.test(token) || !process.env.DATABASE_URL) return undefined
   const [row] = await (db ?? getDb())
