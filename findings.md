@@ -28,6 +28,8 @@
 
 ## 研究发现
 
+- 分段续采已在 `codex/segmented-collection` 提交 `e1e161e` 并推送，创建和附加 [PR #47](https://github.com/sunpm/yuewen/pull/47)。检查连接器未连接 GitHub，改用已登录的 gh 核对；补记后以最终 head 检查通过作为合并条件，提交和 squash 消息保留 `[skip netlify]`，生产仍不变。
+
 - 分段续采交付前已同步 origin，当前 main 与 origin/main 一致；只有本批 16 份预期改动。沿用已通过的 34 项已有测试、类型/lint、PC 构建和 Chrome 证据，不重复业务验收；本次核对最终 diff、文档格式与最终 PR head 的远端检查。
 
 - 本批最终已有测试 34 项通过（基础 24、后台认证/迁移 10）；后台跨段计数 SQL 没有专属运行用例，按类型/lint 与代码核对，不把认证测试当作计数验证。生产、大型真实数据与并发专项未扩展，详见质量记录。

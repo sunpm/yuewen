@@ -18,6 +18,8 @@
 
 - 用户已授权新建分支、提交推送、创建 PR 和检查通过后合并；保留 `[skip netlify]`，生产不在本批范围。
 - 本轮根计划无环境选择器，技能及解析器仍未找到，继续已绑定的根三文件。远端同步后 main 与 origin/main 一致；沿用上一轮验收，仅复核差异、文档格式和最终 PR 检查。
+- 已建立 `codex/segmented-collection`，提交 `e1e161e` 并推送，创建和附加 [PR #47](https://github.com/sunpm/yuewen/pull/47)。提交消息带 `[skip netlify]`，PR 标题保留预览检查；本次补记后按最终 head 核对并 squash 合并，具体结果以 PR 为准。
+- 检查连接器提示 GitHub 未连接，改用已登录 gh；没有修改连接权限或部署设置。最终 squash 消息继续跳过 Netlify，生产迁移、发布和配置均不在本轮范围。
 
 ## 会话：2026-10-23 · 长期报告存档
 
