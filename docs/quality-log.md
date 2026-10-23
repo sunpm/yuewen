@@ -1,5 +1,38 @@
 # 开发验证记录
 
+<a id="recovery-activation-prep-2026-10-23"></a>
+
+## 2026-10-23：生产日志与恢复启用准备
+
+在 `codex/c5-recovery-activation-prep` 接续 C5，用户授权先完成无需生产部署的部分，并完成分支、提交推送、PR 检查后合并，保留 `[skip netlify]`。
+
+### 实现与配置
+
+当前应用缺少统一维护入口，关闭反馈/管理功能不能阻止认证、读取续期及定时清理写库。已添加默认关闭的 `APP_MAINTENANCE_MODE`：应用 middleware 在鉴权/业务访问前返回 `503 MAINTENANCE`、`Retry-After: 300`、`no-store`；生产 cleanup 在取得数据库连接前返回 204。未增加依赖、数据库迁移或自动化测试。
+
+本地 `.env.recovery.production` 增加未使用的新 UUID epoch，维护及日志均为 false；新建 `.env.recovery.backup.production`，保存独立随机 32 字节 Base64 备份密钥、生产 direct URL/明确库名、客户端目录，冻结声明为 false。两个文件权限 0600、Git 忽略；前者没有数据库或备份密钥，原应用配置保持不变。未把密钥输出到日志或写入 Git，未改 Netlify/GitHub 配置；离机保管仍须启用窗口确认。
+
+### 实际检查
+
+| 检查             | 实际结果                                                                                                                                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 生产数据库元信息 | direct 连接的 read-only 事务：PostgreSQL 18.6，数据库大小 10,248,192 字节，4 条迁移的 hash/时间与 0000–0003 一致，feedback/console_audit 不存在。未读取业务内容或修改数据；数据库占用不是实际 dump 大小。 |
+| 原生客户端       | pg_dump 与 pg_restore 均为 18.6。                                                                                                                                                                         |
+| 预备配置         | 现有 recoveryConfig 解析成功，scope=production、UUID epoch 有效；备份密钥解码为 32 字节，两文件 0600/Git 忽略，日志/维护/冻结均 false。                                                                   |
+| 只读备份状态     | 显式加载两份配置运行既有 database-recovery.ts status，返回 `healthy:false / missing`，退出 1；符合预备 epoch 尚无档案，不是失败后伪造成功。命令未连接数据库或写 R2。                                      |
+| 类型/lint        | 已安装 vue-tsc --noEmit、server/app.ts 与 netlify/functions/cleanup.ts 的 ESLint 通过。                                                                                                                   |
+| 受影响的已有测试 | security 13/13、input 1/1 通过；未新增或修改测试。                                                                                                                                                        |
+| 维护 API         | 本机临时 API，维护开启、数据库为不可连接的占位 URL；curl GET /api/console/auth/get-session 返回 503 MAINTENANCE、retryable:true、no-store、Retry-After 300 及 requestId。                                 |
+| 定时清理         | 同一维护设置下直接调用 production 上下文 cleanup，返回 204；没有使用生产凭据。                                                                                                                            |
+
+受影响代码/Markdown 的 Prettier 和 `git diff --check` 通过，环境样例人工核对；测试目录无 diff，受限配置未被 Git 跟踪。本轮不涉及 UI 布局，无需浏览器验收；未重新执行无关全量测试或本地前端构建。PR 预览检查另由 GitHub 记录，不能代替生产停写或日志证据。
+
+### 过程与未执行项
+
+首次 Git fetch 遇沙箱 FETCH_HEAD 写入限制，工具授权后成功；文档输出截断后按专题限量补读。两处猜测文件名和可选 .netlify 目录不存在，改按现有导入/文件列表定位。配置准备发现源 URL 是 pooler，首次主动中止且未写文件；按 Neon direct endpoint 规则准备运维连接后只读查询成功。本机服务首次监听遇 EPERM，工具授权后完成 HTTP 核对并 Ctrl-C 停止，未留下临时脚本或明文档案。
+
+本轮没有生产冻结、应用发布、日志启用、R2 写入、基线备份、目标库创建/恢复、0004/0005 来源迁移或调度启用。维护代码只约束采用它的部署，历史部署、在途请求和独立 SQL/脚本仍需在正式窗口逐一停止；不能把环境变量保存、固定等待或 RECOVERY_WRITES_FROZEN 声明当作真实冻结。基线、目标隔离、失败处置和密钥职责已经纳入[首次启用窗口](database-recovery.md#activation-window)。
+
 <a id="production-recovery-storage-2026-10-22"></a>
 
 ## 2026-10-22：生产恢复存储配置与真实回读

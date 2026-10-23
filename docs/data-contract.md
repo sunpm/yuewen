@@ -86,6 +86,8 @@ C2 已扩展 `DELETE /api/account`：事务内锁定账号并复核会话及 10 
 
 失败响应包含 `code`、中文 `message`、`retryable`、`requestId`。HTTP 401 上游响应映射 Key 无效；普通网络错误、HTTP 403、限流和未知业务错误不会把 Key 标为过期。`upgrade_info` 立即中止该任务。尚未核实上游所有业务失效码，需后续补充真实证据。
 
+维护开关 `APP_MAINTENANCE_MODE=true` 在业务和认证路由前统一返回 `503 MAINTENANCE`、`retryable:true`、`Retry-After: 300` 和 `no-store`；包含 health、demo、认证及读取请求。默认关闭，公开预览仍由独立入口隔离规则处理；开关及真实停写边界见[恢复手册](database-recovery.md#activation-window)。
+
 <a id="report-replacement"></a>
 
 ### 普通账号报告替换

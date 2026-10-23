@@ -41,6 +41,10 @@ app.use('/api/*', async (c, next) => {
   c.set('requestId', randomUUID())
   c.header('Cache-Control', 'no-store')
   c.header('X-Content-Type-Options', 'nosniff')
+  if (process.env.APP_MAINTENANCE_MODE === 'true') {
+    c.header('Retry-After', '300')
+    throw new AppError('MAINTENANCE', '服务维护中，请稍后重试。', 503, true)
+  }
   if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
     const origin = c.req.header('origin')
     if (!origin || origin !== (process.env.APP_URL ?? 'http://127.0.0.1:5173'))
