@@ -17,6 +17,7 @@
 - 用户已授权创建分支、提交推送、创建 PR，并在检查通过后合并；提交和合并消息保留 `[skip netlify]`，不迁移或部署生产。
 - `main` 与 `origin/main` 一致，已建立 `codex/report-archives`。沿用本批 34 项已有测试、类型/lint、构建和 Chrome 证据；本次核对最终 diff、文档格式与 PR 检查，不重复已通过的业务验收。
 - 计划目录解析脚本已不在原安装路径，技能目录内也未找到（1 次读取失败）；沿用本会话已明确的根目录三文件，不初始化或切换计划。
+- 已提交 `2c19318` 并推送，创建和附加 [PR #46](https://github.com/sunpm/yuewen/pull/46)。初始预览、Header 与 Redirect 检查已启动；本次补记后核对最终 head，全部适用检查通过才按该 head squash 合并，合并结果以 PR 为准。
 
 ## 会话：2026-10-23 · GitHub 自动备份启用
 
