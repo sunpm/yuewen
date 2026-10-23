@@ -2,7 +2,7 @@
 
 更新日期：2026-10-23（Asia/Shanghai）
 
-适用于 0000–0005 迁移，包括尚未应用 0004/0005 的升级前备份。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；生产存储配置、独立日志启用、0003 基线备份与隔离恢复已完成，备份调度仍关闭；本轮生产证据见[启用窗口记录](quality-log.md#recovery-activation-window-2026-10-23)。生产存储证据见[配置记录](quality-log.md#production-recovery-storage-2026-10-22)；状态命令及共用档案校验见[命令记录](quality-log.md#backup-status-2026-10-22)，升级前兼容见[恢复记录](quality-log.md#pre-upgrade-recovery-2026-10-22)，完整独立日志与原生备份演练见[独立日志记录](quality-log.md#recovery-journal-2026-10-13)和[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
+适用于 0000–0005 迁移，包括尚未应用 0004/0005 的升级前备份。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；生产存储配置、独立日志启用、0003 基线备份与隔离恢复已完成；GitHub 手动备份/status 已通过，每日调度已开启，首次定时触发待核实，见[自动备份记录](quality-log.md#scheduled-backup-2026-10-23)。生产恢复证据见[启用窗口记录](quality-log.md#recovery-activation-window-2026-10-23)。生产存储证据见[配置记录](quality-log.md#production-recovery-storage-2026-10-22)；状态命令及共用档案校验见[命令记录](quality-log.md#backup-status-2026-10-22)，升级前兼容见[恢复记录](quality-log.md#pre-upgrade-recovery-2026-10-22)，完整独立日志与原生备份演练见[独立日志记录](quality-log.md#recovery-journal-2026-10-13)和[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
 
 ## 备份策略与存储
 
@@ -47,7 +47,7 @@
 
 应用 Functions 只配置 `RECOVERY_LOG_ENABLED=true`、`RECOVERY_R2_ACCOUNT_ID / ACCESS_KEY_ID / SECRET_ACCESS_KEY / BUCKET`、`RECOVERY_SCOPE` 与 UUID `RECOVERY_EPOCH`。使用限定专用 bucket 的凭据，不给应用配置备份解密密钥或存储控制面权限。生产 scope 固定为 `production`；命名见[上线计划](plans/release.md#database-recovery)。预览不接入这些配置。
 
-2026-10-23 已完成首次启用。本地分层文件仍为 Git 忽略、权限 `0600`；本地日志/维护默认开关保持 false，生产部署中的日志为 true、维护为 false。GitHub 备份环境及调度尚未配置：
+2026-10-23 已完成首次启用和 GitHub 备份环境配置。本地分层文件仍为 Git 忽略、权限 `0600`；本地日志/维护默认开关保持 false，生产部署中的日志为 true、维护为 false：
 
 | 文件                              | 内容与用途                                                                                                                                                      |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -71,7 +71,9 @@ pnpm exec tsx scripts/database-recovery.ts backup
 
 成功输出 R2 object key、备份开始时间、原始字节数、SHA-256 和工具版本。备份 CLI 只有上传成功才返回成功；GitHub 工作流随后调用同一 CLI 的 `status`，回读校验当前 scope/epoch 的最新档案，解密、摘要、来源、checkpoint 或时效校验失败均使工作流失败。CLI 不把上传成功当作恢复演练通过。
 
-GitHub 定时备份默认跳过，仅仓库变量 `RECOVERY_BACKUP_ENABLED=true` 时运行；`workflow_dispatch` 手动执行不受此开关限制。先建立 `database-backup` Environment 并配置工作流列出的 secrets/vars，手动备份和状态核对成功后再开启定时开关；不要只在 Environment 内设置作业级启用变量。环境仅允许 main，受控分支验收时临时加入该精确分支，验收后移除。当前未写入 GitHub secrets/vars，也未打开此开关。
+GitHub 定时备份默认跳过，仅仓库变量 `RECOVERY_BACKUP_ENABLED=true` 时运行；`workflow_dispatch` 手动执行不受此开关限制。先建立 `database-backup` Environment 并配置工作流列出的 secrets/vars，手动备份和状态核对成功后再开启定时开关；不要只在 Environment 内设置作业级启用变量。环境仅允许 main，受控分支验收时临时加入该精确分支，验收后移除。
+
+2026-10-23 用户明确授权将生产直连凭据、独立备份密钥与恢复桶凭据写入该专用 Environment，五个 secrets 和四个 vars 已配置。调度关闭时手动备份及 status 成功，随后开启仓库开关并移除验收分支权限；最终策略仅为 main。最近成功备份开始于上海时间 16:11:59，详情见[运行记录](quality-log.md#scheduled-backup-2026-10-23)。首次定时触发尚未发生，后续失败或超过 30 小时无成功备份时，先排查配置/存储/连接，再手动补备份并确认 status=ok；日志中断须另按首次启用窗口处理。
 
 <a id="activation-window"></a>
 

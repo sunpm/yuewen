@@ -20,6 +20,12 @@
 
 ## 研究发现
 
+- 手动备份运行 39922887328 成功（51 秒）；16:11:59 开始的 36,764 字节档案与 status 回读摘要/revision 一致，healthy=true/status=ok。随后开启仓库调度变量，移除临时开发分支策略，回读为仅 main、工作流 active；首次定时触发仍未发生。详细证据见[自动备份记录](docs/quality-log.md#scheduled-backup-2026-10-23)。
+
+- 专用环境五个 secrets、四个 vars 已完成键名回读；仓库调度开关仍不存在。手动运行 [39922887328](https://github.com/sunpm/yuewen/actions/runs/39922887328) 已启动，head 为 `ac40e28`；PR #45 同一 head 的 Netlify 预览、Header、Redirect 均通过，Pages changed 为中性。
+
+- 用户已明确批准五项备份凭据传输到 `database-backup` Environment；后续获准执行成功。只放行 main 与本次精确分支，敏感值由 gh 在本地加密后写入，未输出或新增明文文件。
+
 - 本地两份生产恢复配置均为 0600 且 Git 忽略。向 GitHub 专用环境传输五项凭据的命令被自动审批拒绝，尚未执行分支规则或凭据写入；已请求用户明确授权具体秘密项与目的地。环境本身创建成功，不等于已配置或备份成功。
 - 本机未安装 actionlint；本轮只改工作流调用顺序，先使用已有 Prettier 和 diff 检查，实际 GitHub 手动执行作为运行验收，不为此新增检查脚本。
 

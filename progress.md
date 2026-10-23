@@ -4,13 +4,20 @@
 
 ## 会话：2026-10-23 · GitHub 自动备份启用
 
-- **状态：** in_progress
+- **状态：** complete
 - 恢复根目录计划并保留上一轮 8 份文档改动；用户授权完成下一完整步骤、新分支、提交推送、PR 与检查后合并。已创建 `codex/c5-scheduled-backup`，远端 main 与起点一致。
 - 首次沙箱 gh auth status 报 invalid，授权联网 API 正常，未重登或扩大权限；文档输出截断后改为短段读取。
 - 原仓库无 Environment/变量，最近定时执行均 skipped；已创建 `database-backup` 环境并启用精确分支策略。工作流补上传后 status 校验，仍复用既有 CLI，不新增或修改测试。
 - 下一步仅向备份环境写入必需配置，调度关闭时完成真实手动工作流，再开启调度；应用发布继续跳过，生产迁移与功能启用另批处理。
 - 传输凭据的命令被自动审批拒绝（1 次），要求明确授权具体秘密值的 GitHub 目的地；命令未执行，已请求用户确认。等待期间继续本地工作流/文档检查，不换工具绕过。
 - 本机 actionlint 不存在；保留这一限制，工作流运行验收在 GitHub 手动执行完成，不新增测试代码。
+- 受影响 YAML/Markdown Prettier、git diff --check 通过，已提交并推送 `ac40e28`，创建和附加 [PR #45](https://github.com/sunpm/yuewen/pull/45)，预览与规则检查已启动。
+- 用户明确允许把列出的五项备份凭据写入专用 GitHub Environment 后继续；已添加 main 与本次分支的精确策略，通过标准输入完成 secrets 写入，不输出密钥或使用仓库级 secrets。
+- 五个 secrets、四个 vars 的键名回读符合工作流，仓库调度开关仍未开启；已启动手动工作流 39922887328。PR 初始 head 的预览及规则检查通过，待备份成功后补记最终文档并核对最终 head。
+- 手动工作流成功，backup 作业 51 秒；上海时间 16:11:59 生成 36,764 字节档案，status=ok/healthy=true，SHA-256 与 revision 和上传结果一致。沿用同一生产 epoch，未执行迁移或恢复。
+- 已开启仓库 RECOVERY_BACKUP_ENABLED=true，并删除开发分支环境策略；回读仅剩 main、工作流 active。首次每日 03:00 定时触发尚未发生，未把手动成功写成连续调度证据。
+- 完整证据见[自动备份记录](docs/quality-log.md#scheduled-backup-2026-10-23)。已同步恢复手册、上线专题、开发说明、README 和三文件；接下来提交最终文档、核对最终 PR head 检查后按授权合并，结果由 PR #45 留存。
+- 收尾批量文档替换遇 Python stdin 编码解析错误（1 次），执行前即失败、未写文件；改用 apply_patch 完成。
 
 ## 会话：2026-10-23 · 生产日志与基线恢复执行
 

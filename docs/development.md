@@ -72,7 +72,7 @@ API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.ne
 
 `pnpm db:backup:status` 只读核验当前 scope/epoch 的最新档案及 checkpoint，超过 30 小时、缺失或校验失败时非零退出，详细状态见[恢复手册](database-recovery.md#只读备份状态)。该检查不连接数据库、不替代隔离恢复或日志连续性验收。
 
-备份 7 天、日志 30 天的规则及每日调度已入库；生产存储规则与私有访问已回读通过。2026-10-23 生产日志、0003 基线备份/status 和隔离恢复完成，正式维护已解除，健康及 Chrome 管理登录通过；生产源库仍为 0003，副本与临时连接已清理，见[窗口证据](quality-log.md#recovery-activation-window-2026-10-23)。本地分层配置、轮换后的连接及密钥保管职责见[恢复手册](database-recovery.md#配置与执行)。本地日志默认关闭，生产 Functions 日志已开启并沿用同一 epoch；备份密钥不导入 Netlify。GitHub 备份 Environment/每日调度仍未配置，手动工作流可在调度关闭时执行，验证成功后才启用仓库变量 `RECOVERY_BACKUP_ENABLED`。日志启用后回滚版本必须保留日志能力；实际 PITR 与平台回滚仍待核实。
+备份 7 天、日志 30 天的规则及每日调度已入库；生产存储规则与私有访问已回读通过。2026-10-23 生产日志、0003 基线备份/status 和隔离恢复完成，正式维护已解除，健康及 Chrome 管理登录通过；生产源库仍为 0003，副本与临时连接已清理，见[窗口证据](quality-log.md#recovery-activation-window-2026-10-23)。本地分层配置、轮换后的连接及密钥保管职责见[恢复手册](database-recovery.md#配置与执行)。本地日志默认关闭，生产 Functions 日志已开启并沿用同一 epoch；备份密钥不导入 Netlify。GitHub 专用备份 Environment 已配置且仅允许 main，手动备份及上传后 status 成功，仓库变量 `RECOVERY_BACKUP_ENABLED=true` 已启用每日调度；首次定时触发尚待核实，见[自动备份记录](quality-log.md#scheduled-backup-2026-10-23)。日志启用后回滚版本必须保留日志能力；实际 PITR 与平台回滚仍待核实。
 
 ## 故障定位
 
