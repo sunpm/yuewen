@@ -390,8 +390,8 @@ export function useReading() {
     if (valid && !restoring && !saving && restoredScope === scope) consumeIntent()
   }, [valid, restoring, saving, restoredScope, scope])
 
-  async function changeTask(kind: 'cancel' | 'retry') {
-    if (!valid || saving || taskAction.isPending || (kind === 'retry' && !task)) return
+  async function changeTask(kind: 'cancel' | 'retry' | 'continue') {
+    if (!valid || saving || taskAction.isPending || (kind !== 'cancel' && !task)) return
     const run = ++flow.generation
     currentRun.current = run
     setError(null)
@@ -413,13 +413,24 @@ export function useReading() {
             development ? '/report' : `/reports/${task.id}/${kind}`,
             {
               method: 'POST',
-              ...(development ? { body: JSON.stringify({ range, action: kind }) } : {}),
+              ...(development
+                ? {
+                    body: JSON.stringify({
+                      range,
+                      action: kind,
+                      id: task.id,
+                      version: task.version,
+                    }),
+                  }
+                : kind === 'continue'
+                  ? { body: JSON.stringify({ version: task.version }) }
+                  : {}),
             },
           )
         })
         publish(next, run)
       })
-      if (kind === 'retry' && run === flow.generation) await collect()
+      if (kind !== 'cancel' && run === flow.generation) await collect()
     } catch (e) {
       showError(e, run)
     }

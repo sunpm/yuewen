@@ -29,6 +29,8 @@ export interface CollectorState {
   notebookBooks: JsonObject[]
   notes: Note[]
   requests: number
+  completedSegments?: { notes: Note[]; requests: number }[]
+  segmentRequestStart?: number
   budgetReached?: boolean
   issueCode?: string
   retryAt?: number
@@ -92,16 +94,115 @@ export function newCollector(key: RangeKey, now = new Date()): CollectorState {
 function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
   return [...new Map(items.map((item) => [key(item), item])).values()]
 }
+const SEGMENT_REQUESTS = 600
+const SEGMENT_NOTES = 10000
+const SEGMENT_BYTES = 1500000
+const MAX_SEGMENTS = 4
+
+export function collectionProgress(state: CollectorState) {
+  const segment = (state.completedSegments?.length ?? 0) + 1
+  const segmentRequests = state.requests - (state.segmentRequestStart ?? 0)
+  const blocked = ['WEREAD_KEY_INVALID', 'COLLECTION_ITEM_TOO_LARGE', 'COLLECTION_LIMIT'].includes(
+    state.issueCode ?? '',
+  )
+  const exhausted = !!state.budgetReached || segmentRequests >= SEGMENT_REQUESTS
+  return {
+    segment,
+    segmentLimit: MAX_SEGMENTS,
+    requests: state.requests,
+    segmentRequests,
+    retryAllowed: !blocked && !exhausted,
+    continueAllowed:
+      !blocked &&
+      exhausted &&
+      segment < MAX_SEGMENTS &&
+      !!(state.queue.length || state.failed.length),
+  }
+}
+
+export function continueCollector(state: CollectorState) {
+  if (!collectionProgress(state).continueAllowed)
+    throw new AppError('COLLECTION_BUDGET', '无法开启下一段，请下载已有结果。', 409)
+  if (state.retryAt && state.retryAt > Date.now())
+    throw new AppError('UPSTREAM_RATE_LIMIT', '请稍后再继续读取。', 429, true)
+  state.completedSegments ??= []
+  state.completedSegments.push({
+    notes: state.notes,
+    requests: state.requests - (state.segmentRequestStart ?? 0),
+  })
+  state.notes = []
+  state.segmentRequestStart = state.requests
+  state.queue = uniqueBy([...state.queue, ...state.failed], (op) => op.id)
+  state.failed = []
+  state.budgetReached = false
+  state.issueCode = undefined
+  state.issues = []
+}
+
+const segmentBytes = (state: CollectorState) =>
+  Buffer.byteLength(JSON.stringify({ ...state, completedSegments: undefined }))
+const exceedsSegment = (state: CollectorState) =>
+  state.notes.length > SEGMENT_NOTES || segmentBytes(state) > SEGMENT_BYTES
+
 export async function advanceCollector(
   state: CollectorState,
   key: string,
   call = weread,
 ): Promise<CollectorState> {
+  const previous = structuredClone(state)
+  let issue: unknown
+  try {
+    await advanceOperation(state, key, call)
+  } catch (error) {
+    issue = error
+  }
+  if (exceedsSegment(state)) {
+    const previousIds = new Set(previous.notes.map((note) => note.id))
+    const cannotFit = exceedsSegment({
+      ...state,
+      notes: state.notes.filter((note) => !previousIds.has(note.id)),
+    })
+    const requests = state.requests
+    Object.assign(state, previous, { requests, retryAt: previous.retryAt, budgetReached: true })
+    issue = new AppError(
+      cannotFit ? 'COLLECTION_ITEM_TOO_LARGE' : 'COLLECTION_BUDGET',
+      cannotFit
+        ? '单批内容超过分段容量，已保留已有结果，请下载。'
+        : '本段已达到内容预算，已有结果已保留。',
+      409,
+    )
+  }
+  if (
+    !issue &&
+    (state.queue.length || state.failed.length) &&
+    !collectionProgress(state).retryAllowed
+  ) {
+    issue = new AppError('COLLECTION_BUDGET', '本段已达到请求预算，已有结果已保留。', 409)
+  }
+  if (
+    issue instanceof AppError &&
+    issue.code === 'COLLECTION_BUDGET' &&
+    collectionProgress(state).segment >= MAX_SEGMENTS
+  )
+    issue = new AppError('COLLECTION_LIMIT', '已达到 4 段采集上限，请下载已有结果。', 409)
+  if (issue instanceof AppError && issue.code.startsWith('COLLECTION_')) {
+    state.budgetReached = true
+    state.issueCode = issue.code
+  }
+  if (issue) throw issue
+  return state
+}
+
+async function advanceOperation(
+  state: CollectorState,
+  key: string,
+  call: typeof weread,
+): Promise<CollectorState> {
   if (!state.queue.length) return state
   if (state.retryAt && Date.now() < state.retryAt)
     throw new AppError('UPSTREAM_RATE_LIMIT', '请稍后再继续读取。', 429, true)
-  if (state.budgetReached || state.requests >= 600)
-    throw new AppError('COLLECTION_BUDGET', '本次采集已达到请求预算，可先下载已有结果。', 409)
+  if (!collectionProgress(state).retryAllowed)
+    throw new AppError('COLLECTION_BUDGET', '本段已达到预算，已有结果已保留。', 409)
   const op = state.queue.shift()!
   state.requests++
   try {
@@ -173,7 +274,13 @@ export async function advanceCollector(
                 chapterUid: num(n.chapterUid),
                 abstract: str(n.abstract) || undefined,
               }))
-      state.notes = uniqueBy([...state.notes, ...additions], (n) => n.id)
+      const savedIds = new Set(
+        state.completedSegments?.flatMap((segment) => segment.notes.map((n) => n.id)),
+      )
+      state.notes = uniqueBy(
+        [...state.notes, ...additions.filter((n) => !savedIds.has(n.id))],
+        (n) => n.id,
+      )
       if (op.api === '/review/list/mine' && result.hasMore === 1) {
         const cursor = num(result.synckey)
         if (!cursor || cursor === op.params.synckey || !additions.length)
@@ -281,7 +388,10 @@ export function buildReport(state: CollectorState): ReadingReport {
     ).size,
     complete: !state.queue.length && !state.failed.length,
   }
-  const notes = state.notes
+  const notes = uniqueBy(
+    [...(state.completedSegments?.flatMap((segment) => segment.notes) ?? []), ...state.notes],
+    (note) => note.id,
+  )
     .filter((n) => !n.date || ((!range.start || n.date >= range.start) && n.date <= range.end))
     .map(normalizeNote)
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
