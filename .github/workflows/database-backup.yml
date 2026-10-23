@@ -22,8 +22,10 @@ jobs:
           node-version: '22'
       - run: npm install --global pnpm@10.9.0
       - run: pnpm install --frozen-lockfile
-      - name: Encrypt and upload database snapshot
-        run: pnpm exec tsx scripts/database-recovery.ts backup
+      - name: Encrypt, upload and verify database snapshot
+        run: |
+          pnpm exec tsx scripts/database-recovery.ts backup
+          pnpm exec tsx scripts/database-recovery.ts status
         env:
           DATABASE_URL: ${{ secrets.RECOVERY_DATABASE_URL }}
           RECOVERY_DATABASE: ${{ vars.RECOVERY_DATABASE }}
