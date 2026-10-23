@@ -6,6 +6,7 @@ import { and, eq, gt, lt, or, sql, isNull, exists } from 'drizzle-orm'
 import { z } from 'zod'
 import { authConfigured, getAuth } from './auth'
 import { consoleRoutes } from './console/routes'
+import { archives } from './archives'
 import { feedbackRoutes } from './feedback/routes'
 import { deleteAccount } from './feedback/lifecycle'
 import { recordRecoveryIntent } from './recovery/journal'
@@ -103,6 +104,7 @@ export function parseRange(value: unknown): RangeKey {
   if (isRangeKey(value)) return value
   throw new AppError('INVALID_INPUT', '请选择有效的统计周期。', 400)
 }
+app.route('/api/account/archives', archives)
 function publicTask(row: Row) {
   const data = buildReport(row.state)
   data.meta.source = row.guestId ? 'guest' : 'account'

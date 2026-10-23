@@ -14,6 +14,10 @@ PC 字体使用 `web/src/fonts.css`：界面字集通过 `unicode-range` 优先�
 
 词云浏览器与 Node 导出共用布局，仅 Node 加载 `@napi-rs/canvas`；Vite 排除该原生模块的浏览器预构建。正式 API 仍为 Netlify Node.js Functions，数据库迁移与发布路径不变。本轮结果及未扩展的专项见[PC4 记录](quality-log.md#pc4-release-2026-10-10)。
 
+## 长期报告存档
+
+长期报告存档由 `0006_report_archives.sql`、`server/archives.ts` 和 PC `/archives` 提供。发布前在目标环境应用迁移；存档不依赖 C2/C3 开关、反馈 R2 或有效微信读书 Key，但登录仍沿用现有认证配置。数据限制、正文和删除行为见[存档契约](data-contract.md#report-archives)。恢复工具须与应用一起升级以识别 `archive.delete`；本次未执行生产迁移或发布。
+
 ## 后台开发与初始化
 
 `console/` 使用 React、antd、React Router、TanStack Query 与 RHF/Zod，独立的 Vite、Biome 和类型检查范围。`pnpm dev` 同时启动后台 Vite（5181），从 `http://127.0.0.1:5173/console/` 访问；PC Vite 将 `/console` 代理至后台，API 沿用 5173 的同源代理。直接访问内部端口不作为登录入口。`pnpm build:console` 写入 `dist/console/`，共用根目录字体/品牌资源，不重复复制；根构建先写 React PC，再写 H5 和后台。
@@ -68,7 +72,7 @@ API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.ne
 
 上线前还需验证 Netlify 实际路径重写、函数打包、冷启动、数据库连接与函数区域、可信来源、HTTPS Cookie、发信域、DNS、备份恢复和资源消耗。正式健康接口已返回 `200 / auth:true`，生产空库已完成 0000–0002 初始化；PR 的 Netlify 预览成功，合并主分支自动发布。完整线上场景和资源预算仍按质量记录验收。
 
-数据库备份、恢复和应用回滚按[恢复手册](database-recovery.md)执行。`pnpm db:backup` 使用官方 `pg_dump`、AES-256-GCM 和独立 R2；`pnpm db:restore <object-key>` 仅接受已确认冻结来源后的隔离空库，先补齐当前工具随附的缺失迁移，再重放独立撤销意图、失效全部密码/会话/游客与报告。升级前备份也能恢复到当前结构；原生工具与 Node 使用一致的解码库名，目标检查、迁移和重放共用隔离连接，连接串不能通过查询参数覆盖目标。任一步失败均不开放服务。命令读取开发 `.env`，连接串限制、完整变量及运维入口见手册；`RECOVERY_LOG_ENABLED` 默认关闭，开启后日志不可用会阻止持久删除/撤销。
+数据库备份、恢复和应用回滚按[恢复手册](database-recovery.md)执行。`pnpm db:backup` 使用官方 `pg_dump`、AES-256-GCM 和独立 R2；`pnpm db:restore <object-key>` 仅接受已确认冻结来源后的隔离空库，先补齐当前工具随附的缺失迁移，再重放独立撤销意图、失效全部密码/会话/游客与临时报告，长期存档按删除日志重放后保留。升级前备份也能恢复到当前结构；原生工具与 Node 使用一致的解码库名，目标检查、迁移和重放共用隔离连接，连接串不能通过查询参数覆盖目标。任一步失败均不开放服务。命令读取开发 `.env`，连接串限制、完整变量及运维入口见手册；`RECOVERY_LOG_ENABLED` 默认关闭，开启后日志不可用会阻止持久删除/撤销。
 
 `pnpm db:backup:status` 只读核验当前 scope/epoch 的最新档案及 checkpoint，超过 30 小时、缺失或校验失败时非零退出，详细状态见[恢复手册](database-recovery.md#只读备份状态)。该检查不连接数据库、不替代隔离恢复或日志连续性验收。
 
@@ -84,7 +88,7 @@ API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.ne
 - 上游只有明确 HTTP 401 自动标记失效，其他业务错误码尚待真实案例补充。
 - 默认逐月采集以补充日明细；尚未优化为完整年汇总加边界月的混合策略。
 - 报告内容预算触顶可下载部分结果，但尚无分卷采集机制；失败重试由用户触发，没有自动退避重试。
-- 笔记词频是轻量中文分词；没有收费模型、历史报告库、公开分享或独立 PDF 生成。
+- 笔记词频是轻量中文分词；没有收费模型、公开分享或独立 PDF 生成；长期报告存档已实现，生产待迁移发布。
 - PC4 已完成本批 Chrome 关键流程、缩放和 Lighthouse 检查；完整生产闭环仍待后续上线阶段验收。
 
 这些项目保留在后续里程碑，不能将示例通过作为生产账号闭环通过。

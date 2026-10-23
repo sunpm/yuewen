@@ -11,6 +11,7 @@ import { Link, useLocation, useSearchParams } from 'react-router'
 import { ConnectionNotice } from '@/components/connection-notice'
 import { MonthDetail, NoteDensity, TimeInsights } from '@/components/report-insights'
 import { ReportModule } from '@/components/report-module'
+import { SaveArchive } from '@/components/save-archive'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -85,6 +86,23 @@ function BookCover({ book }: { book: Book }) {
 }
 
 type Reading = ReturnType<typeof useReading>
+type ContentReading = Pick<
+  Reading,
+  | 'sample'
+  | 'development'
+  | 'connection'
+  | 'range'
+  | 'busy'
+  | 'saving'
+  | 'completeReport'
+  | 'bookDetail'
+  | 'touch'
+  | 'loadNotes'
+> & {
+  connections: Pick<Reading['connections'], 'data'>
+  task: Pick<NonNullable<Reading['task']>, 'id' | 'version' | 'keyVersion' | 'notesComplete'> | null
+  archive?: { id: string; includeNotes: boolean }
+}
 const ranges = [
   { value: 'recent', label: '最近 24 个月' },
   { value: 'weekly', label: '本周' },
@@ -263,11 +281,24 @@ export default function Workspace() {
         />
       )}
       {reading.report ? (
-        <WorkspaceContent
-          key={`${reading.task?.id ?? 'sample'}:${reading.task?.keyVersion ?? 0}`}
-          reading={reading}
-          report={reading.report}
-        />
+        <>
+          {reading.task && !reading.development && !reading.sample && !reading.saving && (
+            <div className="archive-save">
+              <SaveArchive
+                key={`${reading.task.id}:${reading.task.version}:${reading.connections.data?.account?.context ?? ''}`}
+                task={reading.task}
+                connection={reading.connection}
+                loggedIn={!!reading.connections.data?.account}
+                disabled={reading.busy || reading.restoring}
+              />
+            </div>
+          )}
+          <WorkspaceContent
+            key={`${reading.task?.id ?? 'sample'}:${reading.task?.keyVersion ?? 0}`}
+            reading={reading}
+            report={reading.report}
+          />
+        </>
       ) : (
         <section className="empty-state">
           <Choice
@@ -295,12 +326,18 @@ export default function Workspace() {
     </>
   )
 }
-function WorkspaceContent({ reading, report }: { reading: Reading; report: ReadingReport }) {
+export function WorkspaceContent({
+  reading,
+  report,
+}: {
+  reading: ContentReading
+  report: ReadingReport
+}) {
   const location = useLocation()
   const [params, setParams] = useSearchParams()
   const range = reading.range
   const view = reportView(location.pathname, location.search)
-  const owner = `${reading.development ? 'development' : reading.sample ? 'sample' : reading.connections.data?.[reading.connection]?.context}:${reading.task?.id ?? 'demo'}`
+  const owner = `${reading.development ? 'development' : reading.sample ? 'sample' : reading.connections.data?.[reading.connection]?.context}:${reading.archive?.id ?? reading.task?.id ?? 'demo'}`
   const viewKey = `${owner}:${location.key}`
   const [saved] = useState(() => {
     selectViewOwner(owner)
@@ -547,12 +584,16 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
     >
       <div className="report-toolbar">
         <div className="range-group">
-          <Choice
-            label="统计范围"
-            value={range}
-            onChange={(value) => updateParam('range', value)}
-            options={rangeOptions(range)}
-          />
+          {reading.archive ? (
+            <span>{report.range.label}</span>
+          ) : (
+            <Choice
+              label="统计范围"
+              value={range}
+              onChange={(value) => updateParam('range', value)}
+              options={rangeOptions(range)}
+            />
+          )}
           <span className="date-range">
             {report.range.start} — {report.range.end}
           </span>
@@ -568,6 +609,7 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
               <input
                 type="checkbox"
                 checked={includeNotes}
+                disabled={reading.archive?.includeNotes === false}
                 onChange={(event) => setIncludeNotes(event.target.checked)}
               />{' '}
               包含全部已采集笔记
@@ -589,7 +631,9 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
             </div>
             {downloading.isPending && (
               <p role="status">
-                {includeNotes ? '正在补齐已采集分页并生成下载文件…' : '正在生成下载文件…'}
+                {includeNotes && !reading.archive
+                  ? '正在补齐已采集分页并生成下载文件…'
+                  : '正在生成下载文件…'}
               </p>
             )}
             {downloadError && <p role="alert">{downloadError}</p>}
@@ -602,7 +646,11 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
             {[
               ['阅读与收听', duration(report.summary.seconds), '所选统计范围'],
               ['阅读天数', `${report.summary.readDays ?? '—'} 天`, '每日阅读满 1 分钟'],
-              ['书架', `${report.summary.shelfCount ?? '—'} 项`, '当前快照 · 含有声内容'],
+              [
+                '书架',
+                `${report.summary.shelfCount ?? '—'} 项`,
+                `${reading.archive ? '存档快照' : '当前快照'} · 含有声内容`,
+              ],
               ['笔记', `${report.summary.noteCount ?? '—'} 条`, '累计 · 含划线、想法、书签'],
             ].map(([label, value, detail]) => (
               <div key={label}>
@@ -828,7 +876,7 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
       {view === 'shelf' && (
         <>
           <p className="result-count" role="status">
-            当前书架 · {books.length} 个条目
+            {reading.archive ? '存档书架' : '当前书架'} · {books.length} 个条目
           </p>
           <div className={`book-grid${list ? ' book-list' : ''}`}>{books.map(bookCard)}</div>
           {!books.length && <p className="empty-state">没有找到匹配的书籍，请调整或清除筛选。</p>}
@@ -878,7 +926,13 @@ function WorkspaceContent({ reading, report }: { reading: Reading; report: Readi
               </article>
             ))}
           </div>
-          {!notes.length && <p className="empty-state">没有找到匹配的笔记，请调整或清除筛选。</p>}
+          {!notes.length && (
+            <p className="empty-state">
+              {reading.archive?.includeNotes === false
+                ? '保存这份报告时未包含笔记正文。'
+                : '没有找到匹配的笔记，请调整或清除筛选。'}
+            </p>
+          )}
           {notes.length > noteLimit && (
             <Button variant="outline" onClick={() => setNoteLimit(noteLimit + 24)}>
               加载更多笔记（{noteLimit} / {notes.length}）
@@ -896,7 +950,7 @@ function BookDetails({
   notesPath,
 }: {
   book: Book
-  reading: Reading
+  reading: ContentReading
   notesPath: ReturnType<typeof readingPath>
 }) {
   const [detail, setDetail] = useState<Partial<Book>>()

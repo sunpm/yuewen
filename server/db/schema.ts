@@ -12,6 +12,8 @@ import {
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type { CollectorState } from '../collector'
+import type { ReadingReport } from '../../shared/report'
+import type { ReportTask } from '../../shared/connection'
 export {
   consoleUser,
   consoleSession,
@@ -139,6 +141,34 @@ export const requestLimit = pgTable('request_limit', {
   count: integer('count').notNull().default(0),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 })
+// A saved snapshot survives temporary reports, credentials and login sessions.
+export const reportArchive = pgTable(
+  'report_archive',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sourceReportId: text('source_report_id').notNull(),
+    sourceVersion: integer('source_version').notNull(),
+    sourceStatus: text('source_status').$type<ReportTask['status']>().notNull(),
+    includeNotes: boolean('include_notes').notNull(),
+    bytes: integer('bytes').notNull(),
+    snapshot: jsonb('snapshot').$type<ReadingReport>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('archive_user_created_idx').on(t.userId, t.createdAt),
+    uniqueIndex('archive_source_idx').on(
+      t.userId,
+      t.sourceReportId,
+      t.sourceVersion,
+      t.includeNotes,
+    ),
+    check('archive_bytes_check', sql`${t.bytes} > 0 and ${t.bytes} <= 2097152`),
+    check('archive_version_check', sql`${t.sourceVersion} >= 0`),
+  ],
+)
 // Only replacement receipts survive; report bodies and leases are deleted atomically.
 export const reportReplacement = pgTable(
   'report_replacement',

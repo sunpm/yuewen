@@ -43,6 +43,13 @@
       "when": 1791794747722,
       "tag": "0005_c3_management",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792743826035,
+      "tag": "0006_report_archives",
+      "breakpoints": true
     }
   ]
 }

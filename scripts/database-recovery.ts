@@ -11,7 +11,13 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { z } from 'zod'
 import * as schema from '../server/db/schema'
-import { account, credential, feedback, feedbackAttachment } from '../server/db/schema'
+import {
+  account,
+  credential,
+  feedback,
+  feedbackAttachment,
+  reportArchive,
+} from '../server/db/schema'
 import { consoleAccount } from '../server/console/schema'
 import {
   queueObjectDelete,
@@ -187,6 +193,8 @@ export async function replayRecoveryEvents(
         await tx.delete(credential).where(eq(credential.userId, event.targetId))
       } else if (event.action === 'feedback.delete') {
         await removeFeedback(tx, eq(feedback.id, event.targetId))
+      } else if (event.action === 'archive.delete') {
+        await tx.delete(reportArchive).where(eq(reportArchive.id, event.targetId))
       } else if (event.action === 'object.delete') {
         await removeAttachments(tx, eq(feedbackAttachment.objectKey, event.targetId))
         await queueObjectDelete(
