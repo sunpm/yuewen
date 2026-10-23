@@ -176,7 +176,10 @@ consoleData.get('/reports', (c) => {
         rangeStart: sql<string>`${report.state}->'range'->>'start'`,
         rangeEnd: sql<string>`${report.state}->'range'->>'end'`,
         requests: sql<number>`(${report.state}->>'requests')::int`,
-        noteCount: sql<number>`jsonb_array_length(${report.state}->'notes')`,
+        noteCount: sql<number>`(jsonb_array_length(${report.state}->'notes') + coalesce(
+          (select sum(jsonb_array_length(segment->'notes'))
+            from jsonb_array_elements(coalesce(${report.state}->'completedSegments', '[]'::jsonb)) segment),
+          0))::int`,
         notebookCount: sql<number>`jsonb_array_length(${report.state}->'notebookBooks')`,
         pendingCount: sql<number>`jsonb_array_length(${report.state}->'queue')`,
         failedCount: sql<number>`jsonb_array_length(${report.state}->'failed')`,

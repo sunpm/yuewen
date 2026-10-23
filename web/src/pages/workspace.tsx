@@ -193,6 +193,16 @@ export default function Workspace() {
                       重试未完成部分
                     </Button>
                   )}
+                {reading.task?.continueAllowed &&
+                  ['cancelled', 'partial', 'failed'].includes(reading.task.status) && (
+                    <Button
+                      variant="outline"
+                      disabled={reading.busy || reading.restoring}
+                      onClick={() => void reading.changeTask('continue')}
+                    >
+                      采集下一段
+                    </Button>
+                  )}
                 {reading.task && (
                   <Button
                     variant="ghost"
@@ -241,7 +251,9 @@ export default function Workspace() {
             {reading.task.report.coverage.expected ?? '未知'} 本。
           </p>
           <p>
-            本次最多 600 个上游请求、10,000 条正文或 1.5 MB 采集状态；达到任一预算后可下载已有结果。
+            第 {reading.task.segment ?? 1} / {reading.task.segmentLimit ?? 4} 段
+            {reading.task.requests != null && ` · 累计 ${reading.task.requests} 个请求`}。 每段最多
+            600 个请求、10,000 条正文或 1.5 MB；续采保留已有结果和原期限。
           </p>
           <p>
             闲置截止：

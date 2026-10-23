@@ -14,7 +14,16 @@ import { getDb } from './db'
 import { credential, guest, report, session as authSession } from './db/schema'
 import { encryptKey, keyring } from './crypto'
 import { AppError, weread } from './weread'
-import { advanceCollector, buildReport, newCollector, num, obj, str } from './collector'
+import {
+  advanceCollector,
+  buildReport,
+  newCollector,
+  num,
+  obj,
+  str,
+  collectionProgress,
+  continueCollector,
+} from './collector'
 import { createDemo } from '../shared/demo'
 import { bookCategory, isRangeKey } from '../shared/report'
 import type { RangeKey, ReportTarget } from '../shared/report'
@@ -126,10 +135,7 @@ function publicTask(row: Row) {
     report: data,
     noteTotal,
     notesComplete: noteTotal <= 200,
-    retryAllowed:
-      !row.state.budgetReached &&
-      row.state.requests < 600 &&
-      row.state.issueCode !== 'WEREAD_KEY_INVALID',
+    ...collectionProgress(row.state),
     issueCode: row.state.issueCode,
   }
 }
@@ -459,8 +465,8 @@ app.post('/api/reports/:id/retry', async (c) => {
     if (!['partial', 'cancelled', 'failed'].includes(row.status)) return row
     if (row.state.retryAt && row.state.retryAt > Date.now())
       throw new AppError('UPSTREAM_RATE_LIMIT', '请稍后再继续读取。', 429, true)
-    if (row.state.budgetReached || row.state.requests >= 600)
-      throw new AppError('COLLECTION_BUDGET', '本次采集已达到请求预算，请下载已有结果。', 409)
+    if (!collectionProgress(row.state).retryAllowed)
+      throw new AppError('COLLECTION_BUDGET', '当前分段无法重试，请读取已有结果。', 409)
     row.state.queue.push(...row.state.failed)
     row.state.failed = []
     row.state.issues = []
@@ -477,6 +483,35 @@ app.post('/api/reports/:id/retry', async (c) => {
       .where(eq(report.id, row.id))
       .returning()
     return updated
+  })
+  return c.json(publicTask(updated))
+})
+app.post('/api/reports/:id/continue', async (c) => {
+  const { version } = z
+    .object({ version: z.number().int().nonnegative() })
+    .strict()
+    .parse(await c.req.json())
+  const session = c.get('access')
+  const updated = await changeTask(c.req.param('id'), session, async (tx, row) => {
+    await getKey(session, tx)
+    // A lost response or stale click must never open another segment.
+    if (row.version !== version) return row
+    if (!['partial', 'cancelled', 'failed'].includes(row.status))
+      throw new AppError('REPORT_CHANGED', '请先读取当前采集结果。', 409)
+    continueCollector(row.state)
+    const [next] = await tx
+      .update(report)
+      .set({
+        state: row.state,
+        status: 'queued',
+        version: row.version + 1,
+        leaseId: null,
+        leaseUntil: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(report.id, row.id))
+      .returning()
+    return next
   })
   return c.json(publicTask(updated))
 })
@@ -520,7 +555,6 @@ app.post('/api/reports/:id/advance', async (c) => {
       eq(report.keyVersion, key.version),
     )
   let issue: AppError | undefined
-  const previous = structuredClone(leased.state)
   try {
     await advanceCollector(leased.state, decryptConnection(key), async (...args) => {
       // Reserve the request before calling upstream; cancellation must not refund the budget.
@@ -548,20 +582,7 @@ app.post('/api/reports/:id/advance', async (c) => {
         ? error
         : new AppError('COLLECTION_ERROR', '读取暂时中断，请稍后继续。', 502, true)
   }
-  if (
-    Buffer.byteLength(JSON.stringify(leased.state)) > 1500000 ||
-    leased.state.notes.length > 10000
-  ) {
-    const requests = leased.state.requests
-    leased.state = { ...previous, requests, budgetReached: true }
-    issue = new AppError(
-      'COLLECTION_BUDGET',
-      '本次报告达到内容预算，已保留现有结果，请先下载。',
-      409,
-    )
-  }
   leased.state.issueCode = issue?.code
-  if (issue?.code === 'COLLECTION_BUDGET') leased.state.budgetReached = true
   if (issue && !leased.state.issues.includes(issue.message)) leased.state.issues.push(issue.message)
   const status =
     issue || (!leased.state.queue.length && leased.state.failed.length)

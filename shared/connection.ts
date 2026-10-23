@@ -16,6 +16,11 @@ export interface ReportTask {
   noteTotal: number
   notesComplete: boolean
   retryAllowed?: boolean
+  continueAllowed?: boolean
+  segment?: number
+  segmentLimit?: number
+  requests?: number
+  segmentRequests?: number
   issueCode?: string
   expiresAt: string
   idleExpiresAt: string
