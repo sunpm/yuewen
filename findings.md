@@ -1,9 +1,10 @@
 # 发现与决策
 
-更新日期：2026-10-22（Asia/Shanghai）
+更新日期：2026-10-23（Asia/Shanghai）
 
 ## 需求
 
+- 2026-10-23 用户要求继续准备生产日志、基线备份与隔离恢复，先完成无需生产部署的部分；控制台使用已登录 Chrome，授权新分支、提交推送、PR 与检查后合并，继续 `[skip netlify]`。
 - 2026-10-22 本轮用户明确授权完成生产恢复存储配置与真实回读，需要控制台时使用已登录 Chrome；创建分支、提交推送、PR 检查通过后合并，继续 `[skip netlify]`。范围包括专用私有 bucket、仓库规则、独立对象凭据与保管；应用发布、冻结写入、日志启用与基线备份留待后续批次。
 - 2026-10-22 本轮在 `codex/c5-recovery-preflight` 接续生产存储准备；用户授权分支、提交、推送、PR 和检查通过后合并，继续使用 `[skip netlify]`。本轮补齐只读核对入口，不部署生产、不新增或修改测试。
 - 本轮创建 `codex/c5-recovery-integrity`，继续 C5 备份与恢复准备，修复连接目标解析分歧；不新增或修改测试代码。改动只涉及运维脚本，无需浏览器验收。
@@ -15,6 +16,17 @@
 
 ## 研究发现
 
+- 本轮最终 diff 仅 5 行应用/清理门禁逻辑、环境样例及相关文档；无测试改动、未跟踪受限配置。受影响代码/Markdown Prettier 与 git diff --check 通过，远端允许 squash 合并；继续按最终 PR head 检查后交付。
+- 本轮最小检查已通过：vue-tsc、受影响 ESLint、既有 security/input 共 14/14；本机 HTTP 认证读取返回 503 MAINTENANCE/no-store/Retry-After 300，cleanup 生产上下文返回 204，使用不可连接的占位数据库配置且未访问生产。
+- 既有 status CLI 在生产预备 epoch 返回 missing/退出 1，符合尚未建立备份的实际状态；配置核对确认 keyBytes=32、两文件 0600，应用配置不含数据库或备份密钥，日志/维护/冻结声明均为 false。未写 R2、未创建隔离库；不用这些结果替代正式基线或生产撤销重放证据。
+- 2026-10-23 生产 direct 连接只读事务核对：PostgreSQL 18.6，数据库约 10.25 MB，4 条迁移 hash/时间与仓库 0000–0003 完全一致，feedback/console_audit 表不存在；没有读取业务内容或执行迁移。本机 pg_dump/pg_restore 均 18.6。
+- 已在 .env.recovery.production 预留新 UUID epoch，日志与维护保持 false；独立 32 字节备份密钥、direct URL/库名及客户端目录写入新建的 .env.recovery.backup.production。两个文件 0600/Git 忽略，不写入 Netlify/GitHub；未创建档案、checkpoint 或目标库。
+- Neon 官方[连接说明](https://neon.com/blog/postgres-support-case-recap)确认 pooler 后缀区分池化和 direct endpoint。本轮仅在运维配置移除对应后缀，应用原配置保持原样；真实 direct 查询成功。
+- 本地生产应用 DATABASE_URL 为 pooler，不能直接用于 pg_dump；运维配置必须采用同一 Neon endpoint 的 direct 连接并验证来源。应用日志配置不含备份密钥；本轮保留预备开关关闭，不提前写入 Netlify/GitHub，避免任意后续部署意外启用日志或维护。
+- 当前 Netlify API 与每 15 分钟清理入口没有维护开关；仅关闭反馈/管理功能不能拦截其他写入。本轮补默认关闭的 APP_MAINTENANCE_MODE，统一在 API 路由之前阻断请求并跳过定时清理；真实冻结仍需部署生效及排空在途操作，运维脚本仍须单独停止。
+- Netlify 官方[环境变量说明](https://docs.netlify.com/build/functions/environment-variables/)确认 Functions 环境变量变更须新部署生效，不能只在控制台保存后声明停写。发布阶段需先使维护版本生效、排空旧调用，再建立日志 epoch 基线；本轮不执行这一步。
+- 2026-10-23 根目录计划解析为空选择器，沿用三文件；初始 main 干净，PR #43 的生产存储配置已在本地 main。正式基线依赖真实冻结与日志代码上线，不能把离线准备或冻结声明当作启用完成。
+- 现有手册只描述平台停写，`RECOVERY_WRITES_FROZEN=true` 仅为恢复操作者声明，尚需核对可实际执行的冻结机制；生产受限文件当前仅为对象存储准备配置。
 - 本轮配置及文档提交 `1cf899b` 已推送并创建 [PR #43](https://github.com/sunpm/yuewen/pull/43)，已附加到当前任务；预览和规则检查已启动。最终文档补记后按最终 head 检查通过再合并，保留 `[skip netlify]`。
 
 - 本轮已在独立生产恢复 bucket 应用仓库两条生命周期及两条保留锁，备份 7 天、日志 30 天，公开访问关闭；真实 CLI 四项全部 ok/退出 0。详细配置与证据见[质量记录](docs/quality-log.md#production-recovery-storage-2026-10-22)。

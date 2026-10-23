@@ -64,13 +64,15 @@ pnpm console:admin:reset
 
 API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.netlify/functions/api` 地址，不再声明函数 `config.path`。Netlify 设置自定义路径后会关闭默认函数地址，两者同时使用会使重写目标失效，产生平台 404。`GET /api/health` 返回的 `auth` 只检查登录环境变量是否非空，不验证数据库连接、邮件投递或加密密钥。
 
+`APP_MAINTENANCE_MODE=true` 在统一 middleware 阻断全部应用 API（含 health、demo、认证和读取），返回 `503 MAINTENANCE`、`Retry-After: 300` 和 `no-store`；定时 cleanup 在取得数据库连接前直接返回 204。默认 false。开关不停止独立运维 CLI、旧部署或已开始的请求，真实停写及部署顺序见[首次启用窗口](database-recovery.md#activation-window)；不能用 `RECOVERY_WRITES_FROZEN` 的操作者声明代替它。
+
 上线前还需验证 Netlify 实际路径重写、函数打包、冷启动、数据库连接与函数区域、可信来源、HTTPS Cookie、发信域、DNS、备份恢复和资源消耗。正式健康接口已返回 `200 / auth:true`，生产空库已完成 0000–0002 初始化；PR 的 Netlify 预览成功，合并主分支自动发布。完整线上场景和资源预算仍按质量记录验收。
 
 数据库备份、恢复和应用回滚按[恢复手册](database-recovery.md)执行。`pnpm db:backup` 使用官方 `pg_dump`、AES-256-GCM 和独立 R2；`pnpm db:restore <object-key>` 仅接受已确认冻结来源后的隔离空库，先补齐当前工具随附的缺失迁移，再重放独立撤销意图、失效全部密码/会话/游客与报告。升级前备份也能恢复到当前结构；原生工具与 Node 使用一致的解码库名，目标检查、迁移和重放共用隔离连接，连接串不能通过查询参数覆盖目标。任一步失败均不开放服务。命令读取开发 `.env`，连接串限制、完整变量及运维入口见手册；`RECOVERY_LOG_ENABLED` 默认关闭，开启后日志不可用会阻止持久删除/撤销。
 
 `pnpm db:backup:status` 只读核验当前 scope/epoch 的最新档案及 checkpoint，超过 30 小时、缺失或校验失败时非零退出，详细状态见[恢复手册](database-recovery.md#只读备份状态)。该检查不连接数据库、不替代隔离恢复或日志连续性验收。
 
-备份 7 天、日志 30 天的规则及每日调度已入库；2026-10-22 生产专用存储规则与公开访问四项真实回读通过，独立对象凭据空桶列举成功，见[生产存储证据](quality-log.md#production-recovery-storage-2026-10-22)。本地受限配置及短期控制面凭据清理见[恢复手册](database-recovery.md#配置与执行)；`pnpm db:recovery:storage:status` 的变量与结果边界见[存储核对](database-recovery.md#storage-status)。手动工作流可在调度关闭时执行，先验证手动备份再启用仓库变量 `RECOVERY_BACKUP_ENABLED`。该开关仍未开启，Netlify/GitHub 生产恢复环境尚未配置，日志及基线备份仍待启用。日志启用后回滚版本也须保留日志能力，不能仅凭旧 C2/C3 兼容证据回滚；实际恢复窗口及平台回滚仍待接入。
+备份 7 天、日志 30 天的规则及每日调度已入库；2026-10-22 生产专用存储规则与公开访问四项真实回读通过，独立对象凭据空桶列举成功，见[生产存储证据](quality-log.md#production-recovery-storage-2026-10-22)。2026-10-23 已准备本地分层配置、独立备份密钥与未用 epoch，生产 direct 只读核对保持 0003 基线，尚无备份；配置职责见[恢复手册](database-recovery.md#配置与执行)，本次证据见[启用准备](quality-log.md#recovery-activation-prep-2026-10-23)。`pnpm db:recovery:storage:status` 的变量与结果边界见[存储核对](database-recovery.md#storage-status)。手动工作流可在调度关闭时执行，先验证手动备份再启用仓库变量 `RECOVERY_BACKUP_ENABLED`。该开关仍未开启，Netlify/GitHub 生产恢复环境尚未配置，日志及基线备份仍待启用。日志启用后回滚版本也须保留日志能力，不能仅凭旧 C2/C3 兼容证据回滚；实际恢复窗口及平台回滚仍待接入。
 
 ## 故障定位
 

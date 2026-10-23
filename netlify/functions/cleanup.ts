@@ -4,6 +4,7 @@ import { consoleConfigured } from '../../server/console/auth'
 import { cleanupFeedback } from '../../server/feedback/lifecycle'
 export default async (_request: Request, context?: { deploy: { context: string } }) => {
   if (context?.deploy.context !== 'production') return new Response(null, { status: 204 })
+  if (process.env.APP_MAINTENANCE_MODE === 'true') return new Response(null, { status: 204 })
   if (!process.env.DATABASE_URL) return new Response(null, { status: 204 })
   const db = getDb()
   if (consoleConfigured()) {
