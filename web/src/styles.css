@@ -1020,6 +1020,145 @@ summary {
 .collection-status p {
   margin: 0 0 8px;
 }
+.settings-page {
+  max-width: 760px;
+  gap: 28px;
+}
+.settings-connection {
+  padding: 32px;
+  border-radius: 12px;
+}
+.settings-page h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.5;
+}
+.settings-heading,
+.settings-field-label,
+.settings-submit,
+.settings-secondary,
+.settings-action-row,
+.settings-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.settings-heading {
+  margin-bottom: 10px;
+}
+.settings-heading h2 {
+  font-size: 23px;
+  font-weight: 500;
+}
+.settings-page p {
+  margin: 0;
+  line-height: 1.75;
+}
+.settings-page .muted-copy,
+.settings-state,
+.settings-notice,
+.settings-progress {
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+.settings-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.settings-state::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.settings-notice {
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-notice p {
+  flex: 1;
+}
+.settings-page .settings-progress {
+  margin-bottom: 16px;
+}
+.settings-key-form {
+  gap: 14px;
+  margin: 28px 0 0;
+}
+.settings-field-label {
+  gap: 16px;
+  font-size: 15px;
+}
+.settings-field-label .text-link {
+  font-size: 13px;
+}
+.settings-key-form input {
+  min-height: 48px;
+  padding: 10px 14px;
+}
+.settings-page input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+.settings-submit {
+  justify-content: flex-start;
+  gap: 18px;
+  margin-top: 6px;
+}
+.settings-submit .muted-copy {
+  max-width: 35ch;
+  font-size: 13px;
+}
+.settings-page .settings-policy {
+  margin-top: 24px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.settings-secondary {
+  flex-wrap: wrap;
+}
+.settings-secondary .connection-actions,
+.settings-action-row .connection-actions {
+  margin: 0;
+}
+.settings-maintenance {
+  display: grid;
+  gap: 20px;
+  padding-top: 4px;
+}
+.settings-action-row .muted-copy {
+  max-width: 45ch;
+  margin-top: 6px;
+}
+.settings-remove {
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+.settings-remove summary {
+  cursor: pointer;
+  padding: 10px 0;
+}
+.settings-remove p {
+  margin: 10px 0;
+}
+.settings-remove label {
+  display: block;
+  margin: 12px 0 8px;
+}
+@media (max-width: 900px) {
+  .settings-submit,
+  .settings-action-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 .download-preview input[type="checkbox"] {
   margin-right: 8px;
 }

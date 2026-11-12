@@ -24,6 +24,7 @@
 | 目标、当前阶段、里程碑、下一步与未完成项 | [任务计划](task_plan.md)                        |
 | 需求、发现、决策、约束与专题索引         | [发现与决策](findings.md)                       |
 | 会话日志、验证摘要、错误与历史状态       | [进度日志](progress.md)                         |
+| 长期产品定位、使用重心与产品原则         | [产品上下文](PRODUCT.md)                        |
 | 产品目标、页面流程、数据覆盖与首版边界   | [产品计划](docs/plans/product.md)               |
 | 架构、接口目标、采集预算、会话与导出约束 | [架构计划](docs/plans/architecture.md)          |
 | PC 设计目标、布局与组件采用              | [设计计划](docs/plans/design.md)                |
@@ -33,7 +34,8 @@
 | 游客接入、按需登录、保存连接与后续存档   | [游客计划](docs/plans/guest-access.md)          |
 | 部署目标、资源命名、质量门槛与验收场景   | [上线验收计划](docs/plans/release.md)           |
 | 已实现的数据字段与服务端接口             | [数据契约](docs/data-contract.md)               |
-| 当前设计基线及明确标注的后续约定         | [设计规范](docs/design-system.md)               |
+| 当前 PC 设计系统与 token                 | [设计系统](DESIGN.md)                           |
+| 双端内容细则、历史约定与设计验收边界     | [跨端设计细则](docs/design-system.md)           |
 | 开发命令、环境与已实现的部署配置         | [开发说明](docs/development.md)                 |
 | 实际运行结果、证据、失败与未验证项       | [质量记录](docs/quality-log.md)                 |
 

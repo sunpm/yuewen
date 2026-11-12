@@ -149,62 +149,52 @@ function Settings() {
     }
   }
   return (
-    <div className="account-page">
-      <p>粘贴 API Key 即可查看和下载。需要下次免填时，再登录保存连接。</p>
-      <div className="connection-actions">
-        <Link
-          className="text-link"
-          to={`/settings?connection=${guest ? 'account' : 'guest'}&range=${encodeURIComponent(params.get('range') ?? 'recent')}`}
-        >
-          {guest ? '使用账号连接' : '另用临时连接'}
-        </Link>
-        {!guest && (
-          <Link
-            className="text-link"
-            to={`/login?next=${encodeURIComponent(`/settings?connection=account`)}`}
-          >
-            登录恢复已保存连接
-          </Link>
+    <div className="account-page settings-page">
+      <section className="data-panel settings-connection">
+        {connections.isFetching && (
+          <p className="settings-progress" role="status">
+            正在核验连接…
+          </p>
         )}
-        {state && state.status !== 'missing' && (
-          <Link className="text-link" to={next}>
-            继续查看报告
-          </Link>
+        {(notice || connections.error) && (
+          <div className="settings-notice" role="alert">
+            <p>{notice || message(connections.error)}</p>
+            {connections.isError && (
+              <Button variant="ghost" onClick={() => void connections.refetch()}>
+                重试核验
+              </Button>
+            )}
+          </div>
         )}
-      </div>
-      {connections.isFetching && <p role="status">正在核验连接…</p>}
-      {(notice || connections.error) && (
-        <p className="notice" role="alert">
-          {notice || message(connections.error)}
+        <div className="settings-heading">
+          <h2>{guest ? '临时连接' : '账号连接'}</h2>
+          <p className="settings-state">
+            {state?.status === 'valid'
+              ? '已连接'
+              : state?.status === 'invalid'
+                ? 'Key 已失效'
+                : '尚未连接'}
+          </p>
+        </div>
+        <p className="muted-copy">
+          {state?.status === 'invalid'
+            ? '请重新配置 Key，已有结果在原期限内仍可查看。'
+            : '粘贴 API Key 即可查看和下载。'}
         </p>
-      )}
-      {connections.isError && (
-        <Button onClick={() => void connections.refetch()}>重试核验连接</Button>
-      )}
-      <section className="data-panel">
-        <h2>{guest ? '临时连接' : '账号连接'}</h2>
-        <p>
-          {state?.status === 'valid'
-            ? '已连接'
-            : state?.status === 'invalid'
-              ? 'Key 已失效，请重新配置。已有结果在原期限内仍可查看。'
-              : '尚未连接'}
-        </p>
-        <p>
-          {guest
-            ? 'Key 在服务端加密暂存；闲置 30 分钟、最长 2 小时后清理。'
-            : 'Key 加密保存到账号，临时报告仍会到期。'}
-        </p>
-        <a
-          className="text-link"
-          href="https://weread.qq.com/r/weread-skills"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          前往微信读书获取 API Key ↗
-        </a>
-        <form onSubmit={form.handleSubmit(save)} className="account-form">
-          <label htmlFor="api-key">{state?.status === 'valid' ? '更换 API Key' : 'API Key'}</label>
+        <form onSubmit={form.handleSubmit(save)} className="account-form settings-key-form">
+          <div className="settings-field-label">
+            <label htmlFor="api-key">
+              {state?.status === 'valid' ? '更换 API Key' : 'API Key'}
+            </label>
+            <a
+              className="text-link"
+              href="https://weread.qq.com/r/weread-skills"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              获取 API Key ↗
+            </a>
+          </div>
           <div className="key-field">
             <input
               id="api-key"
@@ -225,46 +215,83 @@ function Settings() {
           {form.formState.errors.apiKey && (
             <p role="alert">{form.formState.errors.apiKey.message}</p>
           )}
-          <Button type="submit" disabled={pending || (!guest && !state)}>
-            {action.isPending ? '正在验证…' : '验证并生成'}
-          </Button>
-          <p className="muted-copy">验证成功后才替换现有连接，并生成所选范围的报告。</p>
+          <div className="settings-submit">
+            <Button type="submit" disabled={pending || (!guest && !state)}>
+              {action.isPending ? '正在验证…' : '验证并生成'}
+            </Button>
+            <p className="muted-copy">验证成功后才替换现有连接，并生成所选范围的报告。</p>
+          </div>
         </form>
+        <p className="settings-policy">
+          {guest
+            ? 'Key 在服务端加密暂存；闲置 30 分钟、最长 2 小时后清理。'
+            : 'Key 加密保存到账号，临时报告仍会到期。'}
+        </p>
       </section>
+      <div className="settings-secondary">
+        {guest && <p className="muted-copy">需要下次免填时，再登录保存连接。</p>}
+        <div className="connection-actions">
+          <Link
+            className="text-link"
+            to={`/settings?connection=${guest ? 'account' : 'guest'}&range=${encodeURIComponent(params.get('range') ?? 'recent')}`}
+          >
+            {guest ? '使用账号连接' : '另用临时连接'}
+          </Link>
+          {!guest && (
+            <Link
+              className="text-link"
+              to={`/login?next=${encodeURIComponent('/settings?connection=account')}`}
+            >
+              登录恢复已保存连接
+            </Link>
+          )}
+          {state && state.status !== 'missing' && (
+            <Link className="text-link" to={next}>
+              继续查看报告
+            </Link>
+          )}
+        </div>
+      </div>
       {!guest && (
-        <section className="data-panel">
-          <h2>密码与登录</h2>
-          <p>默认使用邮箱验证码；也可以设置或重置密码。</p>
+        <section className="settings-action-row">
+          <div>
+            <h2>密码与登录</h2>
+            <p className="muted-copy">默认使用邮箱验证码；也可以设置或重置密码。</p>
+          </div>
           <Link className="text-link" to="/login?mode=reset">
             设置或重置密码
           </Link>
         </section>
       )}
-      <section className="data-panel">
-        <h2>连接与数据</h2>
-        <p>
-          清除报告会停止当前连接的采集，并保留 Key。退出账号会清除账号会话与临时报告，并保留账号
-          Key。
-        </p>
-        <div className="connection-actions">
-          <Button
-            variant="outline"
-            disabled={pending || !state}
-            onClick={() => void remove('cache')}
-          >
-            清除报告
-          </Button>
-          {!guest && (
+      <section className="settings-maintenance">
+        <div className="settings-action-row">
+          <div>
+            <h2>连接与数据</h2>
+            <p className="muted-copy">
+              清除报告会停止当前连接的采集，并保留 Key。
+              {!guest && '退出账号会清除账号会话与临时报告，并保留账号 Key。'}
+            </p>
+          </div>
+          <div className="connection-actions">
             <Button
               variant="outline"
               disabled={pending || !state}
-              onClick={() => void remove('logout')}
+              onClick={() => void remove('cache')}
             >
-              退出登录
+              清除报告
             </Button>
-          )}
+            {!guest && (
+              <Button
+                variant="outline"
+                disabled={pending || !state}
+                onClick={() => void remove('logout')}
+              >
+                退出登录
+              </Button>
+            )}
+          </div>
         </div>
-        <details className="method-details">
+        <details className="method-details settings-remove">
           <summary>{guest ? '移除临时连接' : '移除连接或删除账号'}</summary>
           <p>
             {guest

@@ -63,7 +63,7 @@ PC 正式产物为 `dist/`，`pnpm preview` 可预览生产构建。旧 PC 页�
 - 后端：Hono、Node.js、Better Auth、PostgreSQL、Drizzle。
 - `web/` 桌面页面；`web-mobile/` Vant 移动页面；`client/` 两端共用的登录、账号、采集与导出；`shared/` 报告契约与原创示例；`server/` 认证、采集、聚合与数据模型；`netlify/functions/` 函数入口；`tests/` 自动化验证。
 
-[任务计划与下一步](task_plan.md) · [发现与决策](findings.md) · [进度日志](progress.md) · [Agent 协作入口](AGENTS.md) · [设计规范](docs/design-system.md) · [数据契约](docs/data-contract.md) · [开发与部署说明](docs/development.md) · [模板来源](docs/third-party-notices.md)
+[任务计划与下一步](task_plan.md) · [发现与决策](findings.md) · [进度日志](progress.md) · [Agent 协作入口](AGENTS.md) · [PC 设计系统](DESIGN.md) · [跨端设计细则](docs/design-system.md) · [数据契约](docs/data-contract.md) · [开发与部署说明](docs/development.md) · [模板来源](docs/third-party-notices.md)
 
 项目路线图、需求与决策、执行记录分别保存在根目录 `task_plan.md`、`findings.md`、`progress.md`。详细方案见 `docs/plans/` 的相关专题，历史方案见 `docs/plans/archive/`，实际验收结果见质量记录。
 

@@ -1,5 +1,37 @@
 # 进度日志
 
+## 会话：2026-11-12 · 设置页与设计系统 Git 交付
+
+- 用户明确授权创建分支、提交，然后合并；本轮按本地 Git 交付处理，不推送或触发部署。
+- 已从 `main` 创建 `refactor/settings-design-system`，收拢本会话的产品上下文、设计系统、组件预览与设置页布局。提交保留 `[skip netlify]`；提交及合并结果以 Git 记录为准。
+- 沿用本会话已经通过的 React 类型、受影响 Biome、文档格式与 Chrome 局部验收；本轮核对最终差异和持久化配置，未把 Live 运行数据或临时注入加入提交。既有未验收项仍保留在质量记录。
+
+## 会话：2026-11-12 · PC 设计系统文档
+
+- **状态：** complete
+- 用户调用 impeccable `document`，确认把摘要刷新为完整 PC 主入口；从当前 CSS、Button/Select、字体、图表色板与 Tailwind theme 提取真实数值，沿用已确认的品牌描述。
+- `DESIGN.md` 按[官方格式](https://raw.githubusercontent.com/google-labs-code/design.md/main/docs/spec.md)记录八个标准章节、24 个明暗颜色、9 个文字角色及现有组件；`.impeccable/design.json` 生成 24 组预览色阶、8 个组件及阴影/动效/断点扩展。色阶借用已安装的 color-helpers，不新增依赖或生成脚本。
+- 原规范删除重复 PC 色值表，明确旧 Vue 字号、布局、圆角和弹层仅供历史追溯；保留 H5、跨端内容细则与未验收事项。同步产品上下文、AGENTS、README、专题及根目录记录。
+- 读取时个别路径不存在，按实际文件清单改读 `.mjs` 图标及共享 charts；长输出改为分节读取。未修改应用、测试、品牌资产或生产配置，沿用本会话已有 UI 证据，不重新启动浏览器或 Live。
+- 仓库已有 Prettier 的 Markdown/YAML frontmatter/JSON 格式检查、`git diff --check` 通过；人工核对章节顺序、token/组件引用、叙述映射与文件链接。应用文件差异数量与本轮开始一致，未新增应用修改；组件预览面板未重新打开验证，无临时文件，未提交、推送或部署。
+
+## 会话：2026-11-12 · Live 设置页层级整理
+
+- **状态：** complete（选定方案已落地，用户已结束 Live）
+- Live 首次启动因缺少 `DESIGN.md` 返回 `context_missing`；新增引用原设计规范的入口后启动成功。PC Vite 与 Live 使用现有工具，未新增依赖。
+- 用户指出设置页层级混乱，在三方案中选择第 1 版；调整 `account.tsx` 与设置页专用样式，共享 `App` 路由已恢复，`live-complete` 确认预览清理完成。
+- React 类型、受影响 Biome 检查通过；设计检测保留一条原有书脊警告。Chrome 默认与焦点检查通过，其余因用户切换 Chrome 中止，具体范围及错误见[设置页记录](docs/quality-log.md#settings-hierarchy-2026-11-12)。
+- 用户要求结束 Live、保留已选布局后，停止 helper 和本轮 Vite，自动移除 HTML 注入；`App` 与 HTML 均恢复无差异，无临时 variants/carbonize/live 标记。文档格式、引用及最终差异检查通过。未启动 API、提交、推送或部署。
+
+## 会话：2026-11-12 · 产品上下文初始化
+
+- **状态：** complete
+- 按用户调用的 impeccable `teach` 流程读取产品、设计、数据契约与现有 PC 入口；用户确认阅读复盘优先、检索辅助，以及新落地页/展示页直接写代码的默认流程。
+- 新增 `PRODUCT.md`、`.impeccable/config.json` 和仅指向 PC HTML 的 Live 配置；同步 AGENTS.md、产品专题、总计划和发现记录。既有设计规范继续维护视觉细节。
+- CSP 检测返回 `shape: null`、`signals: []`，PC HTML 包含注入锚点；本轮只准备配置，没有启动 Live 或进行浏览器验收。
+- 读取曾因批量输出过长截断、预想的 router/index 路径不存在而受限，后续用实际文件清单与定向读取核对；未据截断输出改写原文。
+- 受影响 Markdown/JSON 经仓库已有 Prettier 检查通过，新增引用、锚点和最终 diff 人工核对通过，`git diff --check` 通过。本轮无应用修改，不运行应用测试或浏览器验收，未提交、推送或部署，无临时文件。
+
 ## 会话：2026-11-12 · 微信读书网关升级提示
 
 - **状态：** complete（修复与本批验收通过；已发布）
