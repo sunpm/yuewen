@@ -1,8 +1,8 @@
 # PC 设计、布局与入口计划
 
-更新日期：2026-11-12（Asia/Shanghai，更新 Logo 专题）
+更新日期：2026-11-12（Asia/Shanghai，纸白墨绿主题与层页 Logo）
 
-状态：现有 Vue 双端主题与旧邮件反馈已接入；PC0 工程与 PC1 五页布局预览已完成，业务与完整图表迁移待实施，H5 冻结；设备自动入口推迟至 H5 重构。后台继续采用独立 React + antd。
+状态：PC0–PC4 迁移已完成，纸白墨绿主题与层页 Logo 已完成本批验收；H5 冻结，设备自动入口推迟至 H5 重构。后台继续采用独立 React + antd，生产剩余验收以总计划为准。
 
 [返回总计划](../../task_plan.md) · [现行设计规范](../design-system.md) · [报告体验实施计划](report-experience.md)
 
@@ -18,13 +18,15 @@
 
 产品名为 **阅纹**，取“阅读留下的纹理”之意，用于呈现阅读习惯、时间轨迹与划线积累；标语为 **看见你的阅读轨迹**。产品以“个人阅读档案”为主线，使用中文排版、书籍封面和真实阅读轨迹形成辨识度。
 
-Logo 于 2026-11-12 按用户提供的《Logoicon 应用图标设计参考 · 64 例》重设计。参考厚实笔画、单一记忆点、负空间和小尺寸识别的方法，以两片实心书页和一处金色翻页构成原创标志，中央留白代替原三层细线。品牌预览见 [brand/brand-preview.png](../../brand/brand-preview.png)，可编辑图形源文件见 [brand/symbol.svg](../../brand/symbol.svg)。
+Logo 于 2026-11-12 按用户提供的《Logoicon 应用图标设计参考 · 64 例》及后续选择再设计为「书页＋纹路」。借鉴 02 的统一粗笔画、06 的重复秩序与 12 的构件/负空间控制，采用三道圆端弧线组成「层页」标志；不复制参考品牌图形。品牌预览见 [brand/brand-preview.png](../../brand/brand-preview.png)，可编辑图形源文件见 [brand/symbol.svg](../../brand/symbol.svg)。
 
-品牌浅色沿用纸白、橄榄绿、黄铜金与浅沙；深色已采用近黑页面与炭灰卡片，绿色作为强调色。具体颜色、按钮配对、辅助文字、浮层及双端变量映射统一维护在[现行设计规范](../design-system.md#theme-colors)，这里不重复色值表。设计调整仍需核验图表 tooltip、日历空格、树图边框；Vant 仅在共享改动影响时检查兼容性。
+同日按用户追加要求，参考 [codex-quota 图标生成源](https://github.com/sunpm/codex-quota/blob/main/scripts/make-icon.swift)与 [anki-reader 图标](https://github.com/sunpm/anki-reader/blob/main/public/icon.svg)的圆角底板和内边距，为层页增加绿色背景色块。背景与反白笔画写入 SVG 源头，统一生成侧栏、favicon 和组合字标，无额外页面容器。
+
+用户已确认 PC 使用纸白＋墨绿，正文改为中性墨色，墨绿承担动作、选中项和数据强调；深色使用墨黑绿底与浅墨绿。具体颜色、按钮配对、辅助文字和浮层统一维护在[现行设计规范](../design-system.md#theme-colors)。图表、词云及 PC 离线报告同步新色板，冻结 H5 保留原主题；共享 Logo 更新覆盖各入口，不改变 H5 或后台布局。
 
 图表从指定色板建立有语义的颜色映射；需要更多系列时，在既定色相内调整明度，并配合标签、线型与图案区分，不把四个品牌色直接当作任意数量分类的唯一编码。当前首次访问默认自动（跟随系统），同时提供浅色与深色选择，具体行为见[自动主题与反馈入口](#theme-and-feedback)。公开页面、账号页、报告及下载样式共用品牌规则，离线 HTML 仍按现行规范使用浅色纸张主题。
 
-品牌资产由 `brand/symbol.svg`、`brand/wordmark.svg` 经 `pnpm brand:generate` 统一生成，完整清单和使用尺寸见[现行品牌规范](../design-system.md#2-品牌与标志)。图形和组合字标不依赖运行时字体。此次只更新品牌资产、PC 图框与相关文档；H5 页面布局维持冻结。本批验收见[Logo 质量记录](../quality-log.md#logo-redesign-2026-11-12)，历史双端与 200% 缩放结论不扩大。
+品牌资产由 `brand/symbol.svg`、`brand/wordmark.svg` 与 `client/theme.ts` 的 pine 色板经 `pnpm brand:generate` 统一生成，完整清单和使用尺寸见[现行品牌规范](../design-system.md#2-品牌与标志)。图形和组合字标不依赖运行时字体。本批按总计划阶段 10 完成 PC 颜色和品牌同步，验收见[主题与层页标志记录](../quality-log.md#pine-theme-logo-2026-11-12)；历史双端与缩放结论不扩大。
 
 PC 新实现采用 shadcn/ui 的 Radix 组件，按需引入到 React PC 的 `components/ui/`；现有 shadcn/vue 只作迁移前基线。保留阅纹品牌变量、字体、尺寸与必要变体，基础控件沿用官方的键盘导航、焦点和弹层行为。完整技术栈与分工见[PC 技术选型](pc-refresh.md#stack)；H5 的 Vant 控件不随 PC 替换。
 

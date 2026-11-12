@@ -23,7 +23,7 @@ export function useTheme() {
       document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
       document
         .querySelector('meta[name="theme-color"]')
-        ?.setAttribute('content', dark ? '#111213' : '#F5EFE3')
+        ?.setAttribute('content', dark ? '#141A17' : '#F8F9F6')
     }
     const sync = (event: StorageEvent) => {
       if (event.key === 'yuewen-theme' || event.key === null) setPreference(storedTheme())

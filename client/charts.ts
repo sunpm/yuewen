@@ -1,4 +1,5 @@
 import { readingFont } from './fonts'
+import { readingColors, type ReadingTheme } from './theme'
 import type { EChartsOption } from 'echarts'
 import type { ReportModule } from '@shared/report'
 
@@ -21,19 +22,17 @@ export function chartOption(
   module: ReportModule,
   dark: boolean,
   { width }: { width: number; height: number },
+  theme: ReadingTheme = 'olive',
 ): EChartsOption {
-  const ink = dark ? '#a9adae' : '#4F5B2A',
-    line = dark ? '#383b3d' : '#ded5c0'
-  const palette = dark
-    ? ['#B8C58A', '#C4AA73', '#879B7D', '#B7B09B']
-    : ['#4F5B2A', '#B8892D', '#8c976a', '#D8C9A8']
+  const colors = readingColors[theme][dark ? 'dark' : 'light']
+  const { chartText: ink, chartLine: line, series: palette } = colors
   const tooltip = {
     confine: true,
     triggerOn: 'mousemove|click|mousewheel' as const,
     renderMode: 'richText' as const,
-    backgroundColor: dark ? '#272a2d' : '#FAF6ED',
+    backgroundColor: colors.tooltip,
     borderColor: line,
-    textStyle: { color: dark ? '#E4E7DA' : ink, fontFamily: readingFont },
+    textStyle: { color: colors.foreground, fontFamily: readingFont },
     valueFormatter: (value: unknown) =>
       `${typeof value === 'number' ? value.toLocaleString('zh-CN', { maximumFractionDigits: 1 }) : value} ${module.unit}`,
   }
@@ -114,8 +113,8 @@ export function chartOption(
           nodeClick: false,
           breadcrumb: { show: false },
           data: values,
-          label: { formatter: '{b}\n{c} 小时', color: dark ? '#111213' : '#FAF6ED' },
-          itemStyle: { borderWidth: 3, borderColor: dark ? '#1c1e20' : '#f5efe3' },
+          label: { formatter: '{b}\n{c} 小时', color: colors.onSeries },
+          itemStyle: { borderWidth: 3, borderColor: dark ? colors.surface : colors.background },
         },
       ],
     }
@@ -157,11 +156,8 @@ export function chartOption(
   if (module.kind === 'heatmap') {
     const { years, cellSize, rowHeight } = calendarLayout(module, width)
     const readings = new Map(data.map((d) => [d.label, d.value]))
-    const emptyColor = dark ? '#272a2d' : '#eee7d7'
-    const borderColor = dark ? '#1c1e20' : '#FAF6ED'
-    const colors = dark
-      ? ['#536344', '#728459', '#95AA70', '#B8C58A']
-      : ['#bbc8a0', '#93a66b', '#6e8347', '#4F5B2A']
+    const emptyColor = colors.empty
+    const borderColor = colors.surface
     return {
       ...base,
       grid: undefined,
@@ -225,10 +221,10 @@ export function chartOption(
         selectedMode: false,
         pieces: [
           { lte: 0, color: emptyColor },
-          { gt: 0, lte: 30, color: colors[0] },
-          { gt: 30, lte: 60, color: colors[1] },
-          { gt: 60, lte: 120, color: colors[2] },
-          { gt: 120, color: colors[3] },
+          { gt: 0, lte: 30, color: colors.heatmap[0] },
+          { gt: 30, lte: 60, color: colors.heatmap[1] },
+          { gt: 60, lte: 120, color: colors.heatmap[2] },
+          { gt: 120, color: colors.heatmap[3] },
         ],
       },
       series: years.map((year, calendarIndex) => {
