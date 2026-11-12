@@ -395,7 +395,7 @@ export function WorkspaceContent({
         const { download, exportData, makeHtml } = await import('@client/export')
         const content =
           type === 'html'
-            ? await makeHtml(current.report, includeNotes)
+            ? await makeHtml(current.report, includeNotes, 'pine')
             : JSON.stringify(exportData(current.report, includeNotes), null, 2)
         if (!mounted.current || run !== flow.generation) return
         if (!reading.sample) {

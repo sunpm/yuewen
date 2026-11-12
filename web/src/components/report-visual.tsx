@@ -42,10 +42,12 @@ export function ReportChart({
         chart.resize()
         chart.setOption(
           {
-            ...chartOption(module, document.documentElement.classList.contains('dark'), {
-              width: chart.getWidth(),
-              height: chart.getHeight(),
-            }),
+            ...chartOption(
+              module,
+              document.documentElement.classList.contains('dark'),
+              { width: chart.getWidth(), height: chart.getHeight() },
+              'pine',
+            ),
             aria: {
               enabled: true,
               label: {

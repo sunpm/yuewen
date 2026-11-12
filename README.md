@@ -69,11 +69,11 @@ PC 正式产物为 `dist/`，`pnpm preview` 可预览生产构建。旧 PC 页�
 
 ## 品牌
 
-「阅纹」取“阅读留下的纹理”之意。Logo 以两片展开的实心书页和一处金色折页形成识别，页间留白保持小尺寸清晰。采用纸白、橄榄绿、黄铜金与浅沙；深色采用近黑页面与炭灰卡片背景、浅橄榄绿主色、米白正文与柔金点缀。
+「阅纹」取“阅读留下的纹理”之意。Logo 用圆角绿色底承托三道统一粗细的弧线，将展开的书页与阅读纹理合为「层页」标志。PC 采用纸白背景、墨色正文和墨绿强调；深色采用墨黑绿背景、中性浅色正文与浅墨绿主色。
 
 [品牌预览](brand/brand-preview.png) · [浅色 Logo](brand/logo-light.svg) · [深色 Logo](brand/logo-dark.svg)
 
-编辑 [图形源文件](brand/symbol.svg) 与 [字标源文件](brand/wordmark.svg) 后运行 `pnpm brand:generate`，统一生成品牌资产及网站副本。
+编辑 [图形源文件](brand/symbol.svg)、[字标源文件](brand/wordmark.svg) 或 [品牌色板](client/theme.ts) 后运行 `pnpm brand:generate`，统一生成品牌资产及网站副本。
 
 ## 公开参考
 

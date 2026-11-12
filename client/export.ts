@@ -3,6 +3,7 @@ import type { Note, ReadingReport } from '@shared/report'
 import { duration, normalizeNote, periodCells } from '@shared/report'
 import { calendarLayout, chartOption, loadCharts } from './charts'
 import { layoutWords } from './wordCloud'
+import { readingColors, type ReadingTheme } from './theme'
 export const escapeHtml = (text: unknown): string =>
   String(text ?? '').replace(
     /[&<>"']/g,
@@ -27,7 +28,12 @@ export function exportData(report: ReadingReport, details = false) {
     issues: report.issues,
   }
 }
-export async function makeHtml(report: ReadingReport, details = false): Promise<string> {
+export async function makeHtml(
+  report: ReadingReport,
+  details = false,
+  theme: ReadingTheme = 'olive',
+): Promise<string> {
+  const colors = readingColors[theme].light
   await loadReadingFonts()
   const [core, fonts] = await Promise.all([loadCharts(), embeddedFonts()])
   const e = escapeHtml
@@ -51,7 +57,7 @@ export async function makeHtml(report: ReadingReport, details = false): Promise<
             .join('')}</ol></div>`
         } else if (module.data.length && module.kind === 'words') {
           const layout = await layoutWords(module.data, 760)
-          svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="${e(module.title)}"><g transform="translate(${layout.width / 2},${layout.height / 2})" text-anchor="middle" font-family="${e(readingFont)}">${layout.words.map((word, i) => `<text x="${word.x}" y="${word.y}" font-size="${word.size}" fill="${['#4F5B2A', '#B8892D', '#687048'][i % 3]}"><title>${e(word.label)}：${e(word.value)} ${e(module.unit)}</title>${e(word.text)}</text>`).join('')}</g></svg>`
+          svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="${e(module.title)}"><g transform="translate(${layout.width / 2},${layout.height / 2})" text-anchor="middle" font-family="${e(readingFont)}">${layout.words.map((word, i) => `<text x="${word.x}" y="${word.y}" font-size="${word.size}" fill="${[colors.primary, colors.accent, colors.secondary][i % 3]}"><title>${e(word.label)}：${e(word.value)} ${e(module.unit)}</title>${e(word.text)}</text>`).join('')}</g></svg>`
           if (layout.words.length < module.data.length)
             svg += `<p>云图展示 ${layout.words.length} / ${module.data.length} 个词，完整词频见下表。</p>`
           if (layout.words.some((word) => word.text !== word.label))
@@ -66,7 +72,12 @@ export async function makeHtml(report: ReadingReport, details = false): Promise<
             height: size.height,
           })
           chart.setOption({
-            ...chartOption(module, false, { width: chart.getWidth(), height: chart.getHeight() }),
+            ...chartOption(
+              module,
+              false,
+              { width: chart.getWidth(), height: chart.getHeight() },
+              theme,
+            ),
             animation: false,
             tooltip: { show: false },
           })
@@ -114,7 +125,7 @@ export async function makeHtml(report: ReadingReport, details = false): Promise<
   const insightsHtml = insights
     ? `<section><h2>阅读节律与变化</h2><p>${e(insights.scope)}</p>${metricHtml(insights.metrics)}<h3>日内阅读时段</h3><p>${e(insights.hourly.scope)} · ${e(insights.hourly.reason)}</p>${insights.hourly.data.map((d) => `<p>${e(d.label)}：${e(d.value.toLocaleString('zh-CN', { maximumFractionDigits: 1 }))} 小时</p>`).join('')}<h3>月度环比</h3><p>${e(insights.comparison.reason)}</p>${insights.comparison.periods.map((p) => `<p>${e(p.label)}：${e(p.start)} — ${e(p.end)}</p>`).join('')}${metricHtml(insights.comparison.metrics)}${insights.months?.map((m) => `<h3>${e(m.month)} 月份书榜</h3><p>${e(m.period.start)} — ${e(m.period.end)}</p>${m.books?.length ? m.books.map((b) => `<p>${e(b.title)}：${e(duration(b.seconds))}</p>`).join('') : '<p>该月单书排行榜未取得，不使用年度榜单替代。</p>'}`).join('') ?? ''}<h3>单书已采集笔记密度</h3><p>已采集笔记／阅读小时；不代表阅读质量。</p>${insights.density.map((b) => `<p>${e(b.title)}：${b.value == null ? '—' : e(b.value.toLocaleString('zh-CN', { maximumFractionDigits: 1 }))} 条／阅读小时 · ${b.partial ? '部分覆盖' : '已读取'}；${e(b.reason)} 分子 ${e(b.count)} 条，时长 ${b.seconds == null ? '未知' : `${e(b.seconds / 3600)} 小时`}。</p>`).join('')}</section>`
     : ''
-  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>阅纹 · ${report.meta.sampleReport ? '示例' : '个人'}阅读报告</title><style>${fonts.css}body{margin:0;background:#F5EFE3;color:#4F5B2A;font:16px/1.8 ${readingFont}}main{max-width:960px;margin:auto;padding:50px 24px}h1,h2,blockquote{font-family:${readingFont}}h1{font-size:40px}section{border-top:1px solid #D8C9A8;padding:28px 0;break-inside:avoid}svg{display:block;width:100%;height:auto}.calendar-scroll{overflow-x:auto}.calendar-canvas{min-width:720px}table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:6px;text-align:left;border-bottom:1px solid #D8C9A8}blockquote{margin:20px 0;padding:16px;border-left:3px solid #B8892D;white-space:pre-wrap;overflow-wrap:anywhere}small{display:block}p{overflow-wrap:anywhere}.highlight-text{text-decoration:underline;text-decoration-color:#B8892D;text-decoration-thickness:3px;text-underline-offset:3px;text-decoration-skip-ink:none}.note-abstract{margin:16px 0;font-size:15px}.author-ranking ol{list-style:none;padding:0}.author-ranking li{padding:12px 0;break-inside:avoid}.author-heading,.author-detail{display:flex;align-items:baseline;gap:16px}.author-heading>span,.author-detail small{flex:1;min-width:0;overflow-wrap:anywhere}.author-heading strong{white-space:nowrap;font-weight:500}.author-detail{align-items:center;margin-top:6px}.author-detail small{font-size:12px;color:#687048}.author-track{width:45%;height:5px;background:#E3DDCB;border-radius:3px}.author-track>span{display:block;height:100%;border-radius:inherit;background:#4F5B2A;print-color-adjust:exact}th,td{overflow-wrap:anywhere}@media print{body{background:white}main{padding:0}section{break-inside:auto}h1,h2,h3{break-after:avoid}svg,tr,blockquote{break-inside:avoid}.calendar-scroll{overflow:visible}.calendar-canvas{min-width:0}details{display:block}}</style><main><p>阅纹 · 看见你的阅读轨迹 · ${e(sourceLabel)}</p><h1>${e(report.portrait.title)}</h1><p>${e(report.range.start)} — ${e(report.range.end)} · Asia/Shanghai</p><p>${e(duration(report.summary.seconds))} · ${report.summary.readDays ?? '未知'} 个阅读日</p><p>${e(report.portrait.text)}</p><p>采集覆盖：${e(report.coverage.loaded)} / ${e(report.coverage.expected ?? '未知')}；${report.coverage.complete ? '完整' : '部分'}。</p>${report.issues.map((i) => `<p>${e(i)}</p>`).join('')}${portraitHtml}${modules}${insightsHtml}${selectionsHtml}${notesHtml}<p>报告采集时间：${e(new Date(report.meta.generatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }))}</p><p>由阅纹生成，数据与范围说明已嵌入。此文件可离线阅读。</p><details><summary>字体版权与许可</summary><pre style="white-space:pre-wrap">${e(fonts.license)}</pre></details></main></html>`
+  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>阅纹 · ${report.meta.sampleReport ? '示例' : '个人'}阅读报告</title><style>${fonts.css}body{margin:0;background:${colors.background};color:${colors.foreground};font:16px/1.8 ${readingFont}}main{max-width:960px;margin:auto;padding:50px 24px}h1,h2,blockquote{font-family:${readingFont}}h1{font-size:40px}section{border-top:1px solid ${colors.border};padding:28px 0;break-inside:avoid}svg{display:block;width:100%;height:auto}.calendar-scroll{overflow-x:auto}.calendar-canvas{min-width:720px}table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:6px;text-align:left;border-bottom:1px solid ${colors.border}}blockquote{margin:20px 0;padding:16px;border-left:3px solid ${colors.accent};white-space:pre-wrap;overflow-wrap:anywhere}small{display:block}p{overflow-wrap:anywhere}.highlight-text{text-decoration:underline;text-decoration-color:${colors.accent};text-decoration-thickness:3px;text-underline-offset:3px;text-decoration-skip-ink:none}.note-abstract{margin:16px 0;font-size:15px}.author-ranking ol{list-style:none;padding:0}.author-ranking li{padding:12px 0;break-inside:avoid}.author-heading,.author-detail{display:flex;align-items:baseline;gap:16px}.author-heading>span,.author-detail small{flex:1;min-width:0;overflow-wrap:anywhere}.author-heading strong{white-space:nowrap;font-weight:500}.author-detail{align-items:center;margin-top:6px}.author-detail small{font-size:12px;color:${colors.secondary}}.author-track{width:45%;height:5px;background:${colors.muted};border-radius:3px}.author-track>span{display:block;height:100%;border-radius:inherit;background:${colors.primary};print-color-adjust:exact}th,td{overflow-wrap:anywhere}@media print{body{background:white}main{padding:0}section{break-inside:auto}h1,h2,h3{break-after:avoid}svg,tr,blockquote{break-inside:avoid}.calendar-scroll{overflow:visible}.calendar-canvas{min-width:0}details{display:block}}</style><main><p>阅纹 · 看见你的阅读轨迹 · ${e(sourceLabel)}</p><h1>${e(report.portrait.title)}</h1><p>${e(report.range.start)} — ${e(report.range.end)} · Asia/Shanghai</p><p>${e(duration(report.summary.seconds))} · ${report.summary.readDays ?? '未知'} 个阅读日</p><p>${e(report.portrait.text)}</p><p>采集覆盖：${e(report.coverage.loaded)} / ${e(report.coverage.expected ?? '未知')}；${report.coverage.complete ? '完整' : '部分'}。</p>${report.issues.map((i) => `<p>${e(i)}</p>`).join('')}${portraitHtml}${modules}${insightsHtml}${selectionsHtml}${notesHtml}<p>报告采集时间：${e(new Date(report.meta.generatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }))}</p><p>由阅纹生成，数据与范围说明已嵌入。此文件可离线阅读。</p><details><summary>字体版权与许可</summary><pre style="white-space:pre-wrap">${e(fonts.license)}</pre></details></main></html>`
 }
 export function download(content: string, type: 'html' | 'json', sample: boolean) {
   const blob = new Blob([content], {
