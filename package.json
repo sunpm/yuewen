@@ -12,6 +12,7 @@
     "dev:web": "vite --host 127.0.0.1",
     "dev:api": "tsx watch --env-file=.env server/dev.ts",
     "build": "pnpm build:web && pnpm build:mobile && pnpm build:console",
+    "brand:generate": "tsx scripts/generate-brand.ts",
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "pnpm typecheck:vue && pnpm typecheck:react && pnpm typecheck:console",
     "lint": "eslint . && biome check .",

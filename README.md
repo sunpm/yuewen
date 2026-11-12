@@ -65,13 +65,15 @@ PC 正式产物为 `dist/`，`pnpm preview` 可预览生产构建。旧 PC 页�
 
 [任务计划与下一步](task_plan.md) · [发现与决策](findings.md) · [进度日志](progress.md) · [Agent 协作入口](AGENTS.md) · [设计规范](docs/design-system.md) · [数据契约](docs/data-contract.md) · [开发与部署说明](docs/development.md) · [模板来源](docs/third-party-notices.md)
 
-项目采用 planning-with-files 文件规划：根目录 `task_plan.md` 记录目标、阶段和下一步，`findings.md` 记录需求、发现、决策与专题索引，`progress.md` 记录会话及验证摘要。查看进度或继续开发时先读三文件，再进入 `docs/plans/` 的相关专题；历史方案在 `docs/plans/archive/`，详细应用验证证据保留在质量记录中。
+项目路线图、需求与决策、执行记录分别保存在根目录 `task_plan.md`、`findings.md`、`progress.md`。详细方案见 `docs/plans/` 的相关专题，历史方案见 `docs/plans/archive/`，实际验收结果见质量记录。
 
 ## 品牌
 
-「阅纹」取“阅读留下的纹理”之意。Logo 由三道展开的书页线条组成，采用纸白、橄榄绿、黄铜金与浅沙；深色采用近黑页面与炭灰卡片背景、浅橄榄绿主色、米白正文与柔金点缀。
+「阅纹」取“阅读留下的纹理”之意。Logo 以两片展开的实心书页和一处金色折页形成识别，页间留白保持小尺寸清晰。采用纸白、橄榄绿、黄铜金与浅沙；深色采用近黑页面与炭灰卡片背景、浅橄榄绿主色、米白正文与柔金点缀。
 
 [品牌预览](brand/brand-preview.png) · [浅色 Logo](brand/logo-light.svg) · [深色 Logo](brand/logo-dark.svg)
+
+编辑 [图形源文件](brand/symbol.svg) 与 [字标源文件](brand/wordmark.svg) 后运行 `pnpm brand:generate`，统一生成品牌资产及网站副本。
 
 ## 公开参考
 

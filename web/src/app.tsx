@@ -54,14 +54,14 @@ export default function App() {
               className="logo-light"
               src="/brand/logo-mark-light.svg"
               width="32"
-              height="26"
+              height="32"
               alt=""
             />
             <img
               className="logo-dark"
               src="/brand/logo-mark-dark.svg"
               width="32"
-              height="26"
+              height="32"
               alt=""
             />
             <span className="nav-label">阅纹</span>
