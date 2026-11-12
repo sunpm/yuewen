@@ -67,7 +67,7 @@
 - 网关为 `POST https://i.weread.qq.com/api/agent/gateway`。
 - 上游鉴权为 `Authorization: Bearer <用户的 API Key>`。
 - `api_name`、`skill_version` 和业务参数平铺在请求体顶层。
-- 2026-10-03 查阅的官方文档版本为 `1.0.4`；开发接入时重新核对，集中管理版本。
+- 网关版本集中在 `server/weread.ts` 管理；当前版本与核对日期见[数据契约](../data-contract.md)，升级前核对官方变更。
 - 检查 HTTP 状态和业务 `errcode`；上游要求升级时暂停相关调用，呈现维护状态，核实官方变更后更新适配。
 
 yao-weread-skill 提供的是报告组织和分析思路。本站用 TypeScript 实现自己的采集与聚合层，不在 Web 请求中启动它的 Python 脚本。功能覆盖参考其[说明](https://github.com/yaojingang/yao-open-skills/tree/main/skills/yao-weread-skill)、[图表目录](https://github.com/yaojingang/yao-open-skills/blob/main/skills/yao-weread-skill/references/chart-catalog.md)和[数据契约](https://github.com/yaojingang/yao-open-skills/blob/main/skills/yao-weread-skill/references/data-contract.md)，字段含义以腾讯官方说明及实际回包为准。

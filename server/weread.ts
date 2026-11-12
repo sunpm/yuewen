@@ -1,4 +1,4 @@
-export const SKILL_VERSION = '1.0.4'
+export const SKILL_VERSION = '1.0.5'
 const allowed = [
   '/shelf/sync',
   '/readdata/detail',
