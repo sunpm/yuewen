@@ -1,5 +1,17 @@
 # 开发验证记录
 
+<a id="pc-navigation-release-2026-11-13"></a>
+
+## 2026-11-13：PC 顶部导航与反馈发布
+
+用户明确授权全部 diff 推送并部署。同步远端确认无分歧后，将全部 19 个变更文件提交为 `3cad550528e0edd47e5dd46dcf1a0f8d7f9a9992`，推送 `main`，触发 Netlify 自动发布；未修改数据库、凭据或后台功能开关。
+
+- 发布前 30 项已有测试、7 个受影响文件的 Biome、全部变更文档格式、最新 PC 构建及 diff 检查通过；沿用前轮 React 类型证据。构建保留既有 Zod 注解与大 chunk 警告。
+- GitHub commit status/check-runs/deployments 未提供 Netlify 结果，改用已登录 Chrome 只读查看部署。先观察到 Uploaded，随后项目当前生产与[部署详情](https://app.netlify.com/projects/sunpm-read/deploys/6af6c5cac7762a3b1d745a0a)均显示 `main@3cad550` Published，耗时 1 分 3 秒。
+- Netlify 初始化、构建、部署、清理及后处理全部 Complete；5 条重定向、1 条 header 规则未报告错误，2 个 Functions 已部署，插件成功。
+- 正式首页资源更新为 `/assets/index-DfmczosB.js` 与 `/assets/index-9_Xr2XtC.css`，和本次本地 PC 构建一致；`GET /api/health` 返回 `status: ok / auth: true`。未将此检查视为数据库、邮件、真实阅读连接或完整交互验收。
+- 原 hover、键盘/焦点、反馈截图等动态未查项仍保留在下方记录。发布结果补记单独提交并跳过 Netlify，避免重复构建；本轮临时提交消息与静态版本核对文件已清理。
+
 <a id="top-navigation-2026-11-13"></a>
 
 ## 2026-11-13：PC 顶部导航
