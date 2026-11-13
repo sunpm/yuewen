@@ -7,7 +7,6 @@ import {
   Library,
   NotebookPen,
   Settings,
-  UserRound,
 } from 'lucide-react'
 
 export const navigation = [
@@ -21,7 +20,6 @@ export const navigation = [
 export const accountNavigation = [
   { path: '/archives', title: '历史报告', icon: Archive },
   { path: '/settings', title: '连接设置', icon: Settings },
-  { path: '/login', title: '登录', icon: UserRound },
 ] as const
 
 export const reportViews = ['overview', 'report', 'shelf', 'notes'] as const
@@ -62,6 +60,7 @@ export function readingPath(pathname: string, search: string, view: string) {
 
 export function pageTitle(pathname: string, search = '') {
   const path = pathname.replace(/\/+$/, '') || '/'
+  if (path === '/login') return '登录'
   if (path.startsWith('/archives/')) return '历史报告'
   if (path === '/demo')
     return (

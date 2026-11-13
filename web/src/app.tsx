@@ -1,15 +1,8 @@
-import { Palette } from 'lucide-react'
+import { Monitor, Moon, Sun } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { Feedback } from '@/components/feedback'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { useTheme } from '@/hooks/use-theme'
 import { accountNavigation, navigation, pageTitle, readingPath, reportView } from '@/navigation'
 
@@ -48,82 +41,86 @@ export default function App() {
         跳至主要内容
       </a>
       <div className="app-shell">
-        <aside className="sidebar" aria-label="阅纹导航">
-          <Link to="/" className="brand" aria-label="阅纹首页">
-            <img
-              className="logo-light"
-              src="/brand/logo-mark-light.svg"
-              width="32"
-              height="32"
-              alt=""
-            />
-            <img
-              className="logo-dark"
-              src="/brand/logo-mark-dark.svg"
-              width="32"
-              height="32"
-              alt=""
-            />
-            <span className="nav-label">阅纹</span>
-          </Link>
-          <nav className="primary-nav" aria-label="主导航">
-            <span className="nav-caption nav-label">阅读档案</span>
-            {navigation.map(({ path, title: label, icon: Icon }) => (
-              <Link
-                key={path}
-                to={
-                  path === '/'
-                    ? '/'
-                    : readingPath(location.pathname, location.search, path.slice(1))
-                }
-                className={`nav-link${path === activePath ? ' active' : ''}`}
-                aria-current={path === activePath ? 'page' : undefined}
-                aria-label={label}
-                title={label}
-              >
-                <Icon size={18} aria-hidden="true" />
-                <span className="nav-label">{label}</span>
-              </Link>
-            ))}
-          </nav>
-          <div className="sidebar-bottom">
-            <nav aria-label="账号与连接">
-              {accountNavigation.map(({ path, title: label, icon: Icon }) => (
-                <NavLink
+        <header className="site-header">
+          <div className="site-header-inner">
+            <Link to="/" className="brand" aria-label="阅纹首页">
+              <img
+                className="logo-light"
+                src="/brand/logo-mark-light.svg"
+                width="32"
+                height="32"
+                alt=""
+              />
+              <img
+                className="logo-dark"
+                src="/brand/logo-mark-dark.svg"
+                width="32"
+                height="32"
+                alt=""
+              />
+              <span className="brand-name">阅纹</span>
+            </Link>
+            <nav className="primary-nav" aria-label="主导航">
+              {navigation.slice(1).map(({ path, title: label }) => (
+                <Link
                   key={path}
-                  to={{ pathname: path, search: location.search }}
-                  className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                  aria-label={label}
-                  title={label}
+                  to={readingPath(location.pathname, location.search, path.slice(1))}
+                  className={`nav-link${path === activePath ? ' active' : ''}`}
+                  aria-current={path === activePath ? 'page' : undefined}
                 >
-                  <Icon size={18} aria-hidden="true" />
-                  <span className="nav-label">{label}</span>
-                </NavLink>
+                  {label}
+                </Link>
               ))}
-              <Feedback key={location.key} />
             </nav>
-            <Select value={theme} onValueChange={setTheme}>
-              <SelectTrigger aria-label="选择主题" className="theme-trigger">
-                <Palette size={17} aria-hidden="true" />
-                <span className="nav-label">
-                  <SelectValue>
-                    {theme === 'auto' ? '自动' : theme === 'light' ? '浅色' : '深色'}
-                  </SelectValue>
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">自动（跟随系统）</SelectItem>
-                <SelectItem value="light">浅色</SelectItem>
-                <SelectItem value="dark">深色</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="header-actions">
+              <nav className="utility-nav" aria-label="账号与连接">
+                {accountNavigation.map(({ path, title: label, icon: Icon }) => (
+                  <NavLink
+                    key={path}
+                    to={{ pathname: path, search: location.search }}
+                    className={({ isActive }) => `utility-link${isActive ? ' active' : ''}`}
+                    aria-label={label}
+                    title={label}
+                  >
+                    <Icon size={18} aria-hidden="true" />
+                    <span className="utility-label">{label}</span>
+                  </NavLink>
+                ))}
+                <Feedback key={location.key} />
+              </nav>
+              <fieldset className="theme-switcher">
+                <legend className="sr-only">主题</legend>
+                {[
+                  { value: 'auto', label: '自动', icon: Monitor },
+                  { value: 'light', label: '浅色', icon: Sun },
+                  { value: 'dark', label: '深色', icon: Moon },
+                ].map(({ value, label, icon: Icon }) => (
+                  <label
+                    key={value}
+                    className="theme-option"
+                    title={value === 'auto' ? '自动（跟随系统）' : label}
+                  >
+                    <input
+                      className="sr-only"
+                      type="radio"
+                      name="yuewen-theme"
+                      value={value}
+                      checked={theme === value}
+                      onChange={() => setTheme(value)}
+                      aria-label={value === 'auto' ? '自动（跟随系统）' : label}
+                    />
+                    <span className="theme-choice">
+                      <Icon size={16} aria-hidden="true" />
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            </div>
           </div>
-        </aside>
+        </header>
         <div className="workspace">
-          <header className="page-header">
-            <h1>{title}</h1>
-          </header>
           <main id="main" ref={main} tabIndex={-1} className="page-content">
+            <h1 className={currentPath === '/' ? 'sr-only' : 'page-title'}>{title}</h1>
             <ErrorBoundary key={location.key}>
               <Suspense
                 fallback={
@@ -139,17 +136,14 @@ export default function App() {
                   ))}
                   <Route path="/archives" element={<Archives />} />
                   <Route path="/archives/:id" element={<Archives />} />
-                  {accountNavigation
-                    .filter(({ path }) => path !== '/archives')
-                    .map(({ path }) => (
-                      <Route key={path} path={path} element={<Account />} />
-                    ))}
+                  <Route path="/settings" element={<Account />} />
+                  <Route path="/login" element={<Account />} />
                   <Route
                     path="*"
                     element={
                       <section className="empty-state">
                         <h2>这一页还没有留下纹理</h2>
-                        <p>地址可能有误，请从侧栏选择页面。</p>
+                        <p>地址可能有误，请从顶部导航选择页面。</p>
                         <Link className="text-link" to="/">
                           返回首页
                         </Link>

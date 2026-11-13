@@ -6,7 +6,7 @@
 
 PC 正式入口为 `web/` 和 `/`，使用 React、React Router、shadcn/ui/Radix、TanStack Query、React Hook Form/Zod 与 Better Auth React。`pnpm dev` 启动 PC（5173）、H5（5180）、后台（5181）和 Hono API（8787），PC 代理 `/m/`、`/console`、`/api`；浏览器统一从 5173 访问。迁移专用 5174/8788 入口和 `dist-react/` 已移除。
 
-默认 PC `/demo` 使用模拟数据；只有开发构建中显式选择 `source=development` 才使用本地 Key。游客与账号页面沿用同源 API、报告范围、幂等保存与期限语义。27 个模块及明细位于 `web/src/components/report-module.tsx`、`report-visual.tsx`、`report-insights.tsx`；图表、词云与导出按需加载。报告读取统一处理失效及迟到响应，笔记补齐可停止；下载按选项补齐已有分页，生成前后核验归属与版本。侧栏反馈弹窗与截图模块均按点击加载，截图失败或服务未启用时保留文字提示与邮件兜底。
+默认 PC `/demo` 使用模拟数据；只有开发构建中显式选择 `source=development` 才使用本地 Key。游客与账号页面沿用同源 API、报告范围、幂等保存与期限语义。27 个模块及明细位于 `web/src/components/report-module.tsx`、`report-visual.tsx`、`report-insights.tsx`；图表、词云与导出按需加载。报告读取统一处理失效及迟到响应，笔记补齐可停止；下载按选项补齐已有分页，生成前后核验归属与版本。顶栏反馈弹窗与截图模块均按点击加载，提供 GitHub Issue 预填与可选本地截图；截图失败仍可前往 GitHub 反馈。
 
 `pnpm build` 依次写入 React PC `dist/`、冻结 H5 `dist/m/` 和后台 `dist/console/`。`pnpm preview` 在 4173 预览静态产物；个人业务使用带同源 API 的开发服务。根类型检查覆盖 H5/共享/服务端、React PC、后台；React TS/TSX/CSS 和配置由 Biome 处理，Vue/共享/服务端由 ESLint 处理，Markdown 使用 Prettier。旧 PC 的 Vue 页面与 Reka UI 等专用依赖已清理；仅保留既有 `tests/input.test.ts` 引用的 `Input.vue`，它不进入 PC 产物，不改动测试代码。
 
@@ -111,9 +111,9 @@ PC `/demo` 默认模拟，显式 `source=development` 才读取服务端 `WEREAD
 
 ## C2 后端配置与清理
 
-C2 后端位于 `server/feedback/`，迁移 `0004_c2_feedback.sql` 新增反馈、附件、提交上下文、幂等回执、对象删除任务、对账游标和最小审计表。开发库已迁移；生产本批不迁移、不启用。`FEEDBACK_ENABLED` 默认关闭，未配置时反馈返回 `FEEDBACK_UNAVAILABLE`，不查询新表；生产公开预览继续由 Functions 适配器整体隔离。PC 与 `/console/feedback` 页面已接入，载荷见[数据契约](data-contract.md#feedback-api)。
+C2 后端位于 `server/feedback/`，迁移 `0004_c2_feedback.sql` 新增反馈、附件、提交上下文、幂等回执、对象删除任务、对账游标和最小审计表。开发库已迁移；生产本批不迁移、不启用。`FEEDBACK_ENABLED` 默认关闭，未配置时反馈返回 `FEEDBACK_UNAVAILABLE`，不查询新表；生产公开预览继续由 Functions 适配器整体隔离。后台 `/console/feedback` 页面保留，载荷见[数据契约](data-contract.md#feedback-api)；当前 PC 不再调用本站反馈 API。
 
-PC 反馈入口先建立提交上下文，截图仅在内存预览，点击提交才上传。`shared/feedback.ts` 共用字段校验；`client/api.ts` 对 FormData 由浏览器设置 multipart boundary，其他请求沿用 JSON。截图使用 html-to-image 1.11.13，离屏副本遮蔽所有表单输入，十秒超时，最多 400 万像素、1 MiB；过长页面提示改截可见区域或文字反馈。取消/离开页面会清理草稿和对象 URL；重试复用首次 FormData，修改文字或图片才生成新请求标识，身份失效须显式重新确认。
+2026-11-13 PC 反馈改为 GitHub Issue 预填及可选本地截图，详见[反馈专题](plans/console.md#feedback)。不依赖 `FEEDBACK_ENABLED`、数据库、邮件或 R2；截图沿用 html-to-image 的离屏遮蔽及资源限制，下载后由用户自行添加到 GitHub。H5 邮件入口保持原实现。下文 R2 配置与清理仅描述保留的本站反馈后端，不作为当前 PC 反馈的启动要求。
 
 后台反馈列表以 Query 驱动受控分页与筛选，RHF/Zod 维护处理表单；列表只用脱敏归属，详情按需读取正文和图片。修改及删除携带版本，冲突保留草稿并提供刷新；管理请求鉴权失败、离线或会话核验会清理缓存/图片。开发 R2 关键 API 已取得实际证据；截图效果、界面运行及生产闭环仍待验收。
 

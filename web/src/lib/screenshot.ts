@@ -1,6 +1,6 @@
 import { getFontEmbedCSS, toCanvas } from 'html-to-image'
 
-// Snapshot before showing the dialog; only the detached copy is redacted.
+// Only the detached copy is redacted; feedback dialogs are excluded.
 export async function capturePage(visible: boolean, signal: AbortSignal): Promise<Blob> {
   const root = document.querySelector<HTMLElement>('.app-shell')
   if (!root) throw new Error('未能生成截图。请提交文字反馈。')
