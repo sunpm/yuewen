@@ -1,8 +1,8 @@
 # 数据库备份、独立撤销日志与恢复
 
-更新日期：2026-10-23（Asia/Shanghai）
+更新日期：2026-11-14（Asia/Shanghai）
 
-适用于 0000–0005 迁移，包括尚未应用 0004/0005 的升级前备份。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；生产存储配置、独立日志启用、0003 基线备份与隔离恢复已完成；GitHub 手动备份/status 已通过，每日调度已开启，首次定时触发待核实，见[自动备份记录](quality-log.md#scheduled-backup-2026-10-23)。生产恢复证据见[启用窗口记录](quality-log.md#recovery-activation-window-2026-10-23)。生产存储证据见[配置记录](quality-log.md#production-recovery-storage-2026-10-22)；状态命令及共用档案校验见[命令记录](quality-log.md#backup-status-2026-10-22)，升级前兼容见[恢复记录](quality-log.md#pre-upgrade-recovery-2026-10-22)，完整独立日志与原生备份演练见[独立日志记录](quality-log.md#recovery-journal-2026-10-13)和[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
+适用于 0000–0006 迁移，包括仍为 0003 的升级前备份。实现位于 `server/recovery/`、`scripts/database-recovery.ts` 和 `.github/workflows/database-backup.yml`；生产存储配置、独立日志启用、0003 基线备份与隔离恢复已完成。GitHub 每日调度已开启，2026-11-14 核实启用后的 22 次定时运行全部成功，最新档案真实回读 `status=ok`，见[只读核验](quality-log.md#release-cli-2026-11-14)；启用过程见[自动备份记录](quality-log.md#scheduled-backup-2026-10-23)。生产恢复证据见[启用窗口记录](quality-log.md#recovery-activation-window-2026-10-23)。生产存储证据见[配置记录](quality-log.md#production-recovery-storage-2026-10-22)；状态命令及共用档案校验见[命令记录](quality-log.md#backup-status-2026-10-22)，升级前兼容见[恢复记录](quality-log.md#pre-upgrade-recovery-2026-10-22)，完整独立日志与原生备份演练见[独立日志记录](quality-log.md#recovery-journal-2026-10-13)和[历史演练](quality-log.md#database-recovery-2026-10-13)。恢复不会随启动、构建或部署执行。
 
 ## 备份策略与存储
 
@@ -74,7 +74,7 @@ pnpm exec tsx scripts/database-recovery.ts backup
 
 GitHub 定时备份默认跳过，仅仓库变量 `RECOVERY_BACKUP_ENABLED=true` 时运行；`workflow_dispatch` 手动执行不受此开关限制。先建立 `database-backup` Environment 并配置工作流列出的 secrets/vars，手动备份和状态核对成功后再开启定时开关；不要只在 Environment 内设置作业级启用变量。环境仅允许 main，受控分支验收时临时加入该精确分支，验收后移除。
 
-2026-10-23 用户明确授权将生产直连凭据、独立备份密钥与恢复桶凭据写入该专用 Environment，五个 secrets 和四个 vars 已配置。调度关闭时手动备份及 status 成功，随后开启仓库开关并移除验收分支权限；最终策略仅为 main。最近成功备份开始于上海时间 16:11:59，详情见[运行记录](quality-log.md#scheduled-backup-2026-10-23)。首次定时触发尚未发生，后续失败或超过 30 小时无成功备份时，先排查配置/存储/连接，再手动补备份并确认 status=ok；日志中断须另按首次启用窗口处理。
+2026-10-23 用户明确授权将生产直连凭据、独立备份密钥与恢复桶凭据写入该专用 Environment，五个 secrets 和四个 vars 已配置。调度关闭时手动备份及 status 成功，随后开启仓库开关并移除验收分支权限；最终策略仅为 main。首次手动备份开始于当日上海时间 16:11:59，详情见[启用记录](quality-log.md#scheduled-backup-2026-10-23)。2026-11-14 已取得定时运行与最新档案的[只读核验证据](quality-log.md#release-cli-2026-11-14)；后续失败或超过 30 小时无成功备份时，先排查配置/存储/连接，再手动补备份并确认 status=ok；日志中断须另按首次启用窗口处理。
 
 <a id="activation-window"></a>
 

@@ -1,5 +1,35 @@
 # 开发验证记录
 
+<a id="release-cli-2026-11-14"></a>
+
+## 2026-11-14：定时备份、生产迁移准备与入口只读核验
+
+本轮仅接续无需浏览器的工作。`git pull --ff-only` 确认 `main` 与 `origin/main` 同为 `7fe4158`；现行应用发布沿用 `3cad550`。准备完成后用户明确选择不执行生产迁移。没有修改生产数据、功能开关、调度、凭据或部署。
+
+### 自动备份
+
+- `gh run list --workflow database-backup.yml --limit 30` 返回启用后的 22 次 `schedule` 运行，均为 `completed/success`；上海日期从 2026-10-24 至 2026-11-14。启用前的 skipped 与手动运行未计入这 22 次。
+- 首次 [40029947708](https://github.com/sunpm/yuewen/actions/runs/40029947708) 于上海时间 2026-10-24 05:53:16 创建，最新 [43532671194](https://github.com/sunpm/yuewen/actions/runs/43532671194) 于 2026-11-14 08:13:07 创建。连接器读取两次 job，`Encrypt, upload and verify database snapshot` 均成功；该步骤执行真实 backup 后再执行 status。
+- 使用本地受限生产恢复配置运行既有 `scripts/database-recovery.ts status`，退出 0：`healthy=true`、`status=ok`、快照开始于上海时间 2026-11-14 08:13:37.721、检查时年龄 2.05 小时、dump 36,641 bytes、revision `7fe4158bc9b3360d3032f1f184785c4b51487214`。核验包括真实对象回读、AES-GCM、摘要、来源与 checkpoint；连接串仅计算来源标识，status 不连接数据库、不写对象。
+- 定时运行已获实际证据，可以清除首次运行待办；调度存在延迟，不把 cron 的 03:00 当作准点保证。本轮只解密核验最新档案，未逐份恢复 22 个历史备份，也未扩大自然到期、对象锁或灾难恢复结论。
+
+### 迁移准备
+
+- 两次生产 direct 只读事务只查询迁移、结构与聚合计数：迁移历史 4 条，与仓库 0000–0003 的时间一致；0004 的审计/反馈/清理表和 0006 的 `report_archive` 均不存在。数据库大小 12,042,240 bytes；未读取账号、Key 或阅读正文。
+- `report_replacement` 仍为原有账号回执结构，`user_id/session_id` 非空，无 `guest_id`，总行数与缺失属主行数均为 0；0005 计划新增的属主约束没有观察到存量冲突。
+- 代码核对：`server/app.ts` 挂载存档路由，`server/archives.ts` 直接读取 `report_archive`，不依赖 C2/C3 开关。现行应用代码已经发布而生产表未迁移，因此存档不能记为线上可用；下次需通过现有迁移入口顺序应用 0004–0006，保留 C2/C3 关闭。恢复工具已包含 `archive.delete` 及当前迁移目录。
+- 先比较配置的规范化数据库目标，确认开发与生产不同；运行 `node --env-file=.env node_modules/vitest/vitest.mjs run --config vitest.console.config.ts`，**1 个文件、10 项通过**，耗时 133.35 秒。既有检查在随机开发 schema 应用全部迁移，包含存量读者保留与后台认证隔离；结束由既有 `afterAll` 删除 schema。没有新增/修改测试或临时断言，也不将这 10 项认定为存档业务专项通过。
+- 生产迁移未执行。下次操作前重新读取当前迁移状态和备份年龄；本轮预检查不替代执行时的实际结果。
+
+### 线上入口与验收边界
+
+- 通过 HTTP GET 核对 `/`、`/console`、`/console/users`、`/m/`，均为 200/HTML，分别引用 PC、后台与 H5 自身脚本；后台深链接返回后台入口，未误落到 PC。
+- `GET /api/health` 为 200，返回 `status: ok / auth: true`；无 Cookie 访问 `/api/account/archives` 与 `/api/console/users` 均为 401，分别为 `AUTH_REQUIRED` 与 `CONSOLE_AUTH_REQUIRED`。三个 API 均 `Cache-Control: no-store`。
+- 未登录/渲染页面，未执行浏览器验收或真实存档请求；200 入口、401 鉴权和健康响应不能证明登录后的存档、管理或游客完整流程。现有 UI 未查项保留。PITR 需平台实际配置，当前未取得相应控制面凭据；平台回滚、资源预算和统计开通仍待后续批次。
+- 文档清理将完成阶段与旧里程碑移出当前执行入口，保留[历史快照](plans/archive/2026-11-14-task-plan.md)；已完成项不重复登记为待办。没有应用源码改动，不重复运行应用构建或无关测试。
+
+环境记录：初次沙箱 GitHub 查询网络失败，改为获准的只读联网查询；连接器未提供定时运行列表接口，列表使用 `gh`，job 证据使用 GitHub 连接器。一次未匹配 shell 通配符没有执行命令，后续用实际目录；长文档输出截断后定向补读。未创建临时脚本、明文备份、测试 Issue 或浏览器标签。
+
 <a id="pc-navigation-release-2026-11-13"></a>
 
 ## 2026-11-13：PC 顶部导航与反馈发布

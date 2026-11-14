@@ -16,7 +16,7 @@ PC 字体使用 `web/src/fonts.css`：界面字集通过 `unicode-range` 优先�
 
 ## 长期报告存档
 
-长期报告存档由 `0006_report_archives.sql`、`server/archives.ts` 和 PC `/archives` 提供。发布前在目标环境应用迁移；存档不依赖 C2/C3 开关、反馈 R2 或有效微信读书 Key，但登录仍沿用现有认证配置。数据限制、正文和删除行为见[存档契约](data-contract.md#report-archives)。恢复工具须与应用一起升级以识别 `archive.delete`；本次未执行生产迁移或发布。
+长期报告存档由 `0006_report_archives.sql`、`server/archives.ts` 和 PC `/archives` 提供。存档不依赖 C2/C3 开关、反馈 R2 或有效微信读书 Key，但登录仍沿用现有认证配置。数据限制、正文和删除行为见[存档契约](data-contract.md#report-archives)。恢复工具须与应用一起升级以识别 `archive.delete`。2026-11-14 只读核验发现应用代码已发布而生产仍为 0003，缺少存档表；下一批需按[上线顺序](plans/release.md#database-recovery)补齐 0004–0006，不能将当前存档视为生产可用，见[核验记录](quality-log.md#release-cli-2026-11-14)。
 
 ## 后台开发与初始化
 
@@ -76,7 +76,7 @@ API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.ne
 
 `pnpm db:backup:status` 只读核验当前 scope/epoch 的最新档案及 checkpoint，超过 30 小时、缺失或校验失败时非零退出，详细状态见[恢复手册](database-recovery.md#只读备份状态)。该检查不连接数据库、不替代隔离恢复或日志连续性验收。
 
-备份 7 天、日志 30 天的规则及每日调度已入库；生产存储规则与私有访问已回读通过。2026-10-23 生产日志、0003 基线备份/status 和隔离恢复完成，正式维护已解除，健康及 Chrome 管理登录通过；生产源库仍为 0003，副本与临时连接已清理，见[窗口证据](quality-log.md#recovery-activation-window-2026-10-23)。本地分层配置、轮换后的连接及密钥保管职责见[恢复手册](database-recovery.md#配置与执行)。本地日志默认关闭，生产 Functions 日志已开启并沿用同一 epoch；备份密钥不导入 Netlify。GitHub 专用备份 Environment 已配置且仅允许 main，手动备份及上传后 status 成功，仓库变量 `RECOVERY_BACKUP_ENABLED=true` 已启用每日调度；首次定时触发尚待核实，见[自动备份记录](quality-log.md#scheduled-backup-2026-10-23)。日志启用后回滚版本必须保留日志能力；实际 PITR 与平台回滚仍待核实。
+备份 7 天、日志 30 天的规则及每日调度已入库；生产存储规则与私有访问已回读通过。2026-10-23 生产日志、0003 基线备份/status 和隔离恢复完成，正式维护已解除，健康及 Chrome 管理登录通过；生产源库仍为 0003，副本与临时连接已清理，见[窗口证据](quality-log.md#recovery-activation-window-2026-10-23)。本地分层配置、轮换后的连接及密钥保管职责见[恢复手册](database-recovery.md#配置与执行)。本地日志默认关闭，生产 Functions 日志已开启并沿用同一 epoch；备份密钥不导入 Netlify。GitHub 专用备份 Environment 已配置且仅允许 main，手动备份及上传后 status 成功，仓库变量 `RECOVERY_BACKUP_ENABLED=true` 已启用每日调度；2026-11-14 已核实启用后的 22 次定时运行全部成功，最新档案 status=ok，见[只读核验](quality-log.md#release-cli-2026-11-14)。日志启用后回滚版本必须保留日志能力；实际 PITR 与平台回滚仍待核实。
 
 ## 故障定位
 
@@ -88,7 +88,7 @@ API 路由统一使用 `netlify.toml` 的重写规则，入口保留默认 `/.ne
 - 上游只有明确 HTTP 401 自动标记失效，其他业务错误码尚待真实案例补充。
 - 默认逐月采集以补充日明细；尚未优化为完整年汇总加边界月的混合策略。
 - PC 支持用户主动超预算分段续采，最多 4 段；总上限及单批容量仍可能产生部分结果，始终可下载。规则见[分段契约](data-contract.md#segmented-collection)。失败重试由用户触发，没有自动退避重试。
-- 笔记词频是轻量中文分词；没有收费模型、公开分享或独立 PDF 生成；长期报告存档已实现，生产待迁移发布。
+- 笔记词频是轻量中文分词；没有收费模型、公开分享或独立 PDF 生成；长期报告存档代码已发布，生产仍待补齐迁移与验收。
 - PC4 已完成本批 Chrome 关键流程、缩放和 Lighthouse 检查；完整生产闭环仍待后续上线阶段验收。
 
 这些项目保留在后续里程碑，不能将示例通过作为生产账号闭环通过。
