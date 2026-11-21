@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "yuewen",
+  "main": "server/worker.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "html_handling": "none",
+    "run_worker_first": ["/api", "/api/*", "/m", "/m/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "yuewen",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": "",
+  },
+  "observability": {
+    "enabled": false,
+  },
+  "triggers": {
+    "crons": ["0 * * * *"],
+  },
+}

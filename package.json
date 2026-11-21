@@ -10,67 +10,53 @@
   "scripts": {
     "dev": "tsx scripts/dev.ts",
     "dev:web": "vite --host 127.0.0.1",
-    "dev:api": "tsx watch --env-file=.env server/dev.ts",
-    "build": "pnpm build:web && pnpm build:mobile && pnpm build:console",
+    "dev:api": "wrangler dev --config wrangler.local.jsonc --local --ip 127.0.0.1",
+    "build": "pnpm build:web && pnpm build:mobile",
     "brand:generate": "tsx scripts/generate-brand.ts",
     "preview": "vite preview --host 127.0.0.1",
-    "typecheck": "pnpm typecheck:vue && pnpm typecheck:react && pnpm typecheck:console",
+    "typecheck": "pnpm typecheck:vue && pnpm typecheck:react",
     "lint": "eslint . && biome check .",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "probe": "tsx --env-file=.env scripts/probe.ts",
     "probe:report": "tsx --env-file=.env scripts/probe-report.ts",
     "format": "prettier --write . && biome check --write .",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx --env-file=.env server/db/migrate.ts",
-    "db:backup": "tsx --env-file=.env scripts/database-recovery.ts backup",
-    "db:backup:status": "tsx --env-file=.env scripts/database-recovery.ts status",
-    "db:recovery:storage:status": "tsx --env-file=.env scripts/recovery-storage-status.ts",
-    "db:restore": "tsx --env-file=.env scripts/database-recovery.ts restore",
-    "feedback:cleanup": "tsx --env-file=.env scripts/cleanup-feedback.ts --run",
     "dev:mobile": "vite --config vite.mobile.config.ts --host 127.0.0.1",
     "build:web": "vite build",
     "build:mobile": "vite build --config vite.mobile.config.ts",
     "typecheck:vue": "vue-tsc --noEmit",
     "typecheck:react": "tsc --noEmit -p tsconfig.react.json",
-    "dev:console": "vite --config vite.console.config.ts",
-    "build:console": "vite build --config vite.console.config.ts",
-    "typecheck:console": "tsc --noEmit -p tsconfig.console.json",
-    "console:admin:init": "tsx --env-file=.env scripts/console-admin.ts init",
-    "console:admin:reset": "tsx --env-file=.env scripts/console-admin.ts reset",
-    "test:console": "node --env-file=.env node_modules/vitest/vitest.mjs run --config vitest.console.config.ts"
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "deploy": "pnpm build && pnpm deploy:prepare && wrangler deploy",
+    "deploy:prepare": "wrangler d1 migrations apply DB --remote",
+    "check:worker": "wrangler deploy --dry-run",
+    "dev:preview": "pnpm build && pnpm dev:api",
+    "test:d1": "node --import tsx scripts/smoke-d1.ts",
+    "deploy:init": "pnpm build && wrangler deploy && pnpm deploy:prepare",
+    "test:http": "node scripts/smoke-http.mjs"
   },
   "dependencies": {
-    "@ant-design/cssinjs": "2.1.2",
-    "@aws-sdk/client-s3": "3.1149.0",
-    "@better-auth/drizzle-adapter": "1.7.7",
-    "@hono/node-server": "2.1.3",
-    "@hookform/resolvers": "5.9.1",
     "@napi-rs/canvas": "1.0.10",
     "@radix-ui/react-select": "2.3.8",
     "@radix-ui/react-slot": "1.4.0",
     "@tanstack/react-query": "5.104.1",
-    "antd": "6.6.5",
-    "better-auth": "1.7.7",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "d3-cloud": "^1.2.9",
-    "drizzle-orm": "0.45.3",
     "echarts": "6.1.0",
     "hono": "4.13.12",
     "html-to-image": "1.11.13",
     "lucide-react": "1.53.0",
-    "postgres": "3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "react-hook-form": "7.89.0",
     "react-router": "8.4.0",
     "sharp": "0.35.5",
     "tailwind-merge": "3.7.0",
     "vant": "4.10.2",
     "vue": "^3.5.43",
     "vue-router": "^5.3.1",
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "jose": "^6.1.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
@@ -87,7 +73,6 @@
     "@vitejs/plugin-react": "5.2.0",
     "@vitejs/plugin-vue": "^6.0.9",
     "@vue/test-utils": "2.5.1",
-    "drizzle-kit": "0.31.11",
     "eslint": "^10.12.0",
     "eslint-plugin-vue": "10.11.1",
     "globals": "17.13.0",
@@ -101,6 +86,24 @@
     "unplugin-vue-components": "32.1.0",
     "vite": "^7.3.6",
     "vitest": "^3.2.7",
-    "vue-tsc": "3.3.12"
+    "vue-tsc": "3.3.12",
+    "wrangler": "^4.86.0",
+    "@cloudflare/workers-types": "5.20261120.1"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DB": {
+        "description": "新实例专用阅读报告数据库；不要选择旧系统或其他实例的数据库。"
+      },
+      "WEREAD_API_KEY": {
+        "description": "微信读书上游读取授权，可部署后通过 Worker Secret 添加；不是阅纹账号。"
+      },
+      "ACCESS_TEAM_DOMAIN": {
+        "description": "Cloudflare Access 团队地址，例如 https://your-team.cloudflareaccess.com。留空时私有 API 拒绝访问。"
+      },
+      "ACCESS_AUD": {
+        "description": "覆盖此实例的 Access Application AUD Tag。请设置仅允许自己的策略。"
+      }
+    }
   }
 }

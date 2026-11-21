@@ -20,11 +20,12 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   const data = await response.json().catch(() => {
     throw new ApiError('SERVICE_ERROR', '服务暂时不可用，请稍后重试。')
   })
+  const failure = data as { code?: string; message?: string; details?: unknown }
   if (!response.ok)
     throw new ApiError(
-      data.code ?? 'SERVICE_ERROR',
-      data.message ?? '服务暂时不可用，请稍后重试。',
-      data.details,
+      failure.code ?? 'SERVICE_ERROR',
+      failure.message ?? '服务暂时不可用，请稍后重试。',
+      failure.details,
     )
   return data as T
 }

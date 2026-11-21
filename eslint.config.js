@@ -13,7 +13,7 @@ export default ts.config(
       'tests/console/**/*.tsx',
       'node_modules/**',
       '**/*.d.ts',
-      '.netlify/**',
+      '.wrangler/**',
       'test-results/**',
       'playwright-report/**',
     ],

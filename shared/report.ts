@@ -3,7 +3,6 @@ export type RangeKey = 'recent' | 'weekly' | 'monthly' | 'overall' | `${number}`
 export interface ReportTarget {
   id: string | null
   keyVersion: number
-  otherSession: boolean
 }
 export interface ReadingRange {
   key: RangeKey
@@ -94,7 +93,7 @@ export interface ReadingReport {
   meta: {
     version: 1
     sampleReport: boolean
-    source?: 'sample' | 'development' | 'account' | 'guest'
+    source?: 'sample' | 'development' | 'instance'
     generatedAt: string
     timezone: 'Asia/Shanghai'
   }

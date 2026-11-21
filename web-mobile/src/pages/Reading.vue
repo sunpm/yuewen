@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import MonthDetail from '@client/components/MonthDetail.vue'
 import ReportInsights from '@client/components/ReportInsights.vue'
-import ConnectionNotice from '@client/components/ConnectionNotice.vue'
 import { duration, mergeBookDetail } from '@shared/report'
 import type { Book, RangeKey } from '@shared/report'
 import { useReadingReport } from '@client/useReadingReport'
@@ -167,7 +166,7 @@ useReportViewState(
   busy,
 )
 watch(errorCode, (code) => {
-  if (['AUTH_REQUIRED', 'GUEST_EXPIRED', 'WEREAD_KEY_REQUIRED'].includes(code))
+  if (['ACCESS_REQUIRED', 'WEREAD_KEY_MISSING'].includes(code))
     void router.replace({
       path: '/settings',
       query: {
@@ -280,7 +279,7 @@ watch([source, range], () => {
           <van-icon name="arrow" />
         </RouterLink>
       </div>
-      <ConnectionNotice v-if="!demo" />
+
       <h1>{{ title }}</h1>
       <van-button v-if="demo && canUseDevelopment" size="small" plain @click="switchSample">
         {{ isSample ? '使用开发数据' : '切换模拟示例' }}
@@ -317,7 +316,7 @@ watch([source, range], () => {
     <div v-else-if="error" class="status-card" role="alert">
       <p>{{ error }}</p>
       <van-button
-        v-if="['account', 'guest'].includes(source) && errorCode.startsWith('WEREAD_KEY')"
+        v-if="['instance'].includes(source) && errorCode.startsWith('WEREAD_KEY')"
         size="small"
         :to="{
           path: '/settings',

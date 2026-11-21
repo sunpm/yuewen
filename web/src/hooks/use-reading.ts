@@ -42,7 +42,7 @@ export function useReading() {
   const location = useLocation()
   const [params, setParams] = useSearchParams()
   const demo = location.pathname.replace(/\/+$/, '') === '/demo'
-  const development = import.meta.env.DEV && demo && params.get('source') === 'development'
+  const development = false
   const sample = demo && !development
   const candidate = params.getAll('range').length === 1 ? params.get('range') : null
   const range: RangeKey = isRangeKey(candidate) ? candidate : 'recent'
@@ -58,10 +58,10 @@ export function useReading() {
     refetchOnReconnect: 'always',
   })
   const selection = params.get('connection')
-  const connection: Connection = selection === 'account' ? 'account' : 'guest'
+  const connection: Connection = 'instance'
   const owner = connections.data?.[connection]
   const access = development ? 'development' : connection
-  const saving = !!params.get('save')
+  const saving = false
   const scope = `${access}:${owner?.context ?? 'none'}:${range}`
   const [pointer, setPointer] = useState<ReturnType<typeof taskKey>>(() => taskKey('pending'))
   const taskQuery = useQuery<CachedTask>({ queryKey: pointer, queryFn: skipToken })
@@ -92,24 +92,18 @@ export function useReading() {
   useEffect(() => {
     if (
       !isRangeKey(candidate) ||
-      (!sample &&
-        !development &&
-        connections.data &&
-        !['guest', 'account'].includes(selection ?? ''))
+      (!sample && !development && connections.data && !['instance'].includes(selection ?? ''))
     ) {
       const next = new URLSearchParams(params)
       if (!isRangeKey(candidate)) {
         next.set('range', 'recent')
         next.delete('month')
       }
-      if (!sample && !development && !['guest', 'account'].includes(selection ?? ''))
-        next.set(
-          'connection',
-          connections.data?.guest ? 'guest' : connections.data?.account ? 'account' : 'guest',
-        )
+      if (!sample && !development && !['instance'].includes(selection ?? ''))
+        next.set('connection', 'instance')
       setParams(next, { replace: true })
     }
-  }, [candidate, sample, development, connections.data, selection, params, setParams])
+  }, [candidate, sample, connections.data, selection, params, setParams])
 
   function publish(value: ReportTask, run: number) {
     if (run !== flow.generation) throw new DOMException('读取已取消', 'AbortError')
@@ -245,7 +239,7 @@ export function useReading() {
       })()
     }
     return () => stopPrivate()
-  }, [valid, scope, range, access, saving])
+  }, [valid, scope, range, access])
 
   useEffect(() => {
     if (!task) return
@@ -388,7 +382,7 @@ export function useReading() {
   })
   useEffect(() => {
     if (valid && !restoring && !saving && restoredScope === scope) consumeIntent()
-  }, [valid, restoring, saving, restoredScope, scope])
+  }, [valid, restoring, restoredScope, scope])
 
   async function changeTask(kind: 'cancel' | 'retry' | 'continue') {
     if (!valid || saving || taskAction.isPending || (kind !== 'cancel' && !task)) return

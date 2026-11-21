@@ -1,10 +1,8 @@
-import type { RangeKey, ReadingReport } from './report'
-
-export type Connection = 'guest' | 'account'
+import type { ReadingReport } from './report'
+export type Connection = 'instance'
 export interface Connections {
   serverTime: string
-  guest: { status: string; context: string; expiresAt: string; idleExpiresAt: string } | null
-  account: { status: string; context: string; expiresAt: string } | null
+  instance: { status: string; context: string; expiresAt: string }
 }
 export interface ReportTask {
   id: string
@@ -25,8 +23,4 @@ export interface ReportTask {
   expiresAt: string
   idleExpiresAt: string
   serverTime: string
-}
-export interface SaveResult {
-  reportId: string
-  range: RangeKey
 }

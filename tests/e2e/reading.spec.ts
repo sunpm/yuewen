@@ -60,7 +60,7 @@ test('首页与报告没有横向溢出，主按钮文字有对比', async ({ pa
     '/demo?view=report',
     '/demo?view=shelf',
     '/demo?view=notes',
-    '/login',
+    '/settings',
   ]) {
     await page.goto(path)
     await expect(page.locator('h1')).toBeVisible()
@@ -82,11 +82,11 @@ test('首页与报告没有横向溢出，主按钮文字有对比', async ({ pa
   await expect(page.locator('.report-chart svg')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('overview.png'), fullPage: true })
 })
-test('未登录时转到登录页，未配置邮件时明确说明', async ({ page }) => {
-  await page.goto('/overview')
-  await expect(page).toHaveURL(/\/login\?next=/)
-  await expect(page.getByText('邮箱登录服务尚未配置。你可以先浏览完整示例。')).toBeVisible()
-  await expect(page.getByRole('button', { name: '发送验证码' })).toBeDisabled()
+test('连接设置无需应用登录', async ({ page }) => {
+  await page.goto('/settings')
+  await expect(page.getByRole('heading', { name: '微信读书连接' })).toBeVisible()
+  await expect(page.locator('input[type=email], input[type=password]')).toHaveCount(0)
+  await expect(page.getByText('尚未配置', { exact: false })).toBeVisible()
 })
 
 test('HTML 下载可以离线打开，正文与图表仍可读', async ({ page, context }) => {

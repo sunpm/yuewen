@@ -2,12 +2,9 @@ import { ApiError, api } from '@client/api'
 import type { Connection, Connections } from '@shared/connection'
 import type { RangeKey, ReportTarget } from '@shared/report'
 import { QueryClient, useMutation, useQuery } from '@tanstack/react-query'
-import { emailOTPClient } from 'better-auth/client/plugins'
-import { createAuthClient } from 'better-auth/react'
 import { useEffect, useRef } from 'react'
 import { clearViews } from '@/lib/view-memory'
 
-export const auth = createAuthClient({ plugins: [emailOTPClient()] })
 export const queries = new QueryClient({
   defaultOptions: {
     queries: {
@@ -98,9 +95,7 @@ export const message = (error: unknown) =>
   error instanceof Error ? error.message : '服务暂时无法连接，请重试。'
 export const errorCode = (error: unknown) => (error instanceof ApiError ? error.code : '')
 export const gone = (error: unknown) =>
-  ['AUTH_REQUIRED', 'GUEST_EXPIRED', 'KEY_CHANGED', 'REPORT_EXPIRED', 'REPORT_REPLACED'].includes(
-    errorCode(error),
-  )
+  ['ACCESS_REQUIRED', 'KEY_CHANGED', 'REPORT_EXPIRED', 'REPORT_REPLACED'].includes(errorCode(error))
 
 export function useConnections(enabled = true) {
   return useQuery({
@@ -112,11 +107,7 @@ export function useConnections(enabled = true) {
       online()
       const previous = queries.getQueryData<Connections>(['connections'])
       const next = await api<Connections>('/connections', { signal })
-      if (
-        previous?.guest?.context !== next.guest?.context ||
-        previous?.account?.context !== next.account?.context
-      )
-        clearViews()
+      if (previous?.instance?.context !== next.instance?.context) clearViews()
       return next
     },
     refetchOnWindowFocus: 'always',
@@ -128,7 +119,7 @@ export async function refreshConnections() {
   await queries.invalidateQueries({ queryKey: ['connections'] })
 }
 
-// Mutation variables never contain passwords, Keys, OTPs or captured form closures.
+// Do not retain captured form closures in mutation variables.
 export function useAction() {
   const operation = useRef<(() => Promise<void>) | null>(null)
   const live = useRef(true)

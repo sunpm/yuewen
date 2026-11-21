@@ -32,7 +32,8 @@
 | 笔记、图表、时间范围、书架及作者排行待办 | [报告体验计划](docs/plans/report-experience.md) |
 | 后台、截图反馈、用户与表管理、统计选型   | [后台计划](docs/plans/console.md)               |
 | 游客接入、按需登录、保存连接与后续存档   | [游客计划](docs/plans/guest-access.md)          |
-| 部署目标、资源命名、质量门槛与验收场景   | [上线验收计划](docs/plans/release.md)           |
+| 当前单实例 Cloudflare 部署与本地安全边界 | [自部署说明](docs/self-host-cloudflare.md) |
+| 旧部署目标、资源命名、质量门槛与验收场景   | [上线验收计划](docs/plans/release.md)           |
 | 已实现的数据字段与服务端接口             | [数据契约](docs/data-contract.md)               |
 | 当前 PC 设计系统与 token                 | [设计系统](DESIGN.md)                           |
 | 双端内容细则、历史约定与设计验收边界     | [跨端设计细则](docs/design-system.md)           |
