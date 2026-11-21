@@ -4,6 +4,8 @@
 
 ## 当前阶段
 
+官网与公开说明文档：complete。主专题：[官网与说明文档](docs/plans/website.md)。同一个 Astro 项目提供官网和 `/docs/`，已通过本地构建与桌面 Chrome 关键流程验收。
+
 单实例 Cloudflare 自部署：complete。主专题：[自部署改造](docs/plans/self-host.md)。本批授权仅本地实现与验证，不推送、发布、部署或操作真实数据库。
 
 ## 目标与完成判据

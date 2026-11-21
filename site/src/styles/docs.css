@@ -1,0 +1,22 @@
+@import './brand.css';
+
+:root {
+  --sl-color-accent-low: #27372d;
+  --sl-color-accent: #99c9af;
+  --sl-color-accent-high: #c6e4d3;
+  --sl-font-system: system-ui, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #eaf0eb;
+  --sl-color-accent: var(--pine);
+  --sl-color-accent-high: #224434;
+  --sl-color-bg-nav: var(--paper);
+}
+
+.site-title,
+main h1,
+.sl-markdown-content :is(h2, h3) {
+  font-family: var(--reading-font);
+  font-weight: 400;
+}

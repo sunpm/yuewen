@@ -6,6 +6,8 @@ export default ts.config(
   {
     ignores: [
       'dist/**',
+      'site/dist/**',
+      'site/.astro/**',
       'web/src/**/*.{ts,tsx}',
       'vite.config.ts',
       'console/**',

@@ -1,0 +1,16 @@
+@font-face {
+  font-family: '阅纹文楷';
+  src: url('../../../web/public/fonts/LXGWWenKaiLite-Regular-pc.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --pine: #285c49;
+  --ink: #252d29;
+  --paper: #f8f9f6;
+  --brass: #896b38;
+  --soft-ink: #606d65;
+  --line: #dce2dc;
+  --reading-font: '阅纹文楷', 'Kaiti SC', 'KaiTi', 'Songti SC', serif;
+}
