@@ -1,0 +1,142 @@
+---
+import { createDemo } from '../../../shared/demo'
+import { duration } from '../../../shared/report'
+import '../styles/home.css'
+
+const report = createDemo('2025', new Date('2025-12-31T12:00:00Z'))
+const year = report.range.key
+const calendar = report.modules.find((module) => module.kind === 'heatmap')!.data
+const firstWeekday = (new Date(report.range.start).getUTCDay() + 6) % 7
+const months = report.modules.find((module) => module.id === 2)!.data
+const chartMax = Math.ceil(Math.max(...months.map((month) => month.value)) / 10) * 10
+const shelf = report.books.toSorted((a, b) => (b.seconds ?? 0) - (a.seconds ?? 0)).slice(0, 4)
+const excerpt = report.portrait.quote!
+const views = [
+  { id: 'time', label: '阅读时间' },
+  { id: 'shelf', label: '书架排行' },
+  { id: 'notes', label: '划线与想法' },
+]
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f8f9f6" />
+    <title>阅纹 · 看见你的阅读轨迹</title>
+    <meta name="description" content="把微信读书里的时间、书架与划线，整理成一份可以回看的个人阅读档案。翻看示例，或部署自己的阅纹。" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    {Astro.site && <link rel="canonical" href={Astro.site.href} />}
+  </head>
+  <body>
+    <a class="skip" href="#main">跳到主要内容</a>
+    <header class="masthead">
+      <div class="wrap header-row">
+        <a class="brand" href="/"><img src="/favicon.svg" alt="" width="36" height="36" />阅纹</a>
+        <nav aria-label="主导航">
+          <a href="#sample">报告示例</a>
+          <a href="/docs/">使用文档</a>
+          <a href="https://github.com/sunpm/yuewen" lang="en">GitHub</a>
+        </nav>
+      </div>
+    </header>
+    <main id="main">
+      <section class="wrap hero" aria-labelledby="hero-title">
+        <div class="intro">
+          <h1 id="hero-title">看见你的<br />阅读轨迹。</h1>
+          <p>把微信读书里的时间、书架与划线，<br class="wide-only" />整理成一份可以回看的个人阅读档案。</p>
+          <div class="actions">
+            <a class="button primary" href="#sample">翻开示例报告</a>
+            <a class="button" href="/docs/deploy/">自己部署</a>
+          </div>
+        </div>
+        <div class="still-life" role="img" aria-label={year + ' 年模拟阅读年鉴，封面日历记录了 ' + report.summary.readDays + ' 个阅读日'}>
+          <div class="book" aria-hidden="true">
+            <div class="cover">
+              <div class="imprint"><img src="/favicon.svg" alt="" width="22" height="22" />阅纹</div>
+              <div class="cover-title">阅读年鉴</div>
+              <div class="year">{year}</div>
+              <div class="cover-data">
+                <svg viewBox="0 0 265 35" aria-hidden="true">
+                  {calendar.map((day, i) => (
+                    <rect x={Math.floor((firstWeekday + i) / 7) * 5} y={((firstWeekday + i) % 7) * 5} width="3.5" height="3.5" rx=".6" fill-opacity={day.value ? 0.34 + 0.66 * Math.min(day.value / 100, 1) : 0.12} />
+                  ))}
+                </svg>
+                <div class="colophon"><span>模拟阅读档案</span><span>{report.summary.readDays} 个阅读日</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sample-band" id="sample" aria-labelledby="sample-title">
+        <div class="wrap spread">
+          <div class="section-copy">
+            <h2 id="sample-title">翻开示例报告</h2>
+            <p>从一年的阅读时间，翻到一本书，再读一条当时留下的划线。</p>
+            <p class="source">{year} 年模拟记录 · 笔记为原创示例</p>
+          </div>
+          <fieldset class="sample-report">
+            <legend class="sr-only">选择示例内容</legend>
+            <div class="view-options">
+              {views.map((view, i) => (
+                <label>
+                  <input type="radio" name="report-view" value={view.id} checked={i === 0} />
+                  <span>{view.label}</span>
+                </label>
+              ))}
+            </div>
+            <div class="panel time-panel">
+              <h3>每月阅读时长</h3>
+              <p class="caption">全年共 {duration(report.summary.seconds)}</p>
+              <figure class="chart" aria-label="各月阅读时长，单位为小时">
+                {months.map((month) => (
+                  <div class="bar-col">
+                    <span class="bar-value">{month.value.toFixed(1)}</span>
+                    <span class="bar" style={{ '--fraction': month.value / chartMax }}></span>
+                    <span class="month">{Number(month.label.slice(5))}月</span>
+                  </div>
+                ))}
+              </figure>
+            </div>
+            <div class="panel shelf-panel">
+              <h3>读得最久的四本书</h3>
+              <ol class="ranking">
+                {shelf.map((book) => (
+                  <li>
+                    <div class="book-row">
+                      <span>{book.title}<small>{book.author}</small></span>
+                      <span class="reading-time">{duration(book.seconds)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <div class="panel notes-panel">
+              <h3>重读一条划线</h3>
+              <blockquote>{excerpt.text}</blockquote>
+              <p class="caption">《{excerpt.title}》 · {excerpt.date} · 原创示例</p>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+      <section class="wrap guide" aria-labelledby="guide-title">
+        <div class="section-copy">
+          <h2 id="guide-title">建立自己的阅读档案</h2>
+          <p>部署一个属于你的阅纹实例，连接微信读书，就能生成并带走自己的报告。</p>
+        </div>
+        <ul class="guide-links">
+          <li><a href="/docs/deploy/">部署到 Cloudflare</a></li>
+          <li><a href="/docs/connection/">连接微信读书</a></li>
+          <li><a href="/docs/export/">保存与下载报告</a></li>
+        </ul>
+      </section>
+    </main>
+    <footer class="wrap footer">
+      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="24" height="24" />阅纹</a>
+      <a href="/docs/">使用文档</a>
+      <a href="https://github.com/sunpm/yuewen">GitHub</a>
+    </footer>
+  </body>
+</html>

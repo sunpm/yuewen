@@ -12,6 +12,8 @@
 
 ## 本地体验
 
+官网与公开文档位于同一个 [Astro 项目](site/)。在仓库根目录运行 `pnpm --dir site install --frozen-lockfile` 和 `pnpm --dir site dev`，即可打开官网首页和 `/docs/`。官网使用 Node.js 22.23.4 或以上版本；独立静态构建与托管配置见[开发说明](docs/development.md#官网与公开文档)。
+
 需要 Node.js 22+、pnpm 10+。
 
 ```sh
