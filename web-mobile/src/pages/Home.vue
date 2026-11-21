@@ -1,3 +1,6 @@
+<script setup lang="ts">
+import FeedbackLink from '@client/components/FeedbackLink.vue'
+</script>
 <template>
   <div class="mobile-home">
     <h1>
@@ -43,7 +46,7 @@
       </div>
     </div>
     <p class="privacy-note">
-      无需登录即可临时连接和下载。Key 在服务端加密暂存，个人阅读内容不会公开。
+      示例可直接体验。私有报告需通过实例访问保护，可下载为离线档案。
     </p>
     <a class="desktop-link" href="/">打开桌面版 ↗</a>
     <FeedbackLink />

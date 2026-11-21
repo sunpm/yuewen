@@ -1,24 +1,10 @@
-import { randomBytes } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { encryptKey, decryptKey } from '../server/crypto'
 import { weread, SKILL_VERSION } from '../server/weread'
 import { app } from '../server/app'
 import { createDemo } from '../shared/demo'
 import { escapeHtml, exportData, makeHtml } from '../client/export'
 afterEach(() => vi.unstubAllEnvs())
 describe('凭证与上游边界', () => {
-  it('同一个 Key 每次密文不同，且只能用于所属用户', () => {
-    const secret = randomBytes(32).toString('base64')
-    const one = encryptKey('wrk-original', 'user-a', secret),
-      two = encryptKey('wrk-original', 'user-a', secret)
-    expect(one).not.toBe(two)
-    expect(one).not.toContain('wrk-original')
-    expect(decryptKey(one, 'user-a', secret)).toBe('wrk-original')
-    expect(() => decryptKey(one, 'user-b', secret)).toThrow()
-    const parts = one.split('.')
-    parts[2] = Buffer.from('tampered').toString('base64url')
-    expect(() => decryptKey(parts.join('.'), 'user-a', secret)).toThrow()
-  })
   it('仅向固定官方网关提交 Key，接口版本与参数位于顶层', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ books: [] }))
     await weread('wrk-test', '/user/notebooks', { count: 10, lastSort: 8 }, fetcher)
@@ -66,24 +52,26 @@ describe('凭证与上游边界', () => {
 })
 describe('本站 API 和导出边界', () => {
   it('匿名请求不能读取私人报告，响应不缓存', async () => {
-    vi.stubEnv('DATABASE_URL', '')
-    const response = await app.request('/api/session/reports')
-    expect(response.status).toBe(401)
+    const response = await app.request('/api/session/reports', {}, {} as never)
+    expect(response.status).toBe(403)
     expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(await response.json()).toMatchObject({ code: 'AUTH_REQUIRED' })
+    expect(await response.json()).toMatchObject({ code: 'ACCESS_REQUIRED' })
   })
   it('拒绝跨域写入及缺失来源的请求', async () => {
     for (const origin of [undefined, 'https://untrusted.example']) {
-      const response = await app.request('/api/account/weread-key', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...(origin ? { Origin: origin } : {}) },
-        body: '{"apiKey":"fake"}',
-      })
+      const response = await app.request(
+        '/api/archives',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(origin ? { Origin: origin } : {}) },
+          body: '{}',
+        },
+        {} as never,
+      )
       expect(response.status).toBe(403)
     }
   })
   it('公开示例无须数据库，非法周期不被接受', async () => {
-    vi.stubEnv('DATABASE_URL', '')
     const result = await app.request('/api/demo?range=monthly')
     expect(result.status).toBe(200)
     expect(await result.json()).toMatchObject({ meta: { sampleReport: true } })

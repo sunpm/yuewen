@@ -1,83 +1,57 @@
 # 阅纹
 
-**看见你的阅读轨迹。**
+**看见你的阅读轨迹。** 微信读书个人阅读可视化工具，支持阅读概览、27 个分析模块、书架、划线与想法、主题切换和离线 HTML / JSON 下载。
 
-面向微信读书的个人阅读可视化工具，将阅读统计、书架、划线和想法整理成可探索的阅读档案。
+本版本面向单实例自部署：Cloudflare Workers 提供 API 和 PC/H5 静态资源，D1 保存当前报告和历史快照。没有阅纹账号、邮箱登录、用户资料或管理后台。微信读书 API Key 仅是上游读取授权，配置在 Worker Secret 中。
 
-## 当前状态
+私有 API 默认拒绝访问。部署者需配置 Cloudflare Access 并限制准入；所有通过准入的人共享同一实例的数据与操作权限。公开示例只使用原创模拟数据。
 
-桌面端与独立 Vant 移动端已进入开发，提供可运行的首页和完整模拟示例：阅读概览、27 个分析模块、书架搜索与详情、笔记检索、自动／浅色／深色主题，以及离线 HTML / JSON 下载。
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sunpm/yuewen)
 
-游客临时接入、按需登录保存连接、报告冲突确认与保存回执已实现。支持扩展阅读指标、月度联动、完整报告下载及反馈入口。Hono API、Better Auth 邮箱验证码和可选密码、PostgreSQL 数据模型、Key 加密、分批采集与过期清理共用一套实现。该功能版本已合并并发布，首版完整验收仍待完成，不能以健康检查或已有构建代替生产闭环验收。
+按钮需要目标仓库已包含本版本代码；本地未推送的修改不会出现在按钮部署中。完整步骤、Access 设置、首次部署与更新见 [Cloudflare 自部署说明](docs/self-host-cloudflare.md)。
 
-PC 已切换为 React + Vite 正式入口，包含游客采集、登录保存、恢复、27 个完整图表与明细、月份联动及 HTML/JSON 下载。PC4 按关键流程与已有工程检查验收，首屏字体加载及图表读屏描述已优化。后台 C0–C1 已启用独立管理员登录与 `/console`，登录、刷新及切回关键流程已验收；截图反馈的数据库、API、R2 适配和附件清理已实现且默认关闭，后台处理界面保留，开发存储关键 API 已联调；PC 顶部导航与预填 GitHub Issue、本地截图下载已发布，反馈不依赖本站反馈服务；用户及连接、报告、会话、审计和清理统计的查询页面及昵称编辑、账号删除、连接/会话撤销和报告停止/清除已接入，包含密码确认、版本校验与事务审计；PC 公开页访问统计、私有文档隔离和后台统计外链已实现且默认关闭，生产数据管理与统计开通继续按计划实施。H5 保留既有入口，暂停更新，设备自动切换随未来重构推进。执行顺序见[总计划](task_plan.md)。
+## 本地体验
 
-每日加密备份、独立删除/撤销日志及空库恢复重放已实现；生产存储、日志、基线与隔离恢复已完成。专用备份环境的手动备份和回读校验通过，每日调度已开启并取得成功运行证据；平台回滚仍待核实。步骤与证据见[恢复手册](docs/database-recovery.md)。
-
-长期报告存档和 PC 超预算分段续采代码已发布；存档所需生产迁移尚未完成，两项完整线上闭环仍待验收。续采保留原报告期限、已有正文及分页游标，各段结果合并去重后可查看与下载；具体上限见[数据契约](docs/data-contract.md#segmented-collection)。
-
-## 本地开发
-
-需要 Node.js 20.19+（部署建议 Node.js 22）与 pnpm 10。
+需要 Node.js 22+、pnpm 10+。
 
 ```sh
 pnpm install
-test -f .env || cp .env.example .env
-pnpm dev
+pnpm build
+pnpm db:local
+pnpm dev:api
 ```
 
-访问 `http://127.0.0.1:5173`。桌面端示例为 `/demo`，独立 Vant 移动端为 `/m/`，示例为 `/m/demo`；两端无需数据库即可体验。PC 示例默认使用模拟数据，可显式选择本地开发来源；H5 沿用默认开发来源，`/m/demo?source=mock` 为模拟示例，公开构建始终使用模拟示例。邮箱服务未配置时，登录页明确提示并停用发送按钮。
+打开 `http://127.0.0.1:8787`；PC 示例 `/demo`，H5 示例 `/m/demo`。无需 Key 即可看示例。真实采集需将自己的微信读书 Key 放入被 Git 忽略的 `.dev.vars`，参见 `.dev.vars.example`。本地开发入口只用于可信机器的回环地址，禁止反向代理到公网。
 
 ```sh
 pnpm test
+pnpm test:d1
+pnpm test:http # 需要先构建静态资源
 pnpm typecheck
 pnpm lint
 pnpm build
-pnpm exec playwright install chromium firefox webkit
-WEREAD_DEMO_MODE=mock pnpm dev # 先关闭已有开发服务；另一个终端运行下一条
-pnpm test:e2e
+pnpm check:worker # 只打包，不部署
 ```
 
-实际验证结果与限制见 [质量记录](docs/quality-log.md)。
+`test:d1` 使用临时本地 D1 和合成上游响应，不读取真实数据、不连接远端数据库。实际结果与限制见 [质量记录](docs/quality-log.md#self-host-2026-11-21)。
 
-PC 正式产物为 `dist/`，`pnpm preview` 可预览生产构建。旧 PC 页面和迁移专用入口已移除。
+## 功能与边界
 
-后台本地入口为 `http://127.0.0.1:5173/console/`。配置与初始化见[开发说明](docs/development.md#后台开发与初始化)，独立集成检查为 `pnpm test:console`；生产管理身份需单独配置。
+- PC/H5 保留阅读概览、分析、书架、笔记和下载。当前报告两小时后不可读取，每小时清理过期存储。
+- PC 支持保存历史快照、选择是否保存笔记正文、查看和删除；最多 20 份，每份 2 MiB。H5 可跳转历史入口。
+- 保留有界分页与 PC 分段续采；每次 Worker 请求只执行一个上游操作。并发写入使用 D1 版本校验，迟到响应不能覆盖新报告。
+- 移除 Better Auth、账号/游客身份表、用户管理后台、PostgreSQL、R2 反馈后端、旧恢复/备份任务和 Netlify 部署链路。GitHub 反馈与本地截图下载仍可用。
+- 不自动迁移旧库、旧用户、Key 或阅读数据。旧系统不受本地代码改造影响；历史记录不代表新版本已部署。
 
-## 真实账号接入
+## 目录
 
-游客接入需要服务端数据库、应用地址及加密密钥；按需登录保存还需要认证密钥与 Resend 发信配置。按 `.env.example` 配置后执行 `pnpm db:migrate`。`APP_URL` 必须与浏览器访问来源一致。
+`web/`：React PC；`web-mobile/`：Vue/Vant H5；`client/`、`shared/`：报告、图表与导出；`server/`：Worker、访问保护、采集与 D1 存储；`migrations/`：新实例迁移；`scripts/smoke-d1.ts`：隔离集成验证。
 
-`KEY_ENCRYPTION_KEYS` 为 JSON 对象，键为版本号、值为 32 字节随机密钥的 Base64 编码；`KEY_ENCRYPTION_VERSION` 指定当前写入版本。旧版本密钥应在迁移密文前保留。认证密钥和加密密钥应独立生成并保存在服务端配置中。
-
-临时连接和报告闲置 30 分钟、最长 2 小时后清理，可随时下载或清除。保存连接只保存 Key；PC 另提供“保存报告”和历史列表，可选择是否保存笔记正文，重新登录后查看与下载。长期存档代码已发布，生产仍待补齐迁移与验收。
-
-`WEREAD_API_KEY` 用于本地开发页面和只读探针，不能作为公开服务的全局用户凭证，也不能注入前端。`pnpm probe` 输出字段类型，`pnpm probe:report` 在内存中执行有界采集并输出模块状态；均不保存个人笔记正文。
-
-## 技术与目录
-
-- PC：`web/` 使用 React、React Router、shadcn/ui、Radix、Tailwind CSS、Biome、TanStack Query、React Hook Form/Zod 与 Better Auth React。
-- 后台：`console/` 使用 React、antd、独立 Router/QueryClient、RHF/Zod 和 Better Auth Username。
-- 移动端：Vant 4，独立路由、底部导航与弹层；不使用桌面响应式布局。
-- 图表：ECharts 按需注册，SVG 渲染，提供数据表和离线图表。
-- 后端：Hono、Node.js、Better Auth、PostgreSQL、Drizzle。
-- `web/` 桌面页面；`web-mobile/` Vant 移动页面；`client/` 两端共用的登录、账号、采集与导出；`shared/` 报告契约与原创示例；`server/` 认证、采集、聚合与数据模型；`netlify/functions/` 函数入口；`tests/` 自动化验证。
-
-[任务计划与下一步](task_plan.md) · [发现与决策](findings.md) · [进度日志](progress.md) · [Agent 协作入口](AGENTS.md) · [PC 设计系统](DESIGN.md) · [跨端设计细则](docs/design-system.md) · [数据契约](docs/data-contract.md) · [开发与部署说明](docs/development.md) · [模板来源](docs/third-party-notices.md)
-
-项目路线图、需求与决策、执行记录分别保存在根目录 `task_plan.md`、`findings.md`、`progress.md`。详细方案见 `docs/plans/` 的相关专题，历史方案见 `docs/plans/archive/`，实际验收结果见质量记录。
-
-## 品牌
-
-「阅纹」取“阅读留下的纹理”之意。Logo 用圆角绿色底承托三道统一粗细的弧线，将展开的书页与阅读纹理合为「层页」标志。PC 采用纸白背景、墨色正文和墨绿强调；深色采用墨黑绿背景、中性浅色正文与浅墨绿主色。
-
-[品牌预览](brand/brand-preview.png) · [浅色 Logo](brand/logo-light.svg) · [深色 Logo](brand/logo-dark.svg)
-
-编辑 [图形源文件](brand/symbol.svg)、[字标源文件](brand/wordmark.svg) 或 [品牌色板](client/theme.ts) 后运行 `pnpm brand:generate`，统一生成品牌资产及网站副本。
+[任务计划](task_plan.md) · [需求与决策](findings.md) · [进度](progress.md) · [开发说明](docs/development.md) · [数据契约](docs/data-contract.md) · [PC 设计系统](DESIGN.md) · [第三方说明](docs/third-party-notices.md)
 
 ## 公开参考
 
-- [微信读书 Skill 官方入口](https://weread.qq.com/r/weread-skills)
-- [官方网关与接口说明](https://github.com/Tencent/WeChatReading)
-- [阅读报告功能参考](https://github.com/yaojingang/yao-open-skills/tree/main/skills/yao-weread-skill)
-- [前端模板：Vitesse](https://github.com/antfu-collective/vitesse)
+- [微信读书官方授权入口](https://weread.qq.com/r/weread-skills)
+- [微信读书官方接口](https://github.com/Tencent/WeChatReading)
+- [Calends Cloudflare 自部署体验](https://docs.calends.date/self-host/cloudflare/)
+- [Cloudflare Deploy 按钮](https://developers.cloudflare.com/workers/platform/deploy-buttons/)

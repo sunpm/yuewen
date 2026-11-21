@@ -8,7 +8,6 @@ import {
 import { Download, Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router'
-import { ConnectionNotice } from '@/components/connection-notice'
 import { MonthDetail, NoteDensity, TimeInsights } from '@/components/report-insights'
 import { ReportModule } from '@/components/report-module'
 import { SaveArchive } from '@/components/save-archive'
@@ -126,9 +125,7 @@ export default function Workspace() {
     ? '模拟示例 · 原创演示文本，非书中原文'
     : reading.development
       ? '本地开发数据'
-      : reading.connection === 'guest'
-        ? '临时连接'
-        : '账号连接'
+      : '实例连接'
   const status = reading.restoring
     ? '正在核验并恢复报告…'
     : reading.busy
@@ -275,7 +272,7 @@ export default function Workspace() {
       )}
       {reading.conflict && (
         <div className="notice">
-          <p>账号已有其他会话的临时报告。替换会停止并清除原报告。</p>
+          <p>实例已有当前报告。替换会停止并清除原报告，历史存档不受影响。</p>
           <div className="connection-actions">
             <Button onClick={() => void reading.collect(true, true)}>确认替换并生成</Button>
             <Button variant="outline" onClick={reading.dismissConflict}>
@@ -284,23 +281,14 @@ export default function Workspace() {
           </div>
         </div>
       )}
-      {!reading.sample && !reading.development && reading.connection === 'guest' && (
-        <ConnectionNotice
-          key={`${params.get('save') ?? ''}:${reading.connections.data?.account?.context ?? ''}`}
-          taskId={reading.task?.id}
-          connections={reading.connections.data}
-          disabled={reading.restoring}
-        />
-      )}
       {reading.report ? (
         <>
           {reading.task && !reading.development && !reading.sample && !reading.saving && (
             <div className="archive-save">
               <SaveArchive
-                key={`${reading.task.id}:${reading.task.version}:${reading.connections.data?.account?.context ?? ''}`}
+                key={`${reading.task.id}:${reading.task.version}:${reading.connections.data?.instance?.context ?? ''}`}
                 task={reading.task}
                 connection={reading.connection}
-                loggedIn={!!reading.connections.data?.account}
                 disabled={reading.busy || reading.restoring}
               />
             </div>
@@ -331,7 +319,7 @@ export default function Workspace() {
                 ? '正在处理保存意图；采集已暂停。'
                 : reading.valid
                   ? '选择范围后开始采集。刷新和重连只恢复已有结果。'
-                  : '连接微信读书后即可采集和下载，无需先登录。'}
+                  : '配置微信读书读取授权并通过部署访问保护后即可采集和下载。'}
           </p>
         </section>
       )}

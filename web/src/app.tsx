@@ -4,11 +4,11 @@ import { Link, NavLink, Route, Routes, useLocation } from 'react-router'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { Feedback } from '@/components/feedback'
 import { useTheme } from '@/hooks/use-theme'
-import { accountNavigation, navigation, pageTitle, readingPath, reportView } from '@/navigation'
+import { instanceNavigation, navigation, pageTitle, readingPath, reportView } from '@/navigation'
 
 const Home = lazy(() => import('@/pages/home'))
 const Workspace = lazy(() => import('@/pages/workspace'))
-const Account = lazy(() => import('@/pages/account'))
+const Settings = lazy(() => import('@/pages/settings'))
 const Archives = lazy(() => import('@/pages/archives'))
 
 export default function App() {
@@ -73,8 +73,8 @@ export default function App() {
               ))}
             </nav>
             <div className="header-actions">
-              <nav className="utility-nav" aria-label="账号与连接">
-                {accountNavigation.map(({ path, title: label, icon: Icon }) => (
+              <nav className="utility-nav" aria-label="报告与连接">
+                {instanceNavigation.map(({ path, title: label, icon: Icon }) => (
                   <NavLink
                     key={path}
                     to={{ pathname: path, search: location.search }}
@@ -136,8 +136,7 @@ export default function App() {
                   ))}
                   <Route path="/archives" element={<Archives />} />
                   <Route path="/archives/:id" element={<Archives />} />
-                  <Route path="/settings" element={<Account />} />
-                  <Route path="/login" element={<Account />} />
+                  <Route path="/settings" element={<Settings />} />
                   <Route
                     path="*"
                     element={

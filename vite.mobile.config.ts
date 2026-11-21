@@ -22,8 +22,6 @@ export default defineConfig({
       'echarts/charts',
       'echarts/components',
       'echarts/renderers',
-      'better-auth/vue',
-      'better-auth/client/plugins',
       'vant/es',
       'vant/es/toast/style',
       ...[

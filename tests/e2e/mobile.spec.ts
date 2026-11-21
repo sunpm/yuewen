@@ -74,13 +74,11 @@ test('移动端 HTML 在断网后可读', async ({ page, context }) => {
   expect(await page.locator('script, link[href], img[src]').count()).toBe(0)
 })
 
-test('移动端登录路径与桌面端独立', async ({ page }) => {
-  await page.goto('/m/overview')
-  await expect(page).toHaveURL(/\/m\/login\?next=/)
-  await expect(page.getByText('邮箱登录服务尚未配置。你可以先浏览完整示例。')).toBeVisible()
-  await expect(page.getByRole('button', { name: '发送验证码' })).toBeDisabled()
-  await page.goto('/m/login?mode=reset')
-  await expect(page.getByRole('heading', { name: '重新设置密码' })).toBeVisible()
+test('连接设置无需应用登录', async ({ page }) => {
+  await page.goto('/m/settings')
+  await expect(page.getByRole('heading', { name: '微信读书连接' })).toBeVisible()
+  await expect(page.locator('input[type=email], input[type=password]')).toHaveCount(0)
+  await expect(page.getByText('尚未配置', { exact: false })).toBeVisible()
 })
 
 test('手机宽度、底栏和明暗主题验证', async ({ page }, testInfo) => {
@@ -90,7 +88,7 @@ test('手机宽度、底栏和明暗主题验证', async ({ page }, testInfo) =>
     '/m/demo?view=report',
     '/m/demo?view=shelf',
     '/m/demo?view=notes',
-    '/m/login',
+    '/m/settings',
   ]) {
     await page.goto(path)
     await expect(page.locator('h1')).toBeVisible()

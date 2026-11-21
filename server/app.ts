@@ -1,708 +1,301 @@
-import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
-import type { ErrorHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { and, eq, gt, lt, or, sql, isNull, exists } from 'drizzle-orm'
-import { z } from 'zod'
-import { authConfigured, getAuth } from './auth'
-import { consoleRoutes } from './console/routes'
-import { archives } from './archives'
-import { feedbackRoutes } from './feedback/routes'
-import { deleteAccount } from './feedback/lifecycle'
-import { recordRecoveryIntent } from './recovery/journal'
-import { getDb } from './db'
-import { credential, guest, report, session as authSession } from './db/schema'
-import { encryptKey, keyring } from './crypto'
-import { AppError, weread } from './weread'
+import { createDemo } from '../shared/demo'
+import { isRangeKey, type RangeKey } from '../shared/report'
+import { ARCHIVE_LIMIT, ARCHIVE_MAX_BYTES, type ArchivedReport } from '../shared/archive'
+import type { ReportTask } from '../shared/connection'
+import { protect, type Bindings } from './access'
 import {
   advanceCollector,
   buildReport,
-  newCollector,
-  num,
-  obj,
-  str,
   collectionProgress,
   continueCollector,
+  newCollector,
+  type CollectorState,
 } from './collector'
-import { createDemo } from '../shared/demo'
-import { bookCategory, isRangeKey } from '../shared/report'
-import type { RangeKey, ReportTarget } from '../shared/report'
+import { read, save } from './storage'
+import { AppError } from './weread'
 
-import {
-  connections,
-  resolveAccess,
-  accountSession,
-  limit,
-  limitSource,
-  ownerReports,
-  sessionReports,
-  lockOwner,
-  checkAccountSession,
-  readCredential,
-  decryptConnection,
-  invalidateConnection,
-  liveGuest,
-} from './connections'
-import type { Access, AppEnv, Transaction } from './connections'
-import { findReplacement, rememberAccountReport, stopReport } from './report-lifecycle'
-type Row = typeof report.$inferSelect
-export const app = new Hono<AppEnv>()
-app.use('/api/*', async (c, next) => {
-  c.set('requestId', randomUUID())
-  c.header('Cache-Control', 'no-store')
-  c.header('X-Content-Type-Options', 'nosniff')
-  if (process.env.APP_MAINTENANCE_MODE === 'true') {
-    c.header('Retry-After', '300')
-    throw new AppError('MAINTENANCE', '服务维护中，请稍后重试。', 503, true)
-  }
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
-    const origin = c.req.header('origin')
-    if (!origin || origin !== (process.env.APP_URL ?? 'http://127.0.0.1:5173'))
-      throw new AppError('UNTRUSTED_ORIGIN', '请求来源不受支持，请回到本站操作。', 403)
-    const type =
-      c.req.method === 'POST' && c.req.path === '/api/feedback'
-        ? 'multipart/form-data'
-        : 'application/json'
-    if (c.req.method !== 'DELETE' && !c.req.header('content-type')?.startsWith(type))
-      throw new AppError('INVALID_INPUT', '请求格式不正确。', 415)
-  }
-  await next()
-})
-app.use('/api/*', (c, next) => {
-  if (c.req.method === 'POST' && c.req.path === '/api/feedback') {
-    // Count the actual multipart stream even if a client supplies a smaller Content-Length.
-    const headers = new Headers(c.req.raw.headers)
-    headers.delete('content-length')
-    c.req.raw = new Request(c.req.raw, { headers })
-  }
-  return bodyLimit({
-    maxSize: c.req.method === 'POST' && c.req.path === '/api/feedback' ? 2 * 1024 * 1024 : 16384,
-    onError: (c) =>
-      c.json(
-        {
-          code: 'INVALID_INPUT',
-          message: '提交内容过大。',
-          retryable: false,
-          requestId: c.get('requestId'),
-        },
-        413,
-      ),
-  })(c, next)
-})
-app.get('/api/health', (c) => c.json({ status: 'ok', auth: authConfigured() }))
-app.get('/api/demo', (c) => c.json(createDemo(parseRange(c.req.query('range') ?? 'recent'))))
-app.on(['GET', 'POST'], '/api/auth/*', (c) => {
-  if (!authConfigured())
-    throw new AppError('AUTH_UNAVAILABLE', '邮箱登录服务暂不可用，你仍可临时连接和下载报告。', 503)
-  return getAuth().handler(c.req.raw)
-})
-app.route('/api/console', consoleRoutes)
-app.route('/api/feedback', feedbackRoutes)
-app.route('/api', connections)
-app.use('/api/*', async (c, next) => {
-  if (c.req.path.startsWith('/api/account')) {
-    const session = await accountSession(c)
-    if (!session) throw new AppError('AUTH_REQUIRED', '请先登录阅纹。', 401)
-    c.set('access', { kind: 'account', ownerId: session.user.id, sessionId: session.session.id })
-  } else c.set('access', await resolveAccess(c))
-  if (c.req.method === 'POST' && c.req.path === '/api/reports') await limitSource(c, 'report', 12)
-  if (c.req.path.startsWith('/api/books/')) await limitSource(c, 'book', 60)
-  await next()
-})
-export function parseRange(value: unknown): RangeKey {
-  if (isRangeKey(value)) return value
-  throw new AppError('INVALID_INPUT', '请选择有效的统计周期。', 400)
+type Current = {
+  id: string
+  credentialTag: string
+  version: number
+  requestId: string
+  status: ReportTask['status']
+  state: CollectorState
+  expiresAt: string
 }
-app.route('/api/account/archives', archives)
-function publicTask(row: Row) {
-  const data = buildReport(row.state)
-  data.meta.source = row.guestId ? 'guest' : 'account'
-  const noteTotal = data.notes.length
-  data.notes = data.notes.slice(0, 200)
+async function credentialTag(key: string) {
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key))
+  return Array.from(new Uint8Array(hash), (x) => x.toString(16).padStart(2, '0')).join('')
+}
+export const app = new Hono<{ Bindings: Bindings }>()
+export function parseRange(value: unknown): RangeKey {
+  if (!isRangeKey(value)) throw new AppError('INVALID_INPUT', '请选择有效的时间范围。', 400)
+  return value
+}
+function dto(value: Current): ReportTask {
+  const report = buildReport(value.state)
+  report.meta.source = 'instance'
+  const noteTotal = report.notes.length
+  report.notes = report.notes.slice(0, 200)
   return {
-    id: row.id,
-    version: row.version,
-    keyVersion: row.keyVersion,
-    expiresAt: row.expiresAt,
-    idleExpiresAt: row.idleExpiresAt,
-    serverTime: new Date().toISOString(),
-    status: row.status,
-    stage: row.state.queue.length
-      ? `正在读取${row.state.queue[0].api.includes('readdata') ? '阅读统计' : row.state.queue[0].api.includes('shelf') ? '当前书架' : '划线与想法'} · 笔记已读取 ${data.coverage.loaded}/${data.coverage.expected ?? '未知'} 本`
-      : row.status === 'completed'
-        ? '采集完成'
-        : '已有结果已保留',
-    report: data,
+    id: value.id,
+    version: value.version,
+    keyVersion: 1,
+    status: value.status,
+    stage: value.status === 'running' ? '正在读取阅读数据' : '已有结果已保留',
+    report,
     noteTotal,
     notesComplete: noteTotal <= 200,
-    ...collectionProgress(row.state),
-    issueCode: row.state.issueCode,
+    expiresAt: value.expiresAt,
+    idleExpiresAt: value.expiresAt,
+    serverTime: new Date().toISOString(),
+    ...collectionProgress(value.state),
+    issueCode: value.state.issueCode,
   }
 }
-const active = (id: string, session: Access) =>
-  and(
-    eq(report.id, id),
-    sessionReports(session),
-    session.kind === 'guest'
-      ? exists(getDb().select({ id: guest.id }).from(guest).where(liveGuest(session.ownerId)))
-      : exists(
-          getDb()
-            .select({ id: authSession.id })
-            .from(authSession)
-            .where(
-              and(eq(authSession.id, session.sessionId), gt(authSession.expiresAt, new Date())),
-            ),
-        ),
-    gt(report.expiresAt, new Date()),
-    gt(report.idleExpiresAt, new Date()),
-  )
-async function readTask(
-  id: string,
-  session: Access,
-  db: Transaction | ReturnType<typeof getDb> = getDb(),
-) {
-  const [row] = await db.select().from(report).where(active(id, session))
-  if (!row) {
-    const replaced = await findReplacement(db, session, 'id', id)
-    if (replaced)
-      throw new AppError('REPORT_REPLACED', '该临时报告已被替换或清除。可主动重新生成。', 409)
-    throw new AppError('REPORT_EXPIRED', '临时报告已清除或过期，请重新生成。', 404)
-  }
-  const key = await readCredential(session, db)
-  if (!key || key.version !== row.keyVersion)
-    throw new AppError('KEY_CHANGED', '微信读书连接已更新，请重新生成报告。', 409)
+async function current(db: D1Database, id?: string) {
+  const row = await read<Current>(db, 'current')
+  if (!row || (id && row.value.id !== id) || Date.parse(row.value.expiresAt) <= Date.now())
+    throw new AppError('REPORT_EXPIRED', '当前报告已到期或被替换，请重新生成。', 404)
   return row
 }
-async function changeTask<T>(
-  id: string,
-  session: Access,
-  change: (tx: Transaction, row: Row) => Promise<T>,
-  leaseId?: string,
-) {
-  return getDb().transaction(async (tx) => {
-    // Match creation/save lock order; never hold a report lock while waiting for its owner.
-    const owner = await lockOwner(tx, session)
-    await tx
-      .select({ id: report.id })
-      .from(report)
-      .where(and(eq(report.id, id), sessionReports(session)))
-      .for('update')
-    const row = await readTask(id, session, tx)
-    const result = await change(tx, row)
-    await checkAccountSession(tx, session)
-    // Check the original deadlines too: touch must not revive a connection or report.
-    const now = Date.now()
-    if (owner && Math.min(owner.expiresAt.getTime(), owner.idleExpiresAt.getTime()) <= now)
-      throw new AppError('GUEST_EXPIRED', '临时连接已到期，请重新配置 API Key。', 401)
-    if (Math.min(row.expiresAt.getTime(), row.idleExpiresAt.getTime()) <= now)
-      throw new AppError('REPORT_EXPIRED', '临时报告已过期，请重新生成。', 404)
-    if (leaseId && (row.leaseId !== leaseId || !row.leaseUntil || row.leaseUntil.getTime() <= now))
-      throw new AppError('REPORT_CHANGED', '采集租约已失效，旧结果未写入。', 409)
-    return result
-  })
-}
-async function getKey(session: Access, db: Transaction | ReturnType<typeof getDb> = getDb()) {
-  const key = await readCredential(session, db)
-  if (!key) throw new AppError('WEREAD_KEY_REQUIRED', '请先连接你的微信读书。', 409)
-  if (key.status === 'invalid')
-    throw new AppError('WEREAD_KEY_INVALID', '微信读书 API Key 已失效，请重新配置。', 409)
-  return key
-}
-app.get('/api/account/weread-key', async (c) => {
-  const [key] = await getDb()
-    .select()
-    .from(credential)
-    .where(eq(credential.userId, c.get('access').ownerId))
-  return c.json({
-    status: key?.status ?? 'missing',
-    updatedAt: key?.updatedAt,
-    validatedAt: key?.validatedAt,
-  })
+const target = (value?: Current) => ({ id: value?.id ?? null, keyVersion: 1 })
+app.use('/api/*', async (c, next) => {
+  c.header('Cache-Control', 'no-store')
+  c.header('X-Content-Type-Options', 'nosniff')
+  c.header('Referrer-Policy', 'no-referrer')
+  if (!['/api/health', '/api/demo'].includes(c.req.path)) await protect(c.req.raw, c.env)
+  await next()
 })
-app.put('/api/account/weread-key', async (c) => {
-  const { apiKey } = z
-    .object({
-      apiKey: z
-        .string()
-        .trim()
-        .min(8)
-        .max(512)
-        .regex(/^wrk-[A-Za-z0-9_-]+$/),
-    })
-    .parse(await c.req.json())
-  const userId = c.get('access').ownerId,
-    db = getDb()
-  await limit(`key:${userId}`, 5, 60)
-  const [before] = await db.select().from(credential).where(eq(credential.userId, userId))
-  const ring = keyring()
-  await weread(apiKey, '/shelf/sync')
-  await db.transaction(async (tx) => {
-    await lockOwner(tx, c.get('access'))
-    const [current] = await tx.select().from(credential).where(eq(credential.userId, userId))
-    if (current?.version !== before?.version)
-      throw new AppError('KEY_CHANGED', '连接已在另一处更新，请重新提交。', 409)
-    const now = new Date()
-    if (current) await recordRecoveryIntent('credential.revoke', userId)
-    await tx
-      .insert(credential)
-      .values({
-        userId,
-        encryptedKey: encryptKey(apiKey, userId, ring.keys[ring.version]),
-        encryptionVersion: ring.version,
-        version: (current?.version ?? 0) + 1,
-      })
-      .onConflictDoUpdate({
-        target: credential.userId,
-        set: {
-          encryptedKey: encryptKey(apiKey, userId, ring.keys[ring.version]),
-          encryptionVersion: ring.version,
-          version: (current?.version ?? 0) + 1,
-          status: 'valid',
-          updatedAt: now,
-          validatedAt: now,
-        },
-      })
-    await tx.delete(report).where(eq(report.userId, userId))
-    await checkAccountSession(tx, c.get('access'))
-  })
-  return c.json({ status: 'valid', updatedAt: new Date().toISOString() })
-})
-app.delete('/api/account/weread-key', async (c) => {
-  const id = c.get('access').ownerId
-  await getDb().transaction(async (tx) => {
-    await lockOwner(tx, c.get('access'))
-    await recordRecoveryIntent('credential.revoke', id)
-    await tx.delete(report).where(eq(report.userId, id))
-    await tx.delete(credential).where(eq(credential.userId, id))
-    await checkAccountSession(tx, c.get('access'))
-  })
-  return c.body(null, 204)
-})
-app.delete('/api/account', async (c) => {
-  await deleteAccount(c.get('access'))
-  const response = await getAuth().api.signOut({ headers: c.req.raw.headers, asResponse: true })
-  return response
-})
+app.use(
+  '/api/*',
+  bodyLimit({
+    maxSize: 8192,
+    onError: (c) => c.json({ code: 'INVALID_INPUT', message: '请求过大。' }, 413),
+  }),
+)
+app.get('/api/health', (c) => c.json({ status: 'ok' }))
+app.get('/api/demo', (c) => c.json(createDemo(parseRange(c.req.query('range') ?? 'recent'))))
+app.get('/api/connections', (c) =>
+  c.json({
+    serverTime: new Date().toISOString(),
+    instance: {
+      status: c.env.WEREAD_API_KEY ? 'valid' : 'missing',
+      context: 'instance',
+      expiresAt: new Date(Date.now() + 3600000).toISOString(),
+    },
+  }),
+)
 app.get('/api/session/reports', async (c) => {
-  const session = c.get('access'),
-    now = new Date()
-  const rows = await getDb()
-    .select()
-    .from(report)
-    .where(and(sessionReports(session), gt(report.expiresAt, now), gt(report.idleExpiresAt, now)))
-  const key = await readCredential(session)
-  return c.json(rows.filter((r) => r.keyVersion === key?.version).map((r) => publicTask(r)))
+  const row = await read<Current>(c.env.DB, 'current')
+  return c.json(row && Date.parse(row.value.expiresAt) > Date.now() ? [dto(row.value)] : [])
 })
 app.delete('/api/session/reports', async (c) => {
-  await getDb()
-    .delete(report)
-    .where(sessionReports(c.get('access')))
+  await c.env.DB.prepare("DELETE FROM entity WHERE id='current'").run()
   return c.body(null, 204)
 })
-const validReport = (session: Access) =>
-  and(ownerReports(session), gt(report.expiresAt, new Date()), gt(report.idleExpiresAt, new Date()))
-function reportTarget(row: Row | undefined, session: Access, keyVersion: number): ReportTarget {
-  return {
-    id: row?.id ?? null,
-    keyVersion,
-    otherSession: session.kind === 'account' && !!row && row.sessionId !== session.sessionId,
-  }
-}
 app.get('/api/reports/target', async (c) => {
-  const session = c.get('access'),
-    key = await getKey(session)
-  const [row] = await getDb()
-    .select()
-    .from(report)
-    .where(and(validReport(session), eq(report.keyVersion, key.version)))
-  return c.json(reportTarget(row, session, key.version))
+  const row = await read<Current>(c.env.DB, 'current')
+  return c.json(target(row && Date.parse(row.value.expiresAt) > Date.now() ? row.value : undefined))
 })
 app.post('/api/reports', async (c) => {
-  const body = z
-    .object({
-      range: z.string(),
-      requestId: z.string().uuid(),
-      expected: z.object({
-        id: z.string().uuid().nullable(),
-        keyVersion: z.number().int().positive(),
-      }),
-      replace: z.boolean().default(false),
-    })
-    .parse(await c.req.json())
-  const range = parseRange(body.range),
-    session = c.get('access'),
-    db = getDb()
-  await limit(`report:${session.ownerId}`, 6, 60)
-  const row = await db.transaction(async (tx) => {
-    await lockOwner(tx, session)
-    const current = await readCredential(session, tx)
-    if (!current) throw new AppError('WEREAD_KEY_REQUIRED', '请先连接你的微信读书。', 409)
-    if (current.status === 'invalid')
-      throw new AppError('WEREAD_KEY_INVALID', '微信读书 API Key 已失效，请重新配置。', 409)
-    const [existing] = await tx
-      .select()
-      .from(report)
-      .where(
-        and(
-          sessionReports(session),
-          eq(report.requestId, body.requestId),
-          gt(report.expiresAt, new Date()),
-          gt(report.idleExpiresAt, new Date()),
-        ),
-      )
-    if (existing) {
-      await checkAccountSession(tx, session)
-      return existing
-    }
-    const receipt = await findReplacement(tx, session, 'requestId', body.requestId)
-    if (receipt)
-      throw new AppError('REPORT_REPLACED', '该生成请求的报告已替换或清除，请重新选择范围。', 409)
-    const [previous] = await tx.select().from(report).where(validReport(session))
-    const target = reportTarget(previous, session, current.version)
-    if (
-      body.expected.id !== target.id ||
-      body.expected.keyVersion !== target.keyVersion ||
-      (target.otherSession && !body.replace)
+  if (!c.env.WEREAD_API_KEY)
+    throw new AppError('WEREAD_KEY_MISSING', '请在部署环境设置微信读书读取授权。', 409)
+  const body = await c.req.json<{
+    range: unknown
+    requestId: string
+    expected?: { id: string | null }
+    replace?: boolean
+  }>()
+  const range = parseRange(body.range)
+  if (!/^[\da-f-]{36}$/i.test(body.requestId ?? ''))
+    throw new AppError('INVALID_INPUT', '请求标识无效。', 400)
+  const row = await read<Current>(c.env.DB, 'current')
+  const active = row && Date.parse(row.value.expiresAt) > Date.now() ? row.value : undefined
+  if (active?.requestId === body.requestId) return c.json(dto(active))
+  if (body.expected?.id !== target(active).id || (active && !body.replace))
+    throw new AppError(
+      'REPORT_CONFLICT',
+      '生成将替换当前报告，请先下载或保存。',
+      409,
+      false,
+      undefined,
+      target(active),
     )
-      throw new AppError(
-        target.otherSession ? 'REPORT_CONFLICT' : 'REPORT_TARGET_CHANGED',
-        target.otherSession
-          ? '继续生成会替换此账号在其他会话中的临时报告。'
-          : '当前报告或连接已变化，请核对后重新生成。',
-        409,
-        false,
-        undefined,
-        target,
-      )
-    if (previous?.userId && previous.sessionId)
-      await rememberAccountReport(tx, {
-        ...previous,
-        userId: previous.userId,
-        sessionId: previous.sessionId,
-      })
-    await tx.delete(report).where(ownerReports(session))
-    const [created] = await tx
-      .insert(report)
-      .values({
-        id: randomUUID(),
-        userId: session.kind === 'account' ? session.ownerId : null,
-        sessionId: session.kind === 'account' ? session.sessionId : null,
-        guestId: session.kind === 'guest' ? session.ownerId : null,
-        keyVersion: current.version,
-        requestId: body.requestId,
-        state: newCollector(range),
-        idleExpiresAt: new Date(
-          Math.min(
-            Date.now() + 1800000,
-            'idleExpiresAt' in current ? current.idleExpiresAt.getTime() : Infinity,
-          ),
-        ),
-        expiresAt: new Date(
-          Math.min(
-            Date.now() + 7200000,
-            'expiresAt' in current ? current.expiresAt.getTime() : Infinity,
-          ),
-        ),
-      })
-      .returning()
-    await checkAccountSession(tx, session)
-    if (
-      'expiresAt' in current &&
-      Math.min(current.expiresAt.getTime(), current.idleExpiresAt.getTime()) <= Date.now()
-    )
-      throw new AppError('GUEST_EXPIRED', '临时连接已到期，请重新配置 API Key。', 401)
-    return created
-  })
-  return c.json(publicTask(row), 202)
+  const value: Current = {
+    id: crypto.randomUUID(),
+    credentialTag: await credentialTag(c.env.WEREAD_API_KEY),
+    version: 1,
+    requestId: body.requestId,
+    status: 'queued',
+    state: newCollector(range),
+    expiresAt: new Date(Date.now() + 2 * 3600000).toISOString(),
+  }
+  await save(
+    c.env.DB,
+    'current',
+    row?.version ?? 0,
+    value,
+    { expiresAt: value.expiresAt },
+    row?.token,
+  )
+  return c.json(dto(value))
 })
 app.get('/api/reports/:id', async (c) =>
-  c.json(publicTask(await readTask(c.req.param('id'), c.get('access')))),
+  c.json(dto((await current(c.env.DB, c.req.param('id'))).value)),
 )
 app.get('/api/reports/:id/notes', async (c) => {
-  const row = await readTask(c.req.param('id'), c.get('access'))
-  const offset = z.coerce
-    .number()
-    .int()
-    .min(0)
-    .max(100000)
-    .parse(c.req.query('cursor') ?? 0)
-  const query = (c.req.query('q') ?? '').slice(0, 200),
-    bookId = c.req.query('bookId'),
-    type = c.req.query('type')
-  const notes = buildReport(row.state).notes.filter(
-    (n) =>
-      (!query || `${n.text}${n.title}${n.abstract ?? ''}`.includes(query)) &&
-      (!bookId || n.bookId === bookId) &&
-      (!type || n.type === type),
-  )
+  const { value } = await current(c.env.DB, c.req.param('id'))
+  const cursor = Number(c.req.query('cursor') ?? 0)
+  if (!Number.isSafeInteger(cursor) || cursor < 0)
+    throw new AppError('INVALID_INPUT', '分页无效。', 400)
+  const notes = buildReport(value.state).notes
   return c.json({
-    notes: notes.slice(offset, offset + 200),
-    nextCursor: offset + 200 < notes.length ? offset + 200 : null,
-    total: notes.length,
-    version: row.version,
+    notes: notes.slice(cursor, cursor + 200),
+    nextCursor: cursor + 200 < notes.length ? cursor + 200 : null,
+    version: value.version,
   })
 })
-app.post('/api/reports/:id/touch', async (c) => {
-  const session = c.get('access')
-  await changeTask(c.req.param('id'), session, async (tx, row) => {
-    const idleExpiresAt = new Date(Math.min(Date.now() + 1800000, row.expiresAt.getTime()))
-    await tx.update(report).set({ idleExpiresAt }).where(eq(report.id, row.id))
-    if (session.kind === 'guest')
-      await tx.update(guest).set({ idleExpiresAt }).where(eq(guest.id, session.ownerId))
-  })
-  return c.body(null, 204)
-})
-app.post('/api/reports/:id/cancel', async (c) => {
-  const updated = await changeTask(c.req.param('id'), c.get('access'), async (tx, row) => {
-    return { ...row, ...(await stopReport(tx, row.id, row.version)) }
-  })
-  return c.json(publicTask(updated))
-})
-app.post('/api/reports/:id/retry', async (c) => {
-  const session = c.get('access')
-  const updated = await changeTask(c.req.param('id'), session, async (tx, row) => {
-    await getKey(session, tx)
-    if (!['partial', 'cancelled', 'failed'].includes(row.status)) return row
-    if (row.state.retryAt && row.state.retryAt > Date.now())
-      throw new AppError('UPSTREAM_RATE_LIMIT', '请稍后再继续读取。', 429, true)
-    if (!collectionProgress(row.state).retryAllowed)
-      throw new AppError('COLLECTION_BUDGET', '当前分段无法重试，请读取已有结果。', 409)
-    row.state.queue.push(...row.state.failed)
-    row.state.failed = []
-    row.state.issues = []
-    row.state.issueCode = undefined
-    const [updated] = await tx
-      .update(report)
-      .set({
-        state: row.state,
-        status: 'queued',
-        version: row.version + 1,
-        leaseId: null,
-        leaseUntil: null,
-      })
-      .where(eq(report.id, row.id))
-      .returning()
-    return updated
-  })
-  return c.json(publicTask(updated))
-})
-app.post('/api/reports/:id/continue', async (c) => {
-  const { version } = z
-    .object({ version: z.number().int().nonnegative() })
-    .strict()
-    .parse(await c.req.json())
-  const session = c.get('access')
-  const updated = await changeTask(c.req.param('id'), session, async (tx, row) => {
-    await getKey(session, tx)
-    // A lost response or stale click must never open another segment.
-    if (row.version !== version) return row
-    if (!['partial', 'cancelled', 'failed'].includes(row.status))
-      throw new AppError('REPORT_CHANGED', '请先读取当前采集结果。', 409)
-    continueCollector(row.state)
-    const [next] = await tx
-      .update(report)
-      .set({
-        state: row.state,
-        status: 'queued',
-        version: row.version + 1,
-        leaseId: null,
-        leaseUntil: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(report.id, row.id))
-      .returning()
-    return next
-  })
-  return c.json(publicTask(updated))
-})
-app.post('/api/reports/:id/advance', async (c) => {
-  const body = z
-    .object({ version: z.number().int().min(0), requestId: z.string().uuid() })
-    .parse(await c.req.json())
-  const session = c.get('access'),
-    row = await readTask(c.req.param('id'), session)
-  if (row.version !== body.version || !['queued', 'running'].includes(row.status))
-    return c.json(publicTask(row))
-  const key = await getKey(session),
-    leaseId = randomUUID()
-  const leased = await changeTask(row.id, session, async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(7263104)`)
-    const [{ count }] = await tx
-      .select({ count: sql<number>`count(*)::int` })
-      .from(report)
-      .where(gt(report.leaseUntil, new Date()))
-    if (count >= 8) throw new AppError('REPORT_BUSY', '当前阅读请求较多，请稍后继续。', 429, true)
-    const [updated] = await tx
-      .update(report)
-      .set({ leaseId, leaseUntil: new Date(Date.now() + 25000), status: 'running' })
-      .where(
-        and(
-          active(row.id, session),
-          eq(report.version, body.version),
-          or(isNull(report.leaseUntil), lt(report.leaseUntil, new Date())),
-        ),
-      )
-      .returning()
-    if (!updated) throw new AppError('REPORT_BUSY', '这一批正在读取，请稍后继续。', 409, true)
-    return updated
-  })
-  const currentLease = () =>
-    and(
-      active(row.id, session),
-      eq(report.leaseId, leaseId),
-      gt(report.leaseUntil, new Date()),
-      eq(report.version, row.version),
-      eq(report.keyVersion, key.version),
-    )
-  let issue: AppError | undefined
-  try {
-    await advanceCollector(leased.state, decryptConnection(key), async (...args) => {
-      // Reserve the request before calling upstream; cancellation must not refund the budget.
-      await changeTask(
-        row.id,
-        session,
-        async (tx) => {
-          const [reserved] = await tx
-            .update(report)
-            .set({
-              state: sql`jsonb_set(${report.state}, '{requests}', to_jsonb(${leased.state.requests}::int))`,
-            })
-            .where(currentLease())
-            .returning({ id: report.id })
-          if (!reserved)
-            throw new AppError('REPORT_CHANGED', '采集已停止或连接已更新，请重新读取。', 409)
-        },
-        leaseId,
-      )
-      return weread(...args)
-    })
-  } catch (error) {
-    issue =
-      error instanceof AppError
-        ? error
-        : new AppError('COLLECTION_ERROR', '读取暂时中断，请稍后继续。', 502, true)
-  }
-  leased.state.issueCode = issue?.code
-  if (issue && !leased.state.issues.includes(issue.message)) leased.state.issues.push(issue.message)
-  const status =
-    issue || (!leased.state.queue.length && leased.state.failed.length)
-      ? 'partial'
-      : leased.state.queue.length
-        ? 'running'
-        : 'completed'
-  const updated = await changeTask(
-    row.id,
-    session,
-    async (tx) => {
-      const [updated] = await tx
-        .update(report)
-        .set({
-          state: leased.state,
-          status,
-          version: row.version + 1,
-          leaseId: null,
-          leaseUntil: null,
-          updatedAt: new Date(),
-        })
-        .where(currentLease())
-        .returning()
-      if (!updated)
-        throw new AppError('REPORT_CHANGED', '采集已停止或连接已更新，旧结果未写入。', 409)
-      return updated
-    },
-    leaseId,
+app.use('/api/reports/:id/:action', async (c, next) => {
+  if (c.req.method !== 'POST' || c.req.param('action') !== 'advance') return next()
+  const token = crypto.randomUUID(),
+    now = Date.now()
+  const result = await c.env.DB.prepare(
+    'INSERT INTO collection_lease(id,token,expires_at) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET token=excluded.token,expires_at=excluded.expires_at WHERE collection_lease.expires_at<=?',
   )
-  if (issue?.code === 'WEREAD_KEY_INVALID') await invalidateConnection(session, key.version)
-  return c.json(publicTask(updated))
+    .bind(token, now + 30000, now)
+    .run()
+  if (!result.meta.changes) throw new AppError('REPORT_BUSY', '已有读取正在进行，请稍后恢复。', 409)
+  try {
+    await next()
+  } finally {
+    await c.env.DB.prepare('DELETE FROM collection_lease WHERE id=1 AND token=?').bind(token).run()
+  }
+})
+app.post('/api/reports/:id/:action', async (c) => {
+  const row = await current(c.env.DB, c.req.param('id')),
+    value = row.value,
+    action = c.req.param('action')
+  if (action === 'touch') return c.json(dto(value))
+  if (action === 'cancel') value.status = 'cancelled'
+  else if (action === 'retry') {
+    if (!collectionProgress(value.state).retryAllowed)
+      throw new AppError('COLLECTION_BUDGET', '请下载已有结果或继续下一段。', 409)
+    value.state.queue.push(...value.state.failed)
+    value.state.failed = []
+    value.status = 'running'
+  } else if (action === 'continue') {
+    continueCollector(value.state)
+    value.status = 'running'
+  } else if (action === 'advance') {
+    const body = await c.req.json<{ version: number }>()
+    if (body.version !== value.version)
+      throw new AppError('REPORT_CHANGED', '报告已更新，请重新读取。', 409)
+    if (!['queued', 'running'].includes(value.status)) return c.json(dto(value))
+    if (!c.env.WEREAD_API_KEY)
+      throw new AppError('WEREAD_KEY_MISSING', '未配置微信读书读取授权。', 409)
+    if (value.credentialTag !== (await credentialTag(c.env.WEREAD_API_KEY)))
+      throw new AppError('KEY_CHANGED', '上游授权已变化，请重新生成报告以避免混合数据。', 409)
+    // One bounded upstream operation per invocation; CAS rejects late writes.
+    try {
+      value.state = await advanceCollector(value.state, c.env.WEREAD_API_KEY)
+      value.state.issueCode = undefined
+      value.status =
+        value.state.budgetReached || (value.state.failed.length && !value.state.queue.length)
+          ? 'partial'
+          : value.state.queue.length
+            ? 'running'
+            : 'completed'
+    } catch (error) {
+      if (!(error instanceof AppError)) throw error
+      // Collector mutates cursors, request budgets and backoff before throwing.
+      // Persist that progress, otherwise retries could exceed the bounded budget.
+      value.state.issueCode = error.code
+      if (!value.state.issues.includes(error.message)) value.state.issues.push(error.message)
+      value.status = 'partial'
+    }
+  } else throw new AppError('NOT_FOUND', '接口不存在。', 404)
+  value.version++
+  if (Date.parse(value.expiresAt) <= Date.now())
+    throw new AppError('REPORT_EXPIRED', '报告已到期。', 404)
+  await save(c.env.DB, 'current', row.version, value, { expiresAt: value.expiresAt }, row.token)
+  return c.json(dto(value))
 })
 app.get('/api/books/:id', async (c) => {
-  const id = z
-      .string()
-      .regex(/^[\w-]{1,100}$/)
-      .parse(c.req.param('id')),
-    session = c.get('access')
-  await limit(`book:${session.ownerId}`, 30, 60)
-  const key = await getKey(session),
-    secret = decryptConnection(key)
-  const [info, progress] = await Promise.all([
-    weread(secret, '/book/info', { bookId: id }),
-    weread(secret, '/book/getprogress', { bookId: id }),
-  ]).catch(async (error) => {
-    if (error instanceof AppError && error.code === 'WEREAD_KEY_INVALID') {
-      await invalidateConnection(session, key.version)
-    }
-    throw error
-  })
-  // Recheck after the upstream call so a removed/replaced key cannot release stale data.
-  const access = await resolveAccess(c)
-  if (access.ownerId !== session.ownerId || access.sessionId !== session.sessionId)
-    throw new AppError('KEY_CHANGED', '连接已更新，请重新打开书籍。', 409)
-  const current = await getKey(session)
-  if (current.version !== key.version)
-    throw new AppError('KEY_CHANGED', '连接已更新，请重新打开书籍。', 409)
+  const { value } = await current(c.env.DB)
+  const book = buildReport(value.state).books.find((x) => x.id === c.req.param('id'))
+  if (!book) throw new AppError('NOT_FOUND', '书籍不在当前报告中。', 404)
+  return c.json(book)
+})
+app.get('/api/archives', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    "SELECT summary FROM entity WHERE id!='current' ORDER BY rowid DESC",
+  ).all<{ summary: string }>()
   return c.json({
-    title: str(info.title),
-    author: str(info.author),
-    publisher: str(info.publisher),
-    cover: str(info.cover) || undefined,
-    ...(str(info.category).trim() ? bookCategory(str(info.category)) : {}),
-    description: str(info.intro),
-    progress: num(obj(progress.book).progress),
+    items: results.map((x) => JSON.parse(x.summary)),
+    limit: ARCHIVE_LIMIT,
+    maxBytes: ARCHIVE_MAX_BYTES,
   })
 })
-app.notFound((c) =>
-  c.json(
-    {
-      code: 'NOT_FOUND',
-      message: '没有找到这个接口。',
-      retryable: false,
-      requestId: c.get('requestId'),
-    },
-    404,
-  ),
-)
-export const handleError: ErrorHandler<AppEnv> = (error, c) => {
-  if (error instanceof z.ZodError || error instanceof SyntaxError)
-    return c.json(
-      {
-        code: 'INVALID_INPUT',
-        message: '提交内容不正确，请检查后重试。',
-        retryable: false,
-        requestId: c.get('requestId'),
-      },
-      400,
-    )
-  const known = error instanceof AppError
-  if (!known) {
-    const causes = []
-    let cause: unknown = error
-    for (let depth = 0; cause instanceof Error && depth < 3; depth++) {
-      const code = 'code' in cause ? cause.code : undefined
-      causes.push({
-        type: cause.constructor.name,
-        code: typeof code === 'string' && /^[A-Z0-9_]{2,40}$/.test(code) ? code : undefined,
-        frames: cause.stack?.match(/(?:server|shared|client)\/[\w./-]+:\d+:\d+/g)?.slice(0, 3),
-      })
-      cause = cause.cause
-    }
-    // Error messages and database parameters can contain credentials or reading content.
-    console.error('yuewen.request_failed', {
-      requestId: c.get('requestId'),
-      method: c.req.method,
-      route: c.req.routePath,
-      causes,
-    })
+app.post('/api/archives', async (c) => {
+  const body = await c.req.json<{ reportId: string; version: number; includeNotes: boolean }>()
+  if (typeof body.includeNotes !== 'boolean')
+    throw new AppError('INVALID_INPUT', '请选择正文保存选项。', 400)
+  const { value } = await current(c.env.DB, body.reportId)
+  if (body.version !== value.version || ['queued', 'running'].includes(value.status))
+    throw new AppError('REPORT_CHANGED', '请停止或完成采集后重新保存。', 409)
+  const report = buildReport(value.state)
+  report.meta.source = 'instance'
+  if (!body.includeNotes) {
+    report.notes = []
+    report.portrait.quote = null
+    report.portrait.selections = []
   }
-  if (known && error.retryAfter) c.header('Retry-After', String(error.retryAfter))
-  return c.json(
-    {
-      code: known ? error.code : 'SERVICE_ERROR',
-      message: known ? error.message : '服务暂时无法完成操作，请稍后重试。',
-      retryable: known ? error.retryable : true,
-      ...(known && error.details ? { details: error.details } : {}),
-      requestId: c.get('requestId'),
-    },
-    (known ? error.status : 503) as 400,
-  )
-}
-app.onError(handleError)
+  const bytes = new TextEncoder().encode(JSON.stringify(report)).length
+  if (bytes > ARCHIVE_MAX_BYTES)
+    throw new AppError('ARCHIVE_TOO_LARGE', '超过 2 MiB，请取消正文或下载到本地。', 413)
+  // Deterministic snapshot ID makes retries idempotent without account/session records.
+  const id = `${value.id}-${value.version}-${body.includeNotes ? 'notes' : 'summary'}`
+  const existing = await read<ArchivedReport>(c.env.DB, id)
+  if (existing) {
+    const summary = { ...existing.value, report: undefined }
+    return c.json(summary)
+  }
+  const summary = {
+    id,
+    createdAt: new Date().toISOString(),
+    generatedAt: report.meta.generatedAt,
+    range: report.range,
+    summary: report.summary,
+    coverage: report.coverage,
+    sourceStatus: value.status,
+    includeNotes: body.includeNotes,
+    bytes,
+  }
+  await save(c.env.DB, id, 0, { ...summary, report }, summary)
+  return c.json(summary)
+})
+app.get('/api/archives/:id', async (c) => {
+  const id = c.req.param('id')
+  const row = id === 'current' ? null : await read<ArchivedReport>(c.env.DB, id)
+  if (!row) throw new AppError('ARCHIVE_NOT_FOUND', '存档不存在或已删除。', 404)
+  return c.json(row.value)
+})
+app.delete('/api/archives/:id', async (c) => {
+  if (c.req.param('id') === 'current') throw new AppError('INVALID_INPUT', '无效的存档。', 400)
+  await c.env.DB.prepare('DELETE FROM entity WHERE id=?').bind(c.req.param('id')).run()
+  return c.body(null, 204)
+})
+app.notFound((c) => c.json({ code: 'NOT_FOUND', message: '接口不存在。' }, 404))
+app.onError((error, c) => {
+  if (error instanceof AppError)
+    return c.json(
+      { code: error.code, message: error.message, details: error.details },
+      error.status as 400,
+    )
+  if (error instanceof SyntaxError)
+    return c.json({ code: 'INVALID_INPUT', message: '请求格式无效。' }, 400)
+  return c.json({ code: 'SERVICE_ERROR', message: '服务暂时不可用，请检查实例配置。' }, 500)
+})

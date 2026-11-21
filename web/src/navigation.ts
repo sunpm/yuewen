@@ -1,4 +1,3 @@
-import { safeReturn } from '@client/returnPath'
 import {
   Archive,
   BookOpen,
@@ -17,7 +16,7 @@ export const navigation = [
   { path: '/notes', title: '阅读笔记', icon: NotebookPen },
 ] as const
 
-export const accountNavigation = [
+export const instanceNavigation = [
   { path: '/archives', title: '历史报告', icon: Archive },
   { path: '/settings', title: '连接设置', icon: Settings },
 ] as const
@@ -34,18 +33,9 @@ export function reportView(pathname: string, search: string) {
 }
 
 export function readingPath(pathname: string, search: string, view: string) {
-  let params = new URLSearchParams(search)
-  if (pathname.replace(/\/+$/, '') === '/login' && params.has('next')) {
-    params = new URLSearchParams(safeReturn(params.get('next')).split('?')[1])
-    params.delete('save')
-    params.delete('saveReport')
-  }
+  const params = new URLSearchParams(search)
   for (const key of [...params.keys()])
-    if (
-      !['range', 'view', 'source', 'connection', 'save', 'saveReport', 'book', 'month'].includes(
-        key,
-      )
-    )
+    if (!['range', 'view', 'source', 'connection', 'book', 'month'].includes(key))
       params.delete(key)
   const demo = pathname.replace(/\/+$/, '') === '/demo'
   const archive = pathname.startsWith('/archives/')
@@ -60,13 +50,12 @@ export function readingPath(pathname: string, search: string, view: string) {
 
 export function pageTitle(pathname: string, search = '') {
   const path = pathname.replace(/\/+$/, '') || '/'
-  if (path === '/login') return '登录'
   if (path.startsWith('/archives/')) return '历史报告'
   if (path === '/demo')
     return (
       navigation.find((item) => item.path === `/${reportView(path, search)}`)?.title ?? '阅读概览'
     )
   return (
-    [...navigation, ...accountNavigation].find((item) => item.path === path)?.title ?? '页面未找到'
+    [...navigation, ...instanceNavigation].find((item) => item.path === path)?.title ?? '页面未找到'
   )
 }

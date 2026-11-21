@@ -27,7 +27,7 @@ export default function Home() {
           <Link to="/demo">先翻翻示例</Link>
         </Button>
       </div>
-      <p className="welcome-hint">无需先登录。查看后可下载报告，也可登录保存连接。</p>
+      <p className="welcome-hint">示例可直接体验。私有报告需通过实例访问保护，可保存或下载。</p>
     </section>
   )
 }

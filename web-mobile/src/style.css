@@ -288,19 +288,8 @@ h2 {
   font-size: 12px;
   padding: 22px 0 5px;
 }
-.login-page .van-tabs {
-  margin: 25px 0;
-}
-.login-page .van-cell-group--inset,
 .settings-page .van-cell-group--inset {
   margin-inline: 0;
-}
-.login-page .van-field {
-  padding-block: 16px;
-}
-.login-page > .text-button {
-  display: block;
-  margin: 5px auto;
 }
 .field-hint {
   font-size: 12px;

@@ -11,7 +11,7 @@ let generation = 0,
   touchedAt = 0
 const conflict = shallowRef<{ key: RangeKey; target: ReportTarget; requestId: string } | null>(null)
 let halted = false
-let connection: 'guest' | 'account' = 'account'
+let connection = 'instance' as const
 const api = <T>(path: string, options: RequestInit = {}) =>
   request<T>(path, {
     ...options,
@@ -30,13 +30,9 @@ export function useReport() {
     error.value = e instanceof Error ? e.message : '读取失败，请重试。'
     errorCode.value = e && typeof e === 'object' && 'code' in e ? String(e.code) : ''
     if (
-      [
-        'AUTH_REQUIRED',
-        'GUEST_EXPIRED',
-        'KEY_CHANGED',
-        'REPORT_EXPIRED',
-        'REPORT_REPLACED',
-      ].includes(errorCode.value)
+      ['ACCESS_REQUIRED', 'KEY_CHANGED', 'REPORT_EXPIRED', 'REPORT_REPLACED'].includes(
+        errorCode.value,
+      )
     )
       task.value = null
     if (errorCode.value === 'REPORT_REPLACED') {
@@ -60,7 +56,7 @@ export function useReport() {
     conflict.value = null
     pending = null
   }
-  const selectConnection = (value: 'guest' | 'account') => {
+  const selectConnection = (value: 'instance') => {
     if (connection !== value) {
       clear()
       connection = value

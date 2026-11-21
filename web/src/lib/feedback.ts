@@ -7,17 +7,7 @@ export function feedbackIssueUrl(pathname: string, search: string) {
   const path = pathname.replace(/\/+$/, '') || '/'
   const params = new URLSearchParams(search)
   const range = params.get('range')
-  const paths = [
-    '/',
-    '/demo',
-    '/overview',
-    '/report',
-    '/shelf',
-    '/notes',
-    '/settings',
-    '/login',
-    '/archives',
-  ]
+  const paths = ['/', '/demo', '/overview', '/report', '/shelf', '/notes', '/settings', '/archives']
   const safePath = path.startsWith('/archives/')
     ? '/archives/:id'
     : paths.includes(path)

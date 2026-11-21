@@ -70,7 +70,7 @@ const destination = (view: string) =>
     />
     <main id="main"><RouterView :key="route.path" /></main>
     <van-tabbar
-      v-if="!['/', '/login'].includes(route.path)"
+      v-if="route.path !== '/'"
       :model-value="active"
       placeholder
       safe-area-inset-bottom

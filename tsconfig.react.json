@@ -6,7 +6,8 @@
       "@/*": ["web/src/*"],
       "@client/*": ["client/*"],
       "@shared/*": ["shared/*"]
-    }
+    },
+    "types": ["node", "vite/client"]
   },
   "include": ["web/src/**/*.ts", "web/src/**/*.tsx", "vite.config.ts"],
   "exclude": ["node_modules", "dist"]

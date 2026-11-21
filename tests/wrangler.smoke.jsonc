@@ -1,0 +1,7 @@
+{
+  "name": "yuewen-isolated-smoke",
+  "compatibility_date": "2026-11-01",
+  "d1_databases": [
+    { "binding": "DB", "database_name": "synthetic-only", "database_id": "local-smoke-only" },
+  ],
+}

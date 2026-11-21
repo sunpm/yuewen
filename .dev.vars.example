@@ -1,0 +1,2 @@
+# Only upstream read authorization; never add an application password.
+WEREAD_API_KEY=""

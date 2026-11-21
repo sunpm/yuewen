@@ -3,22 +3,19 @@ import { ARCHIVE_LIMIT, type ArchiveSummary } from '@shared/archive'
 import type { Connection, ReportTask } from '@shared/connection'
 import { Archive } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router'
+import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { flow, message, queries, useAction, write } from '@/lib/business'
 
 export function SaveArchive({
   task,
   connection,
-  loggedIn,
   disabled,
 }: {
   task: ReportTask
   connection: Connection
-  loggedIn: boolean
   disabled: boolean
 }) {
-  const location = useLocation()
   const [includeNotes, setIncludeNotes] = useState(false)
   const [saved, setSaved] = useState<ArchiveSummary | null>(null)
   const [error, setError] = useState('')
@@ -40,7 +37,7 @@ export function SaveArchive({
         const result = await write(() => {
           if (!mounted.current || run !== flow.generation)
             throw new DOMException('页面已变化', 'AbortError')
-          return api<ArchiveSummary>('/account/archives', {
+          return api<ArchiveSummary>('/archives', {
             method: 'POST',
             headers: { 'X-Yuewen-Connection': connection },
             body: JSON.stringify({ reportId: task.id, version: task.version, includeNotes }),
@@ -61,8 +58,8 @@ export function SaveArchive({
         保存报告
       </summary>
       <div>
-        <p>保存当前快照，保留至主动删除。每个账号最多 {ARCHIVE_LIMIT} 份，每份 2 MiB。</p>
-        {loggedIn ? (
+        <p>保存当前快照，保留至主动删除。每个实例最多 {ARCHIVE_LIMIT} 份，每份 2 MiB。</p>
+        {
           <>
             <label>
               <input
@@ -84,14 +81,7 @@ export function SaveArchive({
               {action.isPending ? '正在保存…' : '确认保存'}
             </Button>
           </>
-        ) : (
-          <Link
-            className="text-link"
-            to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`}
-          >
-            登录后保存报告
-          </Link>
-        )}
+        }
         {saved && (
           <p role="status">
             已保存。

@@ -853,7 +853,7 @@ export function buildReport(state: CollectorState): ReadingReport {
     meta: {
       version: 1,
       sampleReport: false,
-      source: 'account',
+      source: 'instance',
       generatedAt: state.createdAt,
       timezone: 'Asia/Shanghai',
     },

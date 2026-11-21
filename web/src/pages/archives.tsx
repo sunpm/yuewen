@@ -26,8 +26,8 @@ export default function Archives() {
   const { id } = useParams()
   const location = useLocation()
   const connections = useConnections()
-  const account = connections.data?.account
-  const context = account?.context
+  const instance = connections.data?.instance
+  const context = instance?.context
   const enabled = !!context && !connections.isFetching && !connections.isError
   const key = ['private', context, 'archives', id ?? 'detail'] as const
   const [confirmation, setConfirmation] = useState('')
@@ -37,13 +37,13 @@ export default function Archives() {
   const list = useQuery({
     queryKey: ['private', context, 'archives', 'list'],
     enabled: enabled && !id,
-    queryFn: ({ signal }) => api<ArchiveList>('/account/archives', { signal }),
+    queryFn: ({ signal }) => api<ArchiveList>('/archives', { signal }),
   })
   const detail = useQuery({
     queryKey: key,
     enabled: enabled && !!id,
     queryFn: ({ signal }) =>
-      api<ArchivedReport>(`/account/archives/${encodeURIComponent(id ?? '')}`, { signal }),
+      api<ArchivedReport>(`/archives/${encodeURIComponent(id ?? '')}`, { signal }),
   })
   const currentError = connections.error ?? (id ? detail.error : list.error)
   useEffect(() => {
@@ -53,18 +53,6 @@ export default function Archives() {
       stopPrivate()
     }
   }, [])
-  useEffect(() => {
-    if (!account || !connections.data) return
-    const remaining = Date.parse(account.expiresAt) - Date.parse(connections.data.serverTime)
-    const timer = window.setTimeout(
-      () => {
-        stopPrivate(true)
-        void connections.refetch()
-      },
-      Math.max(0, remaining),
-    )
-    return () => window.clearTimeout(timer)
-  }, [account, connections.data, connections.refetch])
 
   async function remove(archiveId: string) {
     if (action.isPending || !enabled) return
@@ -75,7 +63,7 @@ export default function Archives() {
         await write(() => {
           if (!mounted.current || run !== flow.generation)
             throw new DOMException('页面已变化', 'AbortError')
-          return api(`/account/archives/${archiveId}`, { method: 'DELETE' })
+          return api(`/archives/${archiveId}`, { method: 'DELETE' })
         })
         if (!mounted.current || run !== flow.generation) return
         setConfirmation('')
@@ -93,13 +81,13 @@ export default function Archives() {
       const value = await queries.fetchQuery({
         queryKey: key,
         queryFn: ({ signal }) =>
-          api<ArchivedReport>(`/account/archives/${encodeURIComponent(id ?? '')}`, { signal }),
+          api<ArchivedReport>(`/archives/${encodeURIComponent(id ?? '')}`, { signal }),
       })
       if (!mounted.current || run !== flow.generation)
         throw new DOMException('页面已变化', 'AbortError')
       return { id: value.id, version: 0, keyVersion: 0, report: value.report }
     } catch (value) {
-      if (['AUTH_REQUIRED', 'ARCHIVE_NOT_FOUND'].includes(errorCode(value))) {
+      if (['ACCESS_REQUIRED', 'ARCHIVE_NOT_FOUND'].includes(errorCode(value))) {
         queries.removeQueries({ queryKey: key })
         setError(message(value))
       }
@@ -112,12 +100,9 @@ export default function Archives() {
     return (
       <section className="empty-state">
         <p role="alert">{message(currentError)}</p>
-        {errorCode(currentError) === 'AUTH_REQUIRED' ? (
-          <Link
-            className="text-link"
-            to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`}
-          >
-            重新登录
+        {errorCode(currentError) === 'ACCESS_REQUIRED' ? (
+          <Link className="text-link" to={location.pathname + location.search}>
+            重新通过部署访问保护
           </Link>
         ) : (
           <Button
@@ -139,15 +124,12 @@ export default function Archives() {
         )}
       </section>
     )
-  if (!account)
+  if (!instance)
     return (
       <section className="empty-state">
-        <p>登录后查看已保存的报告。</p>
-        <Link
-          className="text-link"
-          to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`}
-        >
-          登录
+        <p>通过部署访问保护后查看已保存报告。</p>
+        <Link className="text-link" to={location.pathname + location.search}>
+          重新打开
         </Link>
       </section>
     )
@@ -185,7 +167,7 @@ export default function Archives() {
             range: saved.range.key,
             sample: false,
             development: false,
-            connection: 'account',
+            connection: 'instance',
             connections,
             task: null,
             busy: false,
