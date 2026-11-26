@@ -1,8 +1,10 @@
 # 任务计划：阅纹
 
-更新日期：2026-11-21。
+更新日期：2026-11-26。
 
 ## 当前阶段
+
+官网与 PC 双端视觉美化：complete。同步美化 `site/` 官网文档与 `web/` PC 应用并收敛设计系统，已通过静态检查、双端构建与浏览器关键页面复验，见[质量记录](docs/quality-log.md#impeccable-refresh-2026-11-26)。
 
 官网与公开说明文档：complete。主专题：[官网与说明文档](docs/plans/website.md)。同一个 Astro 项目提供官网和 `/docs/`，已通过本地构建与桌面 Chrome 关键流程验收。
 

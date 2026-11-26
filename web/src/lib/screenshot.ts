@@ -29,9 +29,13 @@ export async function capturePage(visible: boolean, signal: AbortSignal): Promis
       'input, textarea, select, [contenteditable], [data-feedback-private]',
     )
     .forEach((node) => {
+      const rootStyle = getComputedStyle(document.documentElement)
+      const maskBg = rootStyle.getPropertyValue('--muted').trim() || '#eaf0eb'
+      const maskFg = rootStyle.getPropertyValue('--foreground').trim() || '#252d29'
+      const maskBorder = rootStyle.getPropertyValue('--border').trim() || '#dce2dc'
       const mask = document.createElement('span')
       mask.textContent = '［已隐藏］'
-      mask.style.cssText = 'display:inline-block;padding:8px;background:#ddd;color:#333'
+      mask.style.cssText = `display:inline-block;padding:6px 10px;border-radius:6px;border:1px solid ${maskBorder};background:${maskBg};color:${maskFg}`
       node.replaceWith(mask)
     })
   const frame = document.createElement('div')

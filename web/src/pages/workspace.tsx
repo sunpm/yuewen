@@ -5,7 +5,7 @@ import {
   type ReadingReport,
   shanghaiDate,
 } from '@shared/report'
-import { Download, Search } from 'lucide-react'
+import { Copy, Download, Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router'
 import { MonthDetail, NoteDensity, TimeInsights } from '@/components/report-insights'
@@ -145,22 +145,30 @@ export default function Workspace() {
   return (
     <>
       <div className="collection-status">
-        {import.meta.env.DEV && location.pathname.replace(/\/+$/, '') === '/demo' && (
-          <Link
-            className="text-link"
-            to={
-              reading.development
-                ? `/demo?source=mock&range=${reading.range}`
-                : `/demo?source=development&range=${reading.range}`
-            }
-          >
-            {reading.development ? '切换模拟示例' : '使用本地开发来源'}
-          </Link>
-        )}
-        <p role="status">
-          {source}
-          {!reading.sample && ` · ${status}`}
-        </p>
+        <div className="collection-status-info">
+          {import.meta.env.DEV && location.pathname.replace(/\/+$/, '') === '/demo' && (
+            <Link
+              className="text-link"
+              to={
+                reading.development
+                  ? `/demo?source=mock&range=${reading.range}`
+                  : `/demo?source=development&range=${reading.range}`
+              }
+            >
+              {reading.development ? '切换模拟示例' : '使用本地开发来源'}
+            </Link>
+          )}
+          <p role="status" className="collection-status-line">
+            <span
+              className={`status-dot${reading.busy ? ' is-busy' : reading.sample ? ' is-sample' : reading.task?.status === 'failed' ? ' is-error' : reading.task?.status === 'completed' ? ' is-ready' : ''}`}
+              aria-hidden="true"
+            />
+            <span>
+              {source}
+              {!reading.sample && ` · ${status}`}
+            </span>
+          </p>
+        </div>
         {!reading.sample && (
           <div className="connection-actions">
             {reading.valid && !reading.saving && (
@@ -661,7 +669,7 @@ export function WorkspaceContent({
             ))}
           </section>
           <div className="overview-grid">
-            <div>
+            <div className="overview-main">
               {monthlyModule && (
                 <ReportModule
                   module={monthlyModule}
@@ -677,8 +685,10 @@ export function WorkspaceContent({
               </Link>
             </div>
             <section className="portrait-panel">
-              <p className="eyebrow">阅读画像</p>
-              <h2>{report.portrait.title}</h2>
+              <div className="portrait-head">
+                <h2>{report.portrait.title}</h2>
+                <span className="portrait-seal">阅读画像</span>
+              </div>
               <p>{report.portrait.text}</p>
               <details className="method-details">
                 <summary>查看画像依据</summary>
@@ -699,9 +709,12 @@ export function WorkspaceContent({
           <div className="book-grid">{books.slice(0, 4).map(bookCard)}</div>
           {report.portrait.quote && (
             <section className="quote-panel">
-              <span className="eyebrow">
-                划线回顾{report.portrait.quote.demoText && ' · 演示文本'}
-              </span>
+              <div className="quote-panel-head">
+                <h3>划线回顾{report.portrait.quote.demoText && ' · 演示文本'}</h3>
+                <span className="portrait-seal" aria-hidden="true">
+                  书摘
+                </span>
+              </div>
               <blockquote>{report.portrait.quote.text}</blockquote>
               <p>
                 {[
@@ -917,12 +930,15 @@ export function WorkspaceContent({
                     <p>{note.abstract}</p>
                   </div>
                 )}
-                <p className="note-source">
-                  《{note.title}》 · {note.author} · {note.chapter}
-                </p>
-                <Button variant="ghost" onClick={() => void copyNote(note.text)}>
-                  复制笔记
-                </Button>
+                <div className="note-footer">
+                  <p className="note-source">
+                    《{note.title}》 · {note.author} · {note.chapter}
+                  </p>
+                  <Button variant="ghost" onClick={() => void copyNote(note.text)}>
+                    <Copy size={14} aria-hidden="true" />
+                    复制笔记
+                  </Button>
+                </div>
               </article>
             ))}
           </div>

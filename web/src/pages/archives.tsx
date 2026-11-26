@@ -2,6 +2,7 @@ import { api } from '@client/api'
 import { ARCHIVE_LIMIT, type ArchivedReport, type ArchiveSummary } from '@shared/archive'
 import { duration } from '@shared/report'
 import { useQuery } from '@tanstack/react-query'
+import { Archive, ArrowLeft, ArrowRight, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -95,7 +96,11 @@ export default function Archives() {
     }
   }
   if (connections.isFetching || (enabled && (id ? detail.isPending : list.isPending)))
-    return <p role="status">正在读取历史报告…</p>
+    return (
+      <p className="route-loading" role="status">
+        正在读取历史报告…
+      </p>
+    )
   if (currentError)
     return (
       <section className="empty-state">
@@ -146,19 +151,29 @@ export default function Archives() {
       )
     return (
       <>
-        <div className="archive-heading">
-          <Link className="text-link" to="/archives">
-            返回历史报告
-          </Link>
-          <p>
-            保存于 {date(saved.createdAt)} · {saved.includeNotes ? '含笔记正文' : '未存笔记正文'}
+        <div className="data-panel archive-banner">
+          <div className="archive-heading">
+            <Link className="text-link" to="/archives">
+              <ArrowLeft size={15} aria-hidden="true" />
+              返回历史报告
+            </Link>
+            <div className="archive-chips">
+              <span className="archive-chip">保存于 {date(saved.createdAt)}</span>
+              <span className="archive-chip">
+                {saved.includeNotes ? '含笔记正文' : '未存笔记正文'}
+              </span>
+              <span className="archive-chip">
+                {saved.sourceStatus === 'completed' && saved.coverage.complete
+                  ? '采集完成'
+                  : '部分数据'}
+              </span>
+            </div>
+          </div>
+          <p className="archive-banner-meta">
+            采集于 {date(saved.generatedAt)} · 笔记覆盖 {saved.coverage.loaded} /{' '}
+            {saved.coverage.expected ?? '未知'} 本 · 只读快照
           </p>
         </div>
-        <p className="result-count">
-          采集于 {date(saved.generatedAt)} ·{' '}
-          {saved.sourceStatus === 'completed' && saved.coverage.complete ? '采集完成' : '部分数据'}{' '}
-          · 笔记覆盖 {saved.coverage.loaded} / {saved.coverage.expected ?? '未知'} 本
-        </p>
         <WorkspaceContent
           key={`${context}:${saved.id}:${location.key}`}
           report={saved.report}
@@ -182,14 +197,24 @@ export default function Archives() {
       </>
     )
   }
+
+  const count = list.data?.items.length ?? 0
+  const limit = list.data?.limit ?? ARCHIVE_LIMIT
+  const ratio = Math.min(100, Math.round((count / Math.max(1, limit)) * 100))
+
   return (
     <section className="archive-page">
-      <div className="section-heading">
-        <h2>
-          已保存 {list.data?.items.length ?? 0} / {list.data?.limit ?? ARCHIVE_LIMIT} 份
-        </h2>
+      <div className="archive-summary-bar">
+        <div className="archive-quota">
+          <h2>
+            已保存 {count} / {limit} 份
+          </h2>
+          <div className="quota-track" aria-hidden="true">
+            <span style={{ width: `${ratio}%` }} />
+          </div>
+        </div>
         <Link className="text-link" to="/overview">
-          查看当前报告
+          查看当前报告 <ArrowRight size={14} aria-hidden="true" />
         </Link>
       </div>
       {error && (
@@ -197,32 +222,55 @@ export default function Archives() {
           {error}
         </p>
       )}
-      {!list.data?.items.length && (
-        <p className="empty-state">还没有存档。在报告中选择“保存报告”即可保留快照。</p>
+      {!count && (
+        <div className="empty-state archive-empty">
+          <Archive size={28} strokeWidth={1.6} aria-hidden="true" />
+          <p>还没有存档。在报告页面中展开「保存报告」，即可保留一份独立快照。</p>
+          <div className="welcome-actions">
+            <Button variant="outline" asChild>
+              <Link to="/overview">前往当前报告</Link>
+            </Button>
+            <Button variant="ghost" asChild>
+              <Link to="/demo">查看示例报告</Link>
+            </Button>
+          </div>
+        </div>
       )}
       <div className="archive-list">
         {list.data?.items.map((saved) => (
-          <article key={saved.id} className="archive-row">
-            <div>
-              <h3>
-                <Link className="text-link" to={`/archives/${saved.id}`}>
-                  {saved.range.label} · {saved.range.start || '起始日期未知'} — {saved.range.end}
-                </Link>
-              </h3>
-              <p>
-                {duration(saved.summary.seconds)} · {saved.summary.shelfCount ?? '未知'} 项书架记录
-                · {saved.includeNotes ? '含笔记正文' : '未存笔记正文'}
-                {saved.sourceStatus !== 'completed' || !saved.coverage.complete
-                  ? ' · 部分数据'
-                  : ''}
-              </p>
+          <article key={saved.id} className="data-panel archive-row">
+            <div className="archive-row-main">
+              <div className="archive-row-title">
+                <span className="archive-tag">{saved.range.label}</span>
+                <h3>
+                  <Link className="text-link" to={`/archives/${saved.id}`}>
+                    {saved.range.start || '起始日期未知'} — {saved.range.end}
+                  </Link>
+                </h3>
+              </div>
+              <div className="archive-chips">
+                <span className="archive-chip">{duration(saved.summary.seconds)}</span>
+                <span className="archive-chip">
+                  {saved.summary.shelfCount ?? '未知'} 项书架记录
+                </span>
+                <span className="archive-chip">
+                  {saved.includeNotes ? '含笔记正文' : '未存笔记正文'}
+                </span>
+                {(saved.sourceStatus !== 'completed' || !saved.coverage.complete) && (
+                  <span className="archive-chip is-partial">部分数据</span>
+                )}
+              </div>
               <time dateTime={saved.createdAt}>保存于 {date(saved.createdAt)}</time>
             </div>
             <div className="connection-actions">
               {confirmation === saved.id ? (
                 <>
-                  <span>删除这份存档？</span>
-                  <Button disabled={action.isPending} onClick={() => void remove(saved.id)}>
+                  <span className="muted-copy">删除这份存档？</span>
+                  <Button
+                    variant="destructive"
+                    disabled={action.isPending}
+                    onClick={() => void remove(saved.id)}
+                  >
                     确认删除
                   </Button>
                   <Button
@@ -234,13 +282,19 @@ export default function Archives() {
                   </Button>
                 </>
               ) : (
-                <Button
-                  variant="ghost"
-                  disabled={action.isPending}
-                  onClick={() => setConfirmation(saved.id)}
-                >
-                  删除
-                </Button>
+                <>
+                  <Button variant="outline" asChild>
+                    <Link to={`/archives/${saved.id}`}>打开</Link>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    disabled={action.isPending}
+                    onClick={() => setConfirmation(saved.id)}
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                    删除
+                  </Button>
+                </>
               )}
             </div>
           </article>

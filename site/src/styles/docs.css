@@ -1,17 +1,46 @@
 @import './brand.css';
 
 :root {
+  --sl-font: 'PingFang SC', system-ui, -apple-system, sans-serif;
+  --sl-font-system: 'PingFang SC', system-ui, -apple-system, sans-serif;
+  --sl-color-bg: var(--paper);
+  --sl-color-bg-nav: var(--paper);
+  --sl-color-bg-sidebar: #18201c;
+  --sl-color-bg-inline-code: var(--muted);
+  --sl-color-hairline: var(--line);
+  --sl-color-hairline-light: var(--line);
+  --sl-color-hairline-shade: var(--line);
+  --sl-color-text: var(--ink);
+  --sl-color-text-accent: var(--pine);
   --sl-color-accent-low: #27372d;
   --sl-color-accent: #99c9af;
   --sl-color-accent-high: #c6e4d3;
-  --sl-font-system: system-ui, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 :root[data-theme='light'] {
+  --sl-color-bg: var(--paper);
+  --sl-color-bg-nav: var(--paper);
+  --sl-color-bg-sidebar: #f1f4ef;
+  --sl-color-bg-inline-code: var(--muted);
+  --sl-color-hairline: var(--line);
+  --sl-color-hairline-light: var(--line);
+  --sl-color-hairline-shade: var(--line);
+  --sl-color-text: var(--ink);
+  --sl-color-text-accent: var(--pine);
   --sl-color-accent-low: #eaf0eb;
   --sl-color-accent: var(--pine);
   --sl-color-accent-high: #224434;
-  --sl-color-bg-nav: var(--paper);
+}
+
+html {
+  caret-color: var(--pine);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+::selection {
+  background: var(--pine);
+  color: var(--on-pine);
 }
 
 .site-title,
@@ -19,4 +48,17 @@ main h1,
 .sl-markdown-content :is(h2, h3) {
   font-family: var(--reading-font);
   font-weight: 400;
+  text-wrap: balance;
+}
+
+.sl-markdown-content p,
+.sl-markdown-content li {
+  line-height: 1.8;
+  text-wrap: pretty;
+}
+
+.sl-markdown-content blockquote {
+  border-inline-start: 1px solid var(--brass);
+  padding-inline-start: 1rem;
+  color: var(--soft-ink);
 }
