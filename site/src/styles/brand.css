@@ -2,15 +2,52 @@
   font-family: '阅纹文楷';
   src: url('../../../web/public/fonts/LXGWWenKaiLite-Regular-pc.woff2') format('woff2');
   font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '阅纹文楷';
+  src: url('../../../web/public/fonts/LXGWWenKaiLite-Medium-pc.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
   font-display: swap;
 }
 
 :root {
-  --pine: #285c49;
-  --ink: #252d29;
   --paper: #f8f9f6;
-  --brass: #896b38;
+  --surface: #ffffff;
+  --muted: #eaf0eb;
+  --muted-hover: #dde6df;
+  --ink: #252d29;
   --soft-ink: #606d65;
+  --pine: #285c49;
+  --pine-hover: #204c3c;
+  --on-pine: #ffffff;
+  --brass: #896b38;
   --line: #dce2dc;
+  --line-strong: #b8c5bc;
+  --still-bg: linear-gradient(128deg, #edf2ec 0%, #dce6dd 62%, #e6ece3 100%);
+  --card-shadow: 0 18px 40px -24px rgb(37 45 41 / 16%), 0 2px 8px -2px rgb(37 45 41 / 6%);
   --reading-font: '阅纹文楷', 'Kaiti SC', 'KaiTi', 'Songti SC', serif;
+  color-scheme: light;
+}
+
+:root.dark,
+:root[data-theme='dark'] {
+  --paper: #141a17;
+  --surface: #1c2420;
+  --muted: #27372d;
+  --muted-hover: #304438;
+  --ink: #e7ece8;
+  --soft-ink: #abb9af;
+  --pine: #99c9af;
+  --pine-hover: #b2dac4;
+  --on-pine: #141a17;
+  --brass: #ccb480;
+  --line: #35443b;
+  --line-strong: #495d51;
+  --still-bg: linear-gradient(128deg, #1b2520 0%, #223029 62%, #18211c 100%);
+  --card-shadow: 0 20px 44px -22px rgb(0 0 0 / 55%), 0 2px 10px -2px rgb(0 0 0 / 35%);
+  color-scheme: dark;
 }

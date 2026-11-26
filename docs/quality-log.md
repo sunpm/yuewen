@@ -1,5 +1,20 @@
 # 开发验证记录
 
+<a id="impeccable-refresh-2026-11-26"></a>
+
+## 2026-11-26 · 官网与 PC 双端视觉美化
+
+- 范围：官网与文档（`site/src/pages/index.astro`、`site/src/styles/brand.css`、`site/src/styles/home.css`、`site/src/styles/docs.css`、`site/public/favicon-dark.svg`）及 React PC 应用（`web/src/pages/home.tsx`、`settings.tsx`、`archives.tsx`、`workspace.tsx`、`web/src/components/ui/button.tsx`、`web/src/lib/screenshot.ts`、`web/src/styles.css`、`DESIGN.md`）。不涉及已冻结 H5、后端数据契约或测试代码改动。
+- 静态与构建验证：
+  - `biome check .`（30 个文件）、`eslint .`、`vue-tsc --noEmit`、`tsc --noEmit -p tsconfig.react.json` 均零错误通过。
+  - `vitest run`：同步锁定依赖（补齐 `jose`、`wrangler` 等）后，全部 4 个测试文件、27/27 用例通过（`data` 10、`access` 4、`input` 1、`security` 12）。
+  - `vite build`（输出 PC `dist/`）、`vite build --config vite.mobile.config.ts`（输出 H5 `dist/m/`）、`ASTRO_TELEMETRY_DISABLED=1 ./site/node_modules/.bin/astro build --root site`（输出 7 页与 Pagefind 中文搜索索引）及 `wrangler deploy --dry-run`（Worker 181.05 KiB / gzip 48.13 KiB 与 57 个静态资产）均通过。
+  - `impeccable detect --json web/src site/src`：退出码 0，0 warning、0 slop；仅余 `DESIGN.md` 已记录的 `clamp(36px, 4.5vw, 64px)` 与 `clamp(22px, 2.2vw, 32px)` 两条流体字号端点 advisory。
+- 本地浏览器验收（Chrome 内置浏览器工具，`1440×900` 与 `760×900`）：
+  - 官网（`http://127.0.0.1:4321/` 与 `/docs/`）：浅色及深色主题切换正常，`/favicon-dark.svg` 加载无误；首屏立体年鉴、示例三标签页与指南列表无横向溢出（`1429 ≤ 1440`、`749 ≤ 760`）；首轮发现 `#sample` 左侧 `299.1 小时` 单位折行，改为 `flex-wrap` + `white-space: nowrap` 后重建复验为单行对齐。
+  - PC 应用（`http://127.0.0.1:4173/`）：首页双栏案头预览、`/demo` 概览（含“下载报告”浮层）、`深度报告`、`我的书架`、`阅读笔记`、`/settings`、`/archives` 在浅色与深色 `1440×900` 及 `760×900` 下均无横向溢出；修复冷加载时首页小书封图片 `loading="lazy"` 延迟及 `.book-cover::after` 书脊光影叠加，并调整笔记页 `.note-footer` 底部出处与“复制笔记”左右对齐，重建后均在 `1440×900` 下复验通过。
+  - 验收限制：本次预览未启动后端 API 服务，`/settings` 与 `/archives` 在浏览器中看到的是预期连接失败（`/api/connections` HTTP 500）及居中错误恢复状态，未实测真实实例连接成功、实际保存/删除存档与完整键盘/读屏/手机端窄宽矩阵。验收后已停止两个本地预览进程。
+
 <a id="website-2026-11-21"></a>
 
 ## 2026-11-21 · 官网与公开文档
